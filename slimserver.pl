@@ -14,6 +14,28 @@
 require 5.008_001;
 use strict;
 
+# Bug 7491 - bug in PerlSvc: ARGV is not populated when executable is run in service mode.
+# Try to work around this limitation by reading the command line from the registry. Ugh...
+BEGIN {
+	if ($PerlSvc::VERSION && $^O =~ /^m?s?win/i && !@ARGV) {
+		eval {
+			require Win32::TieRegistry;
+			my $swKey = $Win32::TieRegistry::Registry->Open(
+				'LMachine/System/ControlSet001/services/squeezesvc', 
+				{ 
+					Access => Win32::TieRegistry::KEY_READ(), 
+					Delimiter =>'/' 
+				}
+			);
+			
+			if ($swKey) {
+				push @ARGV, split(" ", $swKey->{ImagePath});
+				shift @ARGV;	# remove script name
+			}
+		};
+	}
+}
+
 # leaving this flag in for the moment - unlikely but possibly some 3rd party plugin is referring to it
 use constant SLIM_SERVICE => 0;
 use constant SCANNER      => 0;
@@ -26,6 +48,7 @@ use constant STATISTICS   => ( grep { /--nostatistics/ } @ARGV ) ? 0 : 1;
 use constant SB1SLIMP3SYNC=> ( grep { /--nosb1slimp3sync/ } @ARGV ) ? 0 : 1;
 use constant WEBUI        => ( grep { /--noweb/ } @ARGV ) ? 0 : 1;
 use constant NOUPNP       => ( grep { /--noupnp/ } @ARGV ) ? 1 : 0;
+use constant NOMYSB       => ( grep { /--nomysqueezebox/ } @ARGV ) ? 1 : 0;
 use constant IMAGE        => ( grep { /--noimage/ } @ARGV ) ? 0 : !NOUPNP;
 use constant VIDEO        => ( grep { /--novideo/ } @ARGV ) ? 0 : !NOUPNP;
 use constant ISWINDOWS    => ( $^O =~ /^m?s?win/i ) ? 1 : 0;
@@ -52,6 +75,7 @@ sub Startup {
 	# Tell PerlSvc to bundle these modules
 	if (0) {
 		require 'auto/Compress/Raw/Zlib/autosplit.ix';
+		require Cache::FileCache;
 	}
 	
 	# added to workaround a problem with 5.8 and perlsvc.
@@ -238,13 +262,13 @@ use Slim::Utils::Scanner::Local;
 use Slim::Utils::Scheduler;
 use Slim::Networking::Async::DNS;
 use Slim::Networking::Select;
-use Slim::Networking::SqueezeNetwork;
 use Slim::Networking::UDP;
 use Slim::Control::Stdio;
 use Slim::Utils::Strings qw(string);
 use Slim::Utils::Timers;
 use Slim::Networking::Slimproto;
 use Slim::Networking::SimpleAsyncHTTP;
+use Slim::Networking::Repositories;
 use Slim::Utils::Firmware;
 use Slim::Control::Jive;
 use Slim::Formats::RemoteMetadata;
@@ -490,8 +514,14 @@ sub init {
 	Slim::Networking::Async::HTTP->init;
 	Slim::Networking::SimpleAsyncHTTP->init;
 	
-	main::INFOLOG && $log->info("SqueezeNetwork Init...");
-	Slim::Networking::SqueezeNetwork->init();
+	if (!main::NOMYSB) {
+		main::INFOLOG && $log->info("SqueezeNetwork Init...");
+		require Slim::Networking::SqueezeNetwork;
+		Slim::Networking::SqueezeNetwork->init();
+	}
+	
+	main::INFOLOG && $log->info("Download repositories init...");
+	Slim::Networking::Repositories->init();
 	
 	main::INFOLOG && $log->info("Firmware init...");
 	Slim::Utils::Firmware->init;
@@ -634,7 +664,7 @@ sub init {
 		Slim::Utils::PerfMon->init($perfwarn);
 	}
 
-	if ( $prefs->get('checkVersion') ) {
+	if ( $REVISION =~ /^\s*\d+\s*$/ && $prefs->get('checkVersion') ) {
 		require Slim::Utils::Update;
 		Slim::Utils::Timers::setTimer(
 			undef,
@@ -791,6 +821,8 @@ Usage: $0 [--diag] [--daemon] [--stdio]
     --noimage        => Disable scanning for images.
     --novideo        => Disable scanning for videos.
     --noupnp         => Disable UPnP subsystem
+    --nomysqueezebox => Disable mysqueezebox.com integration.
+                        Warning: This effectively disables all music services provided by Logitech apps.
     --nobrowsecache  => Disable caching of rendered browse pages.
     --perfmon        => Enable internal server performance monitoring
     --perfwarn       => Generate log messages if internal tasks take longer than specified threshold

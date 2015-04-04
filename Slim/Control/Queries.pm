@@ -309,23 +309,17 @@ sub albumsQuery {
 	else {
 		if (specified($search)) {
 			if ( Slim::Schema->canFulltextSearch ) {
-				my $tokens = Slim::Plugin::FullTextSearch::Plugin->parseSearchTerm($search, 'album');
-				
-				Slim::Schema->dbh->do("DROP TABLE IF EXISTS albumsSearch");
-				
-				my $albumsSearchSQL = "CREATE TEMPORARY TABLE albumsSearch AS SELECT id, FULLTEXTWEIGHT(matchinfo(fulltext)) AS fulltextweight FROM fulltext WHERE fulltext MATCH 'type:album $tokens'";
-				if ( main::DEBUGLOG && $sqllog->is_debug ) {
-					$sqllog->debug( "Albums fulltext search temporary table query: $albumsSearchSQL" );
-				}
-				
-				Slim::Schema->dbh->do($albumsSearchSQL);
+				Slim::Plugin::FullTextSearch::Plugin->createHelperTable({
+					name   => 'albumsSearch',
+					search => $search,
+					type   => 'album',
+				});
 				
 				$sql = 'SELECT %s FROM albumsSearch, albums ';
 				unshift @{$w}, "albums.id = albumsSearch.id";
 				
 				if ($tags ne 'CC') {
-					$c->{'albumsSearch.fulltextweight'};
-					$order_by = $sort = "albumsSearch.fulltextweight DESC";
+					$order_by = $sort = "albumsSearch.fulltextweight DESC, LENGTH(albums.titlesearch)";
 				}
 			}
 			else {
@@ -595,7 +589,7 @@ sub albumsQuery {
 	
 	# Add selected columns
 	# Bug 15997, AS mapping needed for MySQL
-	my @cols = keys %{$c};
+	my @cols = sort keys %{$c};
 	$sql = sprintf $sql, join( ', ', map { $_ . " AS '" . $_ . "'" } @cols );
 	
 	my $stillScanning = Slim::Music::Import->stillScanning();
@@ -687,7 +681,7 @@ sub albumsQuery {
 			);
 		};
 
-		my ($contributorSql, $contributorSth);
+		my ($contributorSql, $contributorSth, $contributorNameSth);
 		if ( $tags =~ /(?:aa|SS)/ ) {
 			my @roles = ( 'ARTIST', 'ALBUMARTIST' );
 			
@@ -715,7 +709,6 @@ sub albumsQuery {
 		while ( $sth->fetch ) {
 			
 			utf8::decode( $c->{'albums.title'} ) if exists $c->{'albums.title'};
-			utf8::decode( $c->{'contributors.name'} ) if exists $c->{'contributors.name'};
 			
 			$request->addResultLoop($loopname, $chunkCount, 'id', $c->{'albums.id'});				
 			$tags =~ /l/ && $request->addResultLoop($loopname, $chunkCount, 'album', $construct_title->());
@@ -735,8 +728,12 @@ sub albumsQuery {
 				# Bug 17542: If the album artist is different from the current track's artist,
 				# use the album artist instead of the track artist (if available)
 				if ($contributorID && $c->{'albums.contributor'} && $contributorID != $c->{'albums.contributor'}) {
-					$c->{'contributors.name'} = Slim::Schema->find('Contributor', $c->{'albums.contributor'})->name || $c->{'contributors.name'};
+					$contributorNameSth ||= $dbh->prepare_cached('SELECT name FROM contributors WHERE id = ?');
+					my ($name) = @{ $dbh->selectcol_arrayref($contributorNameSth, undef, $c->{'albums.contributor'}) };
+					$c->{'contributors.name'} = $name if $name;
 				}
+
+				utf8::decode( $c->{'contributors.name'} ) if exists $c->{'contributors.name'};
 
 				$request->addResultLoopIfValueDefined($loopname, $chunkCount, 'artist', $c->{'contributors.name'});
 			}
@@ -779,8 +776,6 @@ sub albumsQuery {
 		}
 
 	}
-
-	Slim::Schema->dbh->do("DROP TABLE IF EXISTS albumsSearch") if $search && Slim::Schema->canFulltextSearch;
 
 	$request->addResult('count', $count);
 
@@ -848,21 +843,17 @@ sub artistsQuery {
 	}
 	else {
 		if ( $search && Slim::Schema->canFulltextSearch ) {
-			my $tokens = Slim::Plugin::FullTextSearch::Plugin->parseSearchTerm($search, 'contributor');
-
-			Slim::Schema->dbh->do("DROP TABLE IF EXISTS artistsSearch");
-
-			my $artistsSearchSQL = "CREATE TEMPORARY TABLE artistsSearch AS SELECT id, FULLTEXTWEIGHT(matchinfo(fulltext)) AS fulltextweight FROM fulltext WHERE fulltext MATCH 'type:contributor $tokens'";
-			if ( main::DEBUGLOG && $sqllog->is_debug ) {
-				$sqllog->debug( "Artists fulltext search temporary table query: $artistsSearchSQL" );
-			}
-			Slim::Schema->dbh->do($artistsSearchSQL);
+			Slim::Plugin::FullTextSearch::Plugin->createHelperTable({
+				name   => 'artistsSearch',
+				search => $search,
+				type   => 'contributor',
+			});
 			
 			$sql = 'SELECT %s FROM artistsSearch, contributors ';
 			unshift @{$w}, "contributors.id = artistsSearch.id";
 			
 			if ($tags ne 'CC') {
-				$sort = "artistsSearch.fulltextweight DESC, $sort";
+				$sort = "artistsSearch.fulltextweight DESC, LENGTH(contributors.name), $sort";
 			}
 		}
 
@@ -1145,8 +1136,6 @@ sub artistsQuery {
 		}
 		
 	}
-
-	Slim::Schema->dbh->do("DROP TABLE IF EXISTS artistsSearch") if $search && Slim::Schema->canFulltextSearch;
 	
 	$request->addResult('indexList', $indexList) if $indexList;
 
@@ -2139,8 +2128,8 @@ sub mediafolderQuery {
 					my $itemDetails = $sth->fetchrow_hashref;
 					
 					if ($type eq 'video') {
-						while ( my ($k, $v) = each(%$itemDetails) ) {
-							$itemDetails->{"videos.$k"} = $v if $k !~ /^videos\./;
+						foreach my $k (keys $itemDetails) {
+							$itemDetails->{"videos.$k"} = $itemDetails->{$k} unless $k =~ /^videos\./;
 						}
 						
 						_videoData($request, $loopname, $chunkCount, $tags, $itemDetails);
@@ -2150,8 +2139,8 @@ sub mediafolderQuery {
 						utf8::decode( $itemDetails->{'images.title'} ) if exists $itemDetails->{'images.title'};
 						utf8::decode( $itemDetails->{'images.album'} ) if exists $itemDetails->{'images.album'};
 
-						while ( my ($k, $v) = each(%$itemDetails) ) {
-							$itemDetails->{"images.$k"} = $v if $k !~ /^images\./;
+						foreach my $k (keys $itemDetails) {
+							$itemDetails->{"images.$k"} = $itemDetails->{$k} unless $k =~ /^images\./;
 						}
 						_imageData($request, $loopname, $chunkCount, $tags, $itemDetails);
 					}
@@ -2951,26 +2940,21 @@ sub searchQuery {
 		
 		my $sql;
 		
+		# we don't have a full text index for genres
 		my $canFulltextSearch = $type ne 'genre' && Slim::Schema->canFulltextSearch;
 
-		# we don't have a full text index for genres
 		if ( $canFulltextSearch ) {
-			my ($tokens, $isLarge) = Slim::Plugin::FullTextSearch::Plugin->parseSearchTerm($search, $type);
-
-			# when dealing with large data sets, only return a sub-set of search results
-			my $orderOrLimit = ($isLarge && $isLarge > ($index + $quantity)) ? ('LIMIT ' . $isLarge) : '';
-
-			$dbh->do("DROP TABLE IF EXISTS quickSearch");
-
-			my $quickSearchSQL = "CREATE TEMPORARY TABLE quickSearch AS SELECT FULLTEXTWEIGHT(matchinfo(fulltext)) w, id FROM fulltext WHERE fulltext MATCH 'type:$type $tokens' $orderOrLimit";
-			if ( main::DEBUGLOG ) {
-				my $sqllog = logger('database.sql');
-				$sqllog->is_debug && $sqllog->debug( "Quicksearch temporary fulltext table query: $quickSearchSQL" );
-			}
+			Slim::Plugin::FullTextSearch::Plugin->createHelperTable({
+				name   => 'quickSearch',
+				search => $search,
+				type   => $type,
+				checkLargeResultset => sub {
+					my $isLarge = shift;
+					return ($isLarge && $isLarge > ($index + $quantity)) ? ('LIMIT ' . $isLarge) : '';
+				},
+			});
 			
-			$dbh->do($quickSearchSQL);
-			
-			$sql = "SELECT $cols, quickSearch.w FROM quickSearch, ${type}s me ";
+			$sql = "SELECT $cols, quickSearch.fulltextweight FROM quickSearch, ${type}s me ";
 			unshift @{$w}, "me.id = quickSearch.id";
 		}
 		else {
@@ -3033,7 +3017,7 @@ sub searchQuery {
 		if ($valid) {
 			$request->addResult("${type}s_count", $count);
 
-			$sql .= "ORDER BY quickSearch.w DESC " if $canFulltextSearch;
+			$sql .= "ORDER BY quickSearch.fulltextweight DESC " if $canFulltextSearch;
 			
 			# Limit the real query
 			$sql .= "LIMIT ?,?";
@@ -3279,37 +3263,39 @@ sub serverstatusQuery {
 
 	}
 
-	# return list of players connected to SN
-	my @sn_players = Slim::Networking::SqueezeNetwork::Players->get_players();
-
-	$count = scalar @sn_players || 0;
-
-	$request->addResult('sn player count', $count);
-
-	($valid, $start, $end) = $request->normalize(scalar($index), scalar($quantity), $count);
-
-	if ($valid) {
-
-		my $sn_cnt = 0;
-			
-		for my $player ( @sn_players ) {
-			$request->addResultLoop(
-				'sn_players_loop', $sn_cnt, 'id', $player->{id}
-			);
-			
-			$request->addResultLoop( 
-				'sn_players_loop', $sn_cnt, 'name', $player->{name}
-			);
-			
-			$request->addResultLoop(
-				'sn_players_loop', $sn_cnt, 'playerid', $player->{mac}
-			);
-			
-			$request->addResultLoop(
-				'sn_players_loop', $sn_cnt, 'model', $player->{model}
-			);
+	if (!main::NOMYSB) {
+		# return list of players connected to SN
+		my @sn_players = Slim::Networking::SqueezeNetwork::Players->get_players();
+	
+		$count = scalar @sn_players || 0;
+	
+		$request->addResult('sn player count', $count);
+	
+		($valid, $start, $end) = $request->normalize(scalar($index), scalar($quantity), $count);
+	
+		if ($valid) {
+	
+			my $sn_cnt = 0;
 				
-			$sn_cnt++;
+			for my $player ( @sn_players ) {
+				$request->addResultLoop(
+					'sn_players_loop', $sn_cnt, 'id', $player->{id}
+				);
+				
+				$request->addResultLoop( 
+					'sn_players_loop', $sn_cnt, 'name', $player->{name}
+				);
+				
+				$request->addResultLoop(
+					'sn_players_loop', $sn_cnt, 'playerid', $player->{mac}
+				);
+				
+				$request->addResultLoop(
+					'sn_players_loop', $sn_cnt, 'model', $player->{model}
+				);
+					
+				$sn_cnt++;
+			}
 		}
 	}
 
@@ -3849,24 +3835,32 @@ sub statusQuery {
 				$start += 0;
 				$request->addResult('offset', $request->getParam('_index')) if $menuMode;
 				
-				my @tracks = Slim::Player::Playlist::songs($client, $start, $end);
-				
-				# Slice and map playlist to get only the requested IDs
-				my @trackIds = grep (defined $_, map { (!defined $_ || $_->remote) ? undef : $_->id } @tracks);
+				my (@tracks, @trackIds);
+				foreach my $track ( Slim::Player::Playlist::songs($client, $start, $end) ) {
+					next unless defined $track;
+					
+					if ( $track->remote ) {
+						push @tracks, $track;
+					}
+					else {
+						push @tracks, $track->id;
+						push @trackIds, $tracks[-1];
+					}
+				}
 				
 				# get hash of tagged data for all tracks
 				my $songData = _getTagDataForTracks( $tags, {
 					trackIds => \@trackIds,
 				} ) if scalar @trackIds;
 				
+				# no need to use Tie::IxHash to preserve order when we return JSON Data
+				my $fast = ($request->source && $request->source =~ m{/slim/request\b|JSONRPC}) ? 1 : 0;
+				
+				# Slice and map playlist to get only the requested IDs
 				$idx = $start;
 				foreach( @tracks ) {
-					# XXX - need to resolve how we get here in the first place
-					# should not need this:
-					next if !defined $_;
-
 					# Use songData for track, if remote use the object directly
-					my $data = $_->remote ? $_ : $songData->{$_->id};
+					my $data = ref $_ ? $_ : $songData->{$_};
 
 					# 17352 - when the db is not fully populated yet, and a stored player playlist
 					# references a track not in the db yet, we can fail
@@ -3882,7 +3876,7 @@ sub statusQuery {
 					else {
 						_addSong(	$request, $loop, $count, 
 									$data, $tags,
-									'playlist index', $idx
+									'playlist index', $idx, $fast
 								);
 					}
 
@@ -4157,8 +4151,8 @@ sub titlesQuery {
 		}
 	}
 	
-	$tags .= 'R' if $search =~ /tracks_persistent\.rating/ && $tags !~ /R/;
-	$tags .= 'O' if $search =~ /tracks_persistent\.playcount/ && $tags !~ /O/;
+	$tags .= 'R' if $search && $search =~ /tracks_persistent\.rating/ && $tags !~ /R/;
+	$tags .= 'O' if $search && $search =~ /tracks_persistent\.playcount/ && $tags !~ /O/;
 	
 	my $stillScanning = Slim::Music::Import->stillScanning();
 	
@@ -4475,14 +4469,20 @@ sub _addSong {
 	my $tags      = shift; # tags to use
 	my $prefixKey = shift; # prefix key, if any
 	my $prefixVal = shift; # prefix value, if any   
-
+	my $fast      = shift;
+	
 	# get the hash with the data	
-	my $hashRef = _songData($request, $pathOrObj, $tags);
+	my $hashRef = _songData($request, $pathOrObj, $tags, $fast);
 	
 	# add the prefix in the first position, use a fancy feature of
 	# Tie::LLHash
 	if (defined $prefixKey && defined $hashRef) {
-		(tied %{$hashRef})->Unshift($prefixKey => $prefixVal);
+		if ($fast) {
+			$hashRef->{$prefixKey} = $prefixVal;
+		}
+		else {
+			(tied %{$hashRef})->Unshift($prefixKey => $prefixVal);
+		}
 	}
 	
 	# add it directly to the result loop
@@ -4778,10 +4778,12 @@ my %colMap = (
 );
 
 sub _songDataFromHash {
-	my ( $request, $res, $tags ) = @_;
+	my ( $request, $res, $tags, $fast ) = @_;
+	
+	my %returnHash;
 	
 	# define an ordered hash for our results
-	tie (my %returnHash, "Tie::IxHash");
+	tie (%returnHash, "Tie::IxHash") unless $fast;
 	
 	$returnHash{id}    = $res->{'tracks.id'};
 	$returnHash{title} = $res->{'tracks.title'};
@@ -4825,10 +4827,11 @@ sub _songData {
 	my $request   = shift; # current request object
 	my $pathOrObj = shift; # song path or object
 	my $tags      = shift; # tags to use
+	my $fast      = shift; # don't use Tie::IxHash for performance
 	
 	if ( ref $pathOrObj eq 'HASH' ) {
 		# Hash from direct DBI query in titlesQuery
-		return _songDataFromHash($request, $pathOrObj, $tags);
+		return _songDataFromHash($request, $pathOrObj, $tags, $fast);
 	}
 
 	# figure out the track object
@@ -4890,9 +4893,11 @@ sub _songData {
 			}
 		}
 	}
+
+	my %returnHash;
 	
 	# define an ordered hash for our results
-	tie (my %returnHash, "Tie::IxHash");
+	tie (%returnHash, "Tie::IxHash") unless $fast;
 
 	$returnHash{'id'}    = $track->id;
 	$returnHash{'title'} = $remoteMeta->{title} || $track->title;
@@ -5203,17 +5208,15 @@ sub _getTagDataForTracks {
 		}
 		# we need to adjust SQL when using fulltext search
 		elsif ( Slim::Schema->canFulltextSearch ) {
-			my ($tokens, $isLarge) = Slim::Plugin::FullTextSearch::Plugin->parseSearchTerm($search, 'track');
-
-			my $orderOrLimit = $isLarge ? 'LIMIT ' . $isLarge : 'ORDER BY fulltextweight';
-			
-			Slim::Schema->dbh->do("DROP TABLE IF EXISTS tracksSearch");
-			
-			my $tracksSearchSQL = "CREATE TEMPORARY TABLE tracksSearch AS SELECT id, FULLTEXTWEIGHT(matchinfo(fulltext)) AS fulltextweight FROM fulltext WHERE fulltext MATCH 'type:track $tokens' $orderOrLimit";
-			if ( main::DEBUGLOG && $sqllog->is_debug ) {
-				$sqllog->debug( "Track search temporary fulltext table query: $tracksSearchSQL" );
-			}
-			Slim::Schema->dbh->do($tracksSearchSQL);
+			Slim::Plugin::FullTextSearch::Plugin->createHelperTable({
+				name   => 'tracksSearch',
+				search => $search,
+				type   => 'track',
+				checkLargeResultset => sub {
+					my $isLarge = shift;
+					return $isLarge ? "LIMIT $isLarge" : 'ORDER BY fulltextweight'
+				},
+			});
 			
 			$sql = 'SELECT %s FROM tracksSearch, tracks ';
 			unshift @{$w}, "tracks.id = tracksSearch.id";
@@ -5389,6 +5392,7 @@ sub _getTagDataForTracks {
 		}
 
 		push @{$p}, map { Slim::Schema::Contributor->typeToRole($_) } @roles;
+		push @{$w}, 'contributors.id = tracks.primary_artist' if $args->{trackIds};
 		push @{$w}, 'contributor_track.role IN (' . join(', ', map {'?'} @roles) . ')';
 	};
 	
@@ -5636,7 +5640,8 @@ sub _getTagDataForTracks {
 		$total = scalar @resultOrder;
 	}
 
-	Slim::Schema->dbh->do("DROP TABLE IF EXISTS tracksSearch") if $search && Slim::Schema->canFulltextSearch;
+	# delete the temporary table, as it's stored in memory and can be rather large
+	Slim::Plugin::FullTextSearch::Plugin->dropHelperTable('tracksSearch') if $search && Slim::Schema->canFulltextSearch;
 	
 	return wantarray ? ( \%results, \@resultOrder, $total ) : \%results;
 }

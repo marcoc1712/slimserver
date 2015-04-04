@@ -103,8 +103,9 @@ sub initPrefs {
 	
 	# we now have a binary control panel - don't show the wizard
 	$prefs->{wizardDone} = 1;
-	$prefs->{dbhighmem}  = 1;
 }
+
+sub canDBHighMem { 1 }
 
 sub postInitPrefs {
 	my ($class, $prefs) = @_;
@@ -124,7 +125,7 @@ sub dirsFor {
 	
 	my @dirs = $class->SUPER::dirsFor($dir);
 	
-	if ($dir =~ /^(?:strings|revision|convert|types)$/) {
+	if ($dir =~ /^(?:strings|revision|convert|types|repositories)$/) {
 
 		push @dirs, $Bin;
 
@@ -642,7 +643,6 @@ sub getShortcut {
 	
 	return ( $name, $class->fileURLFromShortcut($path) );
 }
-
 
 =head2 setPriority( $priority )
 

@@ -639,9 +639,10 @@ sub _registerBaseNodes {
 			icon         => 'html/images/playlists.png',
 			condition    => sub {
 								return unless isEnabledNode(@_);
-								return Slim::Utils::Misc::getPlaylistDir() ||
-									# this might be expensive - perhaps need to cache this somehow
-					 				Slim::Schema->rs('Playlist')->getPlaylists->count;
+								return 1 if Slim::Utils::Misc::getPlaylistDir();
+								
+								my $totals = Slim::Schema->totals($_[0]);
+								return $totals->{playlist} if $totals;
 							},
 			id           => 'myMusicPlaylists',
 			weight       => 80,
@@ -1611,7 +1612,7 @@ sub _albums {
 				items       => $items,
 				actions     => \%actions,
 				sorted      => (($sort && $sort =~ /^sort:(?:random|new)$/) ? 0 : 1),
-				orderByList => (($sort && $sort =~ /^sort:(?:random|new)$/) ? undef : \%orderByList),
+				orderByList => (defined($search) || ($sort && $sort =~ /^sort:(?:random|new)$/) ? undef : \%orderByList),
 			}, $extra;
 		},
 		# no need for an index bar in New Music mode
@@ -1863,6 +1864,8 @@ sub _bmf {
 							fixedParams => {cmd => 'insert', folder_id =>  $_->{'id'}},
 						},
 					};
+					$_->{'itemActions'}->{'playall'} = $_->{'itemActions'}->{'play'};
+					$_->{'itemActions'}->{'addall'} = $_->{'itemActions'}->{'add'};
 					$gotsubfolder = 1;
 				}  elsif ($_->{'type'} eq 'track') {
 					$_->{'type'}        = 'audio';

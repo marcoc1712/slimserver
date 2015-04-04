@@ -136,7 +136,7 @@ sub init {
 		'dbsource'              => $default_dbsource,
 		'dbusername'            => 'slimserver',
 		'dbpassword'            => '',
-		'dbhighmem'             => sub { $os->{osDetails}->{'osArch'} =~ /[x3456]86/ ? 1 : 0 },
+		'dbhighmem'             => sub { $os->canDBHighMem() },
 		'cachedir'              => \&defaultCacheDir,
 		'librarycachedir'       => \&defaultCacheDir,
 		'securitySecret'        => \&makeSecuritySecret,
@@ -256,12 +256,15 @@ sub init {
 		# Server Settings - jive UI
 		'jivealbumsort'		=> 'album',
 		'defeatDestructiveTouchToPlay' => 4, # 4 => defeat only if playing and current item not a radio stream
-		# Server Settings - mysqueezebox.com
-		'sn_sync'               => 1,
-		'sn_disable_stats'		=> 1,
 		# Bug 5557, disable UPnP support by default
 		'noupnp'                => 1,
 	);
+	
+	if (!main::NOMYSB) {
+		# Server Settings - mysqueezebox.com
+		$defaults{'sn_sync'} = 1;
+		$defaults{'sn_disable_stats'} = 1;
+	}
 
 	# we can have different defaults depending on the OS 
 	$os->initPrefs(\%defaults);
@@ -560,31 +563,33 @@ sub init {
 		}
 	}, 'timeFormat');
 
-	# Clear SN cookies from the cookie jar if the session changes
-	$prefs->setChange( sub {
-		# XXX the sn.com hostnames can be removed later
-		my $cookieJar = Slim::Networking::Async::HTTP::cookie_jar();
-		$cookieJar->clear( 'www.squeezenetwork.com' );
-		$cookieJar->clear( 'www.test.squeezenetwork.com' );
-		$cookieJar->clear( 'www.mysqueezebox.com' );
-		$cookieJar->clear( 'www.test.mysqueezebox.com' );
-		$cookieJar->save();
-		main::DEBUGLOG && logger('network.squeezenetwork')->debug( 'SN session has changed, removing cookies' );
-	}, 'sn_session' );
-	
-	$prefs->setChange( sub {
-		Slim::Utils::Timers::setTimer(
-			$_[1],
-			time() + 30,
-			sub {
-				my $isDisabled = shift;
-				my $http = Slim::Networking::SqueezeNetwork->new(sub {}, sub {});
-				
-				$http->get( $http->url( '/api/v1/stats/mark_disabled/' . $isDisabled ? 1 : 0 ) );					
-			},
-		);
+	if (!main::NOMYSB) {
+		# Clear SN cookies from the cookie jar if the session changes
+		$prefs->setChange( sub {
+			# XXX the sn.com hostnames can be removed later
+			my $cookieJar = Slim::Networking::Async::HTTP::cookie_jar();
+			$cookieJar->clear( 'www.squeezenetwork.com' );
+			$cookieJar->clear( 'www.test.squeezenetwork.com' );
+			$cookieJar->clear( 'www.mysqueezebox.com' );
+			$cookieJar->clear( 'www.test.mysqueezebox.com' );
+			$cookieJar->save();
+			main::DEBUGLOG && logger('network.squeezenetwork')->debug( 'SN session has changed, removing cookies' );
+		}, 'sn_session' );
 		
-	}, 'sn_disable_stats');
+		$prefs->setChange( sub {
+			Slim::Utils::Timers::setTimer(
+				$_[1],
+				time() + 30,
+				sub {
+					my $isDisabled = shift;
+					my $http = Slim::Networking::SqueezeNetwork->new(sub {}, sub {});
+					
+					$http->get( $http->url( '/api/v1/stats/mark_disabled/' . $isDisabled ? 1 : 0 ) );					
+				},
+			);
+			
+		}, 'sn_disable_stats');
+	}
 
 	# Reset IR state if preference change
 	$prefs->setChange( sub {

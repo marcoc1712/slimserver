@@ -34,10 +34,12 @@ use constant ISWINDOWS    => ( $^O =~ /^m?s?win/i ) ? 1 : 0;
 use constant ISMAC        => ( $^O =~ /darwin/i ) ? 1 : 0;
 use constant HAS_AIO      => 0;
 use constant LOCALFILE    => 0;
+use constant NOMYSB       => 1;
 
 # Tell PerlApp to bundle these modules
 if (0) {
 	require 'auto/Compress/Raw/Zlib/autosplit.ix';
+	require Cache::FileCache;
 }
 
 BEGIN {
@@ -82,7 +84,6 @@ use Slim::Utils::Misc;
 use Slim::Utils::OSDetect;
 use Slim::Utils::PluginManager;
 use Slim::Utils::Progress;
-use Slim::Utils::Scanner;
 use Slim::Utils::Strings qw(string);
 use Slim::Media::MediaFolderScan;
 
@@ -350,6 +351,7 @@ sub main {
 
 			if ($changes) {
 				Slim::Music::Import->setLastScanTime;
+				Slim::Music::Import->setLastScanTimeIsDST();
 			}
 
 			# Notify server we are done scanning

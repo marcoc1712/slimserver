@@ -267,7 +267,7 @@ sub _resizeImage {
 		}
 		
 		# fall back to using external image proxy for external resources
-		elsif ( $url =~ m{^https?://} ) {
+		elsif ( !main::NOMYSB && $url =~ m{^https?://} ) {
 			return Slim::Networking::SqueezeNetwork->url(
 				"/public/imageproxy?w=$width&h=$height&u=" . uri_escape($url)
 			);
@@ -355,26 +355,27 @@ Attempts to figure out what the browser is by user-agent string identification
 =cut
 
 sub detectBrowser {
-	my $class = shift;
-
-	my $request = shift;
+	my ($class, $request) = @_;
+	
 	my $return = 'unknown';
 	
-	return $return unless $request->header('user-agent');
-
-	if ($request->header('user-agent') =~ /Firefox/) {
+	my $ua = $request->header('user-agent') || return $return;
+	
+	if ($ua =~ /Firefox/) {
 		$return = 'Firefox';
-	} elsif ($request->header('user-agent') =~ /Opera/) {
+	} elsif ($ua =~ /Opera/) {
 		$return = 'Opera';
-	} elsif ($request->header('user-agent') =~ /Safari/) {
+	} elsif ($ua =~ /Chrome/) {
+		$return = 'Chrome';
+	} elsif ($ua =~ /Safari/) {
 		$return = 'Safari';
-	} elsif ($request->header('user-agent') =~ /MSIE 7/) {
+	} elsif ($ua =~ /MSIE 7/) {
 		$return = 'IE7';
 	} elsif (
-		$request->header('user-agent') =~ /MSIE/   && # does it think it's IE
-        $request->header('user-agent') !~ /Opera/  && # make sure it's not Opera
-        $request->header('user-agent') !~ /Linux/  && # make sure it's not Linux
-        $request->header('user-agent') !~ /arm/)      # make sure it's not a Nokia tablet
+		$ua =~ /MSIE/   && # does it think it's IE
+        $ua !~ /Opera/  && # make sure it's not Opera
+        $ua !~ /Linux/  && # make sure it's not Linux
+        $ua !~ /arm/)      # make sure it's not a Nokia tablet
 	{
 		$return = 'IE';
 	}

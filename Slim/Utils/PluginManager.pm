@@ -209,6 +209,11 @@ sub load {
 
 		# in failsafe mode skip all plugins which aren't required
 		next if ($main::failsafe && !$plugins->{$name}->{'enforce'});
+		
+		if ( main::NOMYSB && $plugins->{$name}->{needsMySB} ) {
+			main::INFOLOG && $log->info("Skipping plugin: $name - requires mysqueezebox.com, but support for mysqueezebox.com is disabled.");
+			next;
+		}
 
 		if (defined $state && $state !~ /enabled|disabled/) {
 			$log->error("Skipping plugin: $name - in erroneous state: $state");
@@ -541,8 +546,15 @@ sub message {
 	$message = shift if @_;
 
 	return $class->needsRestart 
-		? Slim::Utils::Strings::string('PLUGINS_RESTART_MSG') . ' (' . join(', ', grep { $prefs->get($_) =~ /needs/ } keys %{$prefs->all}) . ')'
-		: $message;
+		? Slim::Utils::Strings::string('PLUGINS_RESTART_MSG') . ' (' .
+			join(', ',
+				map {
+					Slim::Utils::Strings::string($plugins->{$_}->{name});
+				} grep {
+					$prefs->get($_) =~ /needs/
+				} keys %{$prefs->all}
+			) .
+		')' : $message;
 }
 
 sub _pluginCacheFile {

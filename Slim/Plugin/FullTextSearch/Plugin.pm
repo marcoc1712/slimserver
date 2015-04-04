@@ -80,7 +80,9 @@ my $log = Slim::Utils::Log->addLogCategory({
 	'defaultLevel' => 'WARN',
 	'description'  => 'PLUGIN_FULLTEXT',
 });
+
 my $scanlog = logger('scan');
+my $sqllog  = logger('database.sql');
 
 my $prefs = preferences('plugin.fulltext');
 
@@ -113,7 +115,10 @@ sub initPlugin {
 
 	Slim::Utils::Scanner::API->onNewTrack( { cb => \&checkSingleTrack, want_object => 1 } );
 	Slim::Utils::Scanner::API->onChangedTrack( { cb => \&checkSingleTrack, want_object => 1 } );
-	
+
+	# don't continue if the library hasn't been initialized yet, or if a schema change is going to trigger a rescan anyway
+	return unless Slim::Schema->hasLibrary() && !Slim::Schema->schemaUpdated;
+		
 	my ($ftExists) = $dbh->selectrow_array( qq{ SELECT name FROM sqlite_master WHERE type='table' AND name='fulltext' } );
 	($ftExists) = $dbh->selectrow_array( qq{ SELECT name FROM sqlite_master WHERE type='table' AND name='fulltext_terms' } ) if $ftExists;
 	
@@ -170,6 +175,51 @@ sub canFulltextSearch {
 	return 0;
 }
 
+sub createHelperTable {
+	my ($class, $args) = @_;
+	
+	if (! ($args->{name} && defined $args->{search} && $args->{type}) ) {
+		$log->error("Can't create helper table without a name and search terms");
+		return;
+	}
+	
+	my $name = $args->{name};
+	my $type = $args->{type};
+
+	my ($tokens, $isLarge);
+	my $orderOrLimit = '';
+	
+	if ($args->{checkLargeResultset}) {
+		($tokens, $isLarge) = $class->parseSearchTerm($args->{search}, $type);
+		$orderOrLimit = $args->{checkLargeResultset}->($isLarge);
+	}
+	else {
+		$tokens = $class->parseSearchTerm($args->{search}, $type);
+	}
+
+	my $dbh = _dbh();
+			
+	$dbh->do('DROP TABLE IF EXISTS ' . $name);
+			
+	my $temp = (main::DEBUGLOG && $log->is_debug) ? '' : 'TEMPORARY';
+	
+	$orderOrLimit = 'LIMIT 0' if !$tokens;
+			
+	my $searchSQL = "CREATE $temp TABLE $name AS SELECT id, FULLTEXTWEIGHT(matchinfo(fulltext)) AS fulltextweight FROM fulltext WHERE fulltext MATCH 'type:$type $tokens' $orderOrLimit";
+
+	if ( main::DEBUGLOG ) {
+		my $log2 = $sqllog->is_debug ? $sqllog : $log;
+		$log2->is_debug && $log2->debug( "Fulltext search query ($type): $searchSQL" );
+	}
+
+	$dbh->do($searchSQL);
+}
+
+sub dropHelperTable {
+	return if $log->debug;
+	_dbh()->do('DROP TABLE IF EXISTS ' . $_[1]);
+}
+
 sub parseSearchTerm {
 	my ($class, $search, $type) = @_;
 
@@ -178,42 +228,66 @@ sub parseSearchTerm {
 	if ( $c % 2 == 1 ) {
 		$search .= '"';
 	}
+	
+	$search =~ s/""\s*$//;
 
 	# don't pull quoted strings apart!
 	my @quoted;
-	while ($search =~ s/(".+?")//g) {
-		push @quoted, $1;
+	while ($search =~ s/"(.+?)"//) {
+		my $quoted = $1;
+		$quoted =~ s/[[:punct:]]/ /g;
+		push @quoted, '"' . $quoted . '"';
 	}
 
-	my @tokens = split(/\s/, $search);
-	
-	my $tokens = join(' AND ', @quoted, grep {
-		/\w+/
-	} map { 
-		s/['\(\)]/ /g;
-		
+	my @tokens = grep /\w+/, split(/[\s[:punct:]]/, $search);
+	my $noOfTokens = scalar(@tokens) + scalar(@quoted);
+
+	my @tokens = map { 
 		my $token = "$_*";
 
 		# if this is the first token, then handle a few keywords which might result in a huge list carefully
-		if (scalar @tokens == 1) {
+		if ($noOfTokens == 1) {
 			if ( length $_ == 1 ) {
 				$token = "w10:$_"; 
 			}
 			elsif ( /\d{4}/ ) {
 				# nothing to do here: years can be popular, but we want to be able to search for them
+				$token = $_;
 			}
 			# skip "artist" etc. as they appear in the w5+ columns as "artist:elvis" tuples
 			# only respect once there is eg. "artist:e*"
 			elsif ( $_ !~ /a\w+:\w+/ && $popularTerms =~ /\Q$_\E[^|]*/i ) {
 				$token = "w10:$_*";
 				
-				# log warning about search for popular term (only once)
-				$ftsCache{$token}++ || $log->warn("Searching for very popular term - limiting to highest weighted column to prevent huge result list: '$token'");
+				# log warning about search for popular term (set flag in cache to only warn once)
+				$ftsCache{uc($token)}++ || $log->warn("Searching for very popular term - limiting to highest weighted column to prevent huge result list: '$token'");
 			}
+		}
+		# don't search substrings for single digit numbers or single characters
+		elsif (length $_ == 1) {
+			$token = $_;
 		}
 
 		$token;
-	} @tokens);
+	} @tokens;
+	
+	@quoted = map {
+		my $token = $_;
+		if ($noOfTokens == 1) {
+			my ($raw) = $token =~ /"(.*)"/;
+			
+			if ( $popularTerms =~ /\Q$raw\E[^|]*/i ) {
+				$token = "w10:$raw";
+				
+				# log warning about search for popular term (set flag in cache to only warn once)
+				$ftsCache{uc($token)}++ || $log->warn("Searching for very popular term - limiting to highest weighted column to prevent huge result list: '$token'");
+			}
+		}
+		
+		$token;
+	} @quoted;
+	
+	my $tokens = join(' AND ', @quoted, @tokens);
 	
 	# handle exclusions "paul simon -garfunkel"
 	$tokens =~ s/ AND -/ NOT /g;
@@ -224,15 +298,20 @@ sub parseSearchTerm {
 	my $dbh = _dbh();
 	
 	if (wantarray && $type && $tokens) {
-		my $counts = $ftsCache{ $type . '|' . $tokens };
+		my $counts = $ftsCache{ uc($type . '|' . $tokens) };
 		
 		if (!defined $counts) {
 			($counts) = $dbh->selectrow_array(sprintf("SELECT count(1) FROM fulltext WHERE fulltext MATCH 'type:%s %s'", $type, $tokens));
-			$ftsCache{ $type . '|' . $tokens } = $counts;
+			$ftsCache{ uc($type . '|' . $tokens) } = $counts;
 		}
 
 		$isLargeResultSet = LARGE_RESULTSET if $counts && $counts > LARGE_RESULTSET;
 	}
+	
+	if ( main::DEBUGLOG && $log->is_debug ) {
+		$log->debug("Search token ($type): '$tokens'");
+		$log->debug("Large resultset? " . ($isLargeResultSet ? 'yes' : 'no'));
+	};
 	
 	return wantarray ? ($tokens, $isLargeResultSet) : $tokens;
 }
@@ -250,10 +329,10 @@ sub _getWeight {
 	my $weight = 0;
 	# start at second phrase, as the first is the type (track, album, contributor, playlist)
 	for (my $i = 1; $i < $phraseCount; $i++) {
-		$weight += $x[3 * (FIRST_COLUMN + $i * $columnCount)] * 100	# track title etc.
-			+ $x[3 * ((FIRST_COLUMN + 1) + $i * $columnCount)] * 5		# track's album title
-			+ $x[3 * ((FIRST_COLUMN + 2) + $i * $columnCount)] * 3		# comments, lyrics
-			+ $x[3 * ((FIRST_COLUMN + 3) + $i * $columnCount)];		# bitrate sample size
+		$weight += ($x[3 * (FIRST_COLUMN + $i * $columnCount)] ? 1 : 0) * 10_000  	# track title etc.
+		         + $x[3 * ((FIRST_COLUMN + 1) + $i * $columnCount)] * 5 	# track's album title
+		         + $x[3 * ((FIRST_COLUMN + 2) + $i * $columnCount)] * 3 	# comments, lyrics
+		         + $x[3 * ((FIRST_COLUMN + 3) + $i * $columnCount)];		# bitrate sample size
 	}
 	
 	return $weight; 

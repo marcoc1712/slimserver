@@ -21,6 +21,10 @@ use Slim::Utils::Misc;
 use Slim::Utils::Prefs;
 use Slim::Utils::Timers;
 
+if ( main::NOMYSB ) {
+	logBacktrace("Support for mysqueezebox.com has been disabled. Please update your code: don't call me if main::NOMYSB.");
+}
+
 use constant SNTIME_POLL_INTERVAL => 3600;
 
 my $log   = logger('network.squeezenetwork');
@@ -238,6 +242,10 @@ sub shutdown {
 # Return a correct URL for mysqueezebox.com
 sub url {
 	my ( $class, $path, $external ) = @_;
+
+	if (main::NOMYSB) {
+		logBacktrace("Support for mysqueezebox.com has been disabled. Please update your code: don't call me if main::NOMYSB.");
+	}
 	
 	my $base = 'http://' . $class->get_server('sn');
 	
