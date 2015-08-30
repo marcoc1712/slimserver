@@ -281,11 +281,22 @@ sub checkBin {
 
 sub getConvertCommand2 {
 	my ($songOrTrack, $type, $streamModes, $need, $want, $formatOverride, $rateOverride) = @_;
-	
+
 	my $track;
 	my $song;
 	my $client;
 	
+	main::INFOLOG && $log->is_info && $log->info(
+		'INPUTS:' . Data::Dump::dump({
+			songOrTrack	=> ref $songOrTrack eq 'Slim::Player::Song' ? 'song' : 'track',
+			type => $type,
+			streamModes	=> $streamModes,
+			need	=> $need,
+			want	=> $want,
+			formatOverride	=> $formatOverride,
+			rateOverride	=> $rateOverride
+	}));
+
 	if ( ref $songOrTrack eq 'Slim::Player::Song' ) {
 		$song   = $songOrTrack;
 		$track  = $song->currentTrack();
@@ -318,8 +329,16 @@ sub getConvertCommand2 {
 		push @$want, 'B';
 	}
 	
+	my $rate = $song->currentTrack()->samplerate;
+	main::INFOLOG && $log->is_info && $log->info(
+				'SONG SAMPLERATE: ', $rate ? $rate : "undefined");
+
 	# Check if we need to downsample
 	my $samplerateLimit = $song ? Slim::Player::CapabilitiesHelper::samplerateLimit($song) : 0;
+	
+	main::INFOLOG && $log->is_info && $log->info(
+				'SAMPLERATELIMIT: ', $samplerateLimit ? $samplerateLimit : "undefined");
+
 	SAMPLELIMIT: if ($samplerateLimit) {
 		foreach (@$need) {
 			last SAMPLELIMIT if /D/;
@@ -362,6 +381,15 @@ sub getConvertCommand2 {
 		my $streamMode = undef;
 		my $caps = $capabilities{$profile};
 		
+		main::INFOLOG && $log->is_info && $log->info(
+			Data::Dump::dump(%capabilities));
+			
+		main::INFOLOG && $log->is_info && $log->info(
+		'CAPS:' . Data::Dump::dump({
+			profile => $profile,
+			caps => $caps
+		}));
+		
 		# Find a profile supporting available stream modes
 		foreach (@$streamModes) {
 			if ($caps->{$_}) {
@@ -394,14 +422,19 @@ sub getConvertCommand2 {
 				next PROFILE;
 		}
 
+		main::INFOLOG && $log->is_info && $log->info(
+				'samplerate limit BEFORE: '. Data::Dump::dump($samplerateLimit ? $samplerateLimit : "undefined"));
+
 		$transcoder = {
 			command          => $command,
 			profile          => $profile,
 			usedCapabilities => [@$need, @$want],
 			streamMode       => $streamMode,
 			streamformat     => (split (/-/, $profile))[1],
-			rateLimit        => $rateLimit || 320,
+			rateLimit        => $rateLimit || 320, 
 			samplerateLimit  => $samplerateLimit || 44100,
+			#rateLimit        => $rateLimit || 24576, 
+			#samplerateLimit  => $samplerateLimit || 384000,
 			clientid         => $clientid || 'undefined',
 			groupid          => $clientprefs ? ($clientprefs->get('syncgroupid') || 0) : 0,
 			name             => $client ? $client->name : 'undefined',
@@ -445,6 +478,9 @@ sub getConvertCommand2 {
 	} else {
 		main::INFOLOG && $log->is_info && $log->info("Matched: $type->", $transcoder->{'streamformat'}, " via: ", $transcoder->{'command'});
 	}
+
+	main::INFOLOG && $log->is_info && $log->info(
+		'TRANSCODER:' . Data::Dump::dump($transcoder));
 
 	return wantarray ? ($transcoder, $error) : $transcoder;
 }
@@ -529,7 +565,7 @@ sub tokenizeConvertCommand2 {
 		$filepath =~ s/([\$\"\`])/\\$1/g;
 		$fullpath =~ s/([\$\"\`])/\\$1/g;
 	}
-
+	
 	# Check to see if we need to flip the endianess on output
 	$subs{'-x'}        = (unpack('n', pack('s', 1)) == 1) ? "" : "-x";
 

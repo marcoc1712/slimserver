@@ -528,6 +528,9 @@ sub stream_s {
 	my ($client, $params) = @_;
 
 	my $format = $params->{'format'};
+	
+	main::INFOLOG && $sourcelog->is_info && $sourcelog->info("format:" . length($format));
+
 
 	return 0 unless ($client->opened());
 		
@@ -539,11 +542,9 @@ sub stream_s {
 	my $isDirect    = $controller->isDirect();
 	my $master      = $client->master();
 
-	if ( main::INFOLOG && $log->is_info) {
-		$log->info(sprintf("stream_s called:%s format: %s url: %s",
-			($params->{'paused'} ? ' paused' : ''), ($format || 'undef'), ($params->{'url'} || 'undef')
+	main::INFOLOG && $sourcelog->is_info && $sourcelog->info(sprintf("stream_s called:%s format: %s url: %s",
+	    ($params->{'paused'} ? ' paused' : ''), ($format || 'undef'), ($params->{'url'} || 'undef')
 		));
-	}
 	
 	$client->streamStartTimestamp(undef);
 
@@ -583,10 +584,36 @@ sub stream_s {
 		$pcmchannels     = 2;
 		$outputThreshold = 0;
 
+		main::INFOLOG && $sourcelog->is_info && $sourcelog->info(defined($params->{'url'})? "Url is defined" : "Url is not defined");	
+		main::INFOLOG && $sourcelog->is_info && $sourcelog->info(defined($track)? "Track is defined" : "Track is not defined");
+		
 		if ( $track ) {
+			#if ($params->{'url'}){
+			#	my $tags= Slim::Formats->readTags($params->{'url'});
+			#
+			#	$track->samplesize() = $tags->{SIZE};
+			#	$track->samplerate() = $tags->{RATE};
+			#	$track->channels() = $tags->{CHANNELS}; 
+			#}
+
 			$pcmsamplesize = $client->pcm_sample_sizes($track);
 			$pcmsamplerate = $client->pcm_sample_rates($track);
 			$pcmchannels   = $track->channels() || '2';
+			
+			main::INFOLOG && $sourcelog->is_info && $sourcelog->info(
+				'TRACK:' . Data::Dump::dump({
+				sampleSize	=> $client->pcm_sample_sizes($track),
+				sampleRateT => $track->samplerate(),
+				sampleRateC => $client->pcm_sample_rates($track),
+				channels	=> $track->channels()
+			}));
+					
+			main::INFOLOG && $sourcelog->is_info && $sourcelog->info(
+				'PCM:' . Data::Dump::dump({
+				sampleSize	=> $pcmsamplesize,
+				sampleRate => $pcmsamplerate,
+				channels	=> $pcmchannels
+			}));
 		}
 
 	} elsif ($format eq 'aif') {
@@ -601,7 +628,7 @@ sub stream_s {
 		$pcmendian       = 0;
 		$pcmchannels     = 2;
 		$outputThreshold = 0;
-
+		
 		if ( $track ) {
 			$pcmsamplesize = $client->pcm_sample_sizes($track);
 			$pcmsamplerate = $client->pcm_sample_rates($track);
@@ -615,6 +642,14 @@ sub stream_s {
 
 	} elsif ($format eq 'flc' || $format eq 'ogf') {
 
+		main::INFOLOG && $sourcelog->is_info && $sourcelog->info(
+			'TRACK:' . Data::Dump::dump({
+			sampleSize	=> $client->pcm_sample_sizes($track),
+			sampleRateT => $track->samplerate(),
+			sampleRateC => $client->pcm_sample_rates($track),
+			channels	=> $track->channels()
+		}));
+			
 		$formatbyte      = 'f';
 		$pcmsamplesize   = '?';
 		$pcmsamplerate   = '?';
@@ -756,7 +791,15 @@ sub stream_s {
 			logBacktrace("*** mp3 decoder used for format: $format, url: $params->{'url'}");
 		}
 	}
-		
+	
+	main::INFOLOG && $sourcelog->is_info && $sourcelog->info(
+		'format:' . Data::Dump::dump({
+		formt	=> $format,
+		sampleSize	=> $pcmsamplesize,
+		sampleRate => $pcmsamplerate,
+		channels	=> $pcmchannels
+	}));
+	
 	my $request_string = '';
 	my ($server_port, $server_ip);
 	
@@ -958,6 +1001,7 @@ sub stream_s {
 		# songs differ. This avoids some unpleasant white
 		# noise from (at least) the Squeezebox Touch when
 		# using the analogue outputs. This might be bug#1884.
+		
 		if (!Slim::Player::ReplayGain->trackSampleRateMatch($master, -1)
 		    ||
 		    !Slim::Player::ReplayGain->trackSampleRateMatch($master, 1)) {

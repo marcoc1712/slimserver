@@ -8,12 +8,15 @@ package Slim::Player::CapabilitiesHelper;
 # version 2.
 
 use strict;
+use Slim::Utils::Log;
+
+my $log = logger('player.source');
 
 sub samplerateLimit {
 	my $song     = shift;
 	
 	my $srate = $song->currentTrack()->samplerate;
-	
+
 	return undef if ! $srate;
 
 	my $maxRate = 0;

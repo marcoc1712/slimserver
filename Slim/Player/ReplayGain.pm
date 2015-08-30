@@ -198,8 +198,12 @@ sub trackSampleRateMatch {
 	my $offset = shift;
 
 	my ($current_track, $compare_track) = $class->findTracksByIndex($client, $offset);
-	return if (!$current_track || !$compare_track);
 
+	logError("current track: [$current_track]");
+	logError("compare track: [$compare_track]");
+	
+	return if (!$current_track || !$compare_track);
+	
 	if (!blessed($current_track) || !blessed($compare_track)) {
 
 		logError("Couldn't find object for track: [$current_track] or [$compare_track] !");
@@ -250,6 +254,10 @@ sub trackSampleRateMatch {
 	# Check sample rates match
 	my $compare_rate = $compare_track->samplerate;
 	my $current_rate = $current_track->samplerate;
+	
+	logError("current rate: [$current_rate]");
+	logError("compare rate: [$compare_rate]");
+	
 	if ($compare_rate && $current_rate &&
 		($compare_rate == $current_rate)) {
 

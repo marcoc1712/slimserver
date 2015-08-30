@@ -120,9 +120,9 @@ sub new {
 		logError("Could not find handler for $url!");
 		return undef;
 	}
-	
+
 	my $self = $class->SUPER::new;
-	
+
 	$self->init_accessor(
 		index           => $index,
 		_status         => STATUS_READY,
@@ -150,7 +150,7 @@ sub new {
 	if (main::DEBUGLOG && $log->is_debug)	{
 		$log->debug("live=$_liveCount");
 	}
-		
+
 	return $self;
 }
 
@@ -353,7 +353,7 @@ sub open {
 	my $track   = $self->currentTrack();
 	assert($track);
 	my $url     = $track->url;
-	
+
 	# Reset seekOffset - handlers will set this if necessary
 	$self->startOffset(0);
 	
@@ -408,8 +408,9 @@ sub open {
 		if (! $transcoder) {
 			logError("Couldn't create command line for $format playback for [$url]");
 			return (undef, ($error || 'PROBLEM_CONVERT_FILE'), $url);
+		
 		} elsif (main::INFOLOG && $log->is_info) {
-			 $log->info("Transcoder: streamMode=", $transcoder->{'streamMode'}, ", streamformat=", $transcoder->{'streamformat'});
+			 $log->info("TRANSCODING - Transcoder: streamMode=", $transcoder->{'streamMode'}, ", streamformat=", $transcoder->{'streamformat'});
 		}
 		
 		if ($wantTranscoderSeek && (grep(/T/, @{$transcoder->{'usedCapabilities'}}))) {
@@ -443,6 +444,7 @@ sub open {
 			streamMode => 'I',
 			rateLimit => 0,
 		};
+		$log->info("NOT TRANSCODING: Transcoder: command =", $transcoder->{'command'}, "streamMode=", $transcoder->{'streamMode'}, ", streamformat=", $transcoder->{'streamformat'});
 	}
 	
 	# TODO work this out for each player in the sync-group
@@ -556,6 +558,7 @@ sub open {
 				}
 	
 				main::INFOLOG && $log->info('Tokenized command: ', Slim::Utils::Unicode::utf8decode_locale($command));
+				main::INFOLOG && $log->info('Use pipe?: ', $usepipe);
 	
 				my $pipeline;
 				
@@ -563,6 +566,7 @@ sub open {
 				# and indicate if local or remote source
 				if ($usepipe) { 
 					$pipeline = Slim::Player::Pipeline->new($sock, $command, !$handler->isRemote);
+					main::INFOLOG && $log->info('Use pipeline: sock ', $sock);
 				} else {
 					# Bug: 4318
 					# On windows ensure a child window is not opened if $command includes transcode processes
@@ -570,6 +574,8 @@ sub open {
 						Win32::SetChildShowWindow(0);
 						$pipeline = FileHandle->new;
 						my $pid = $pipeline->open($command);
+						
+						main::INFOLOG && $log->info('Use pipeline In WINDOWS (FileHandle): command', $command);
 						
 						# XXX Bug 15650, this sets the priority of the cmd.exe process but not the actual
 						# transcoder process(es).
@@ -581,12 +587,14 @@ sub open {
 						Win32::SetChildShowWindow();
 					} else {
 						$pipeline = FileHandle->new($command);
+						main::INFOLOG && $log->info('Use pipeline (FileHandle): command', $command);
 					}
 					
 					if ($pipeline && $pipeline->opened() && !defined(Slim::Utils::Network::blocking($pipeline, 0))) {
 						logError("Can't set nonblocking for url: [$url]");
 						return (undef, 'PROBLEM_OPENING', $url);
 					}
+					main::INFOLOG && $log->info('Use FileHandle as pipeline');
 				}
 	
 				if (!defined($pipeline)) {
@@ -594,7 +602,7 @@ sub open {
 					$sock->close() if $sock;
 					return (undef, 'PROBLEM_CONVERT_STREAM', $url);
 				}
-		
+				
 				$sock = $pipeline;
 				
 				$self->_transcoded(1);
@@ -609,6 +617,7 @@ sub open {
 
 	my $streamController;
 	
+	main::INFOLOG && $log->info('Sock: ', $sock, 'directstream: ', $self->directstream());
 	######################
 	# make sure the filehandle was actually set
 	if ($sock || $self->directstream()) {

@@ -24,7 +24,7 @@ sub new {
 		streamHandler => $streamHandler,
 		protocolHandler => my $handler = Slim::Player::ProtocolHandlers->handlerForURL($song->streamUrl()),
 	};
-
+	
 	bless $self, $class;
 	
 	$_liveCount++;

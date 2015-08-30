@@ -79,7 +79,7 @@ sub open {
 		$drm        = $track->drm();
 		
 		if ( main::INFOLOG && $log->is_info ) {
-			$log->info("duration: [$duration] size: [$size] endian [$endian] offset: [$offset] for $url");
+			$log->info("** $filepath ** IT's NOT A PIPE ** : duration: [$duration] size: [$size], samplerate [$samplerate], samplesize [$samplesize], endian [$endian] offset: [$offset] for $url");
 		}
 
 		if ($drm) {
@@ -93,6 +93,12 @@ sub open {
 			$client->controller()->playerStreamingFailed($client, 'PROBLEM_OPENING');
 			return undef;
 		}
+	} else {
+		
+		if ( main::INFOLOG && $log->is_info ) {
+			$log->info("** $filepath ** IT's A PIPE ** : duration: [$duration] size: [$size], samplerate [$samplerate], samplesize [$samplesize],endian [$endian] offset: [$offset] for $url");
+		}
+		
 	}
 
 	main::INFOLOG && $log->info("Opening file $filepath");
