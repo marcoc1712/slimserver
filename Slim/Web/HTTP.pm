@@ -1174,7 +1174,7 @@ sub generateHTTPResponse {
 			$response->content_type('text/html');
 			$response->code(RC_NOT_FOUND);
 		
-			$body = filltemplatefile('html/errors/404.html', $params);
+			$$body = "<h1>404 Not Found: $path</h1><p>Logitech Media Server web UI is not available in --noweb mode.</p>";
 		
 			return prepareResponseForSending(
 				$client,
@@ -1225,7 +1225,10 @@ sub generateHTTPResponse {
 		} elsif ($path =~ /(server|scanner|perfmon|log)\.(?:log|txt)/) {
 
 			if ( main::WEBUI ) {
-				($contentType, $body) = Slim::Web::Pages::Common->logFile($params, $response, $1);
+				($contentType, $body) = Slim::Web::Pages::Common->logFile($httpClient, $params, $response, $1);
+				
+				# when the full file is requested, then all the streaming is handled in the logFile call. Nothing is returned.
+				return 0 unless $contentType;
 			}
 		
 		} elsif ($path =~ /status\.txt/) {
@@ -2500,9 +2503,9 @@ sub checkAuthorization {
 sub addCloseHandler{
 	my $funcPtr = shift;
 	
-	if ( main::INFOLOG && $log->is_info ) {
+	if ( main::DEBUGLOG && $log->is_debug ) {
 		my $funcName = Slim::Utils::PerlRunTime::realNameForCodeRef($funcPtr);
-		$log->info("Adding Close handler: $funcName");
+		$log->debug("Adding Close handler: $funcName");
 	}
 	
 	push @closeHandlers, $funcPtr;

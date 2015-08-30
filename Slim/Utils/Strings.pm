@@ -202,13 +202,18 @@ sub loadStrings {
 
 sub loadAdditional {
 	my $lang = shift;
+
+	# some devices request ZH_HANS rather than ZH_CN for Chinese
+	if ( $lang =~ /^ZH_HAN.$/i && !exists $strings->{'langchoices'}->{$lang} ) {
+		$lang = 'ZH_CN';
+	}
 	
 	if ( exists $strings->{$lang} ) {
 		return $strings->{$lang};
 	}
 	
 	for my $file ( @{ $strings->{files} } ) {
-		main::INFOLOG && $log->info("Loading string file for additional language $lang: $file");
+		main::DEBUGLOG && $log->is_debug && $log->debug("Loading string file for additional language $lang: $file");
 		
 		my $args = {
 			storeString => sub {
@@ -353,14 +358,14 @@ sub parseStrings {
 sub storeString {
 	my $name = shift || return;
 	my $curString = shift;
-	my $file = shift;
+	my $file = shift || 'unknown';
 	my $args = shift;
 
 	return if ($name eq 'LANGUAGE_CHOICES');
 
-	if ($log->is_info && defined $strings->{$currentLang}->{$name} && defined $curString->{$currentLang} && 
+	if (main::DEBUGLOG && $log->is_debug && defined $strings->{$currentLang}->{$name} && defined $curString->{$currentLang} && 
 			$strings->{$currentLang}->{$name} ne $curString->{$currentLang}) {
-		main::INFOLOG && $log->info("redefined string: $name in $file");
+		$log->debug("redefined string: $name in $file");
 	}
 
 	if (defined $curString->{$currentLang}) {
@@ -368,7 +373,7 @@ sub storeString {
 
 	} elsif (defined $curString->{$failsafeLang}) {
 		$strings->{$currentLang}->{$name} = $curString->{$failsafeLang};
-		main::DEBUGLOG && $log->is_debug && $log->debug("Language $currentLang using $failsafeLang for $name in". (defined $file ? $file : 'undefined'));
+		main::DEBUGLOG && $log->is_debug && $log->debug("Language $currentLang using $failsafeLang for $name in $file");
 	}
 
 	if ($args->{'storeFailsafe'} && defined $curString->{$failsafeLang}) {

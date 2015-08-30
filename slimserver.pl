@@ -318,8 +318,6 @@ my $prefs        = preferences('server');
 our $VERSION     = '7.9.0';
 our $REVISION    = undef;
 our $BUILDDATE   = undef;
-our $audiodir    = undef;
-our $playlistdir = undef;
 our $httpport    = undef;
 
 our (
@@ -349,15 +347,6 @@ our (
 	$nosetup,
 	$noserver,
 	$norestart,
-	$noupnp,
-	$noweb,
-	$notranscoding,
-	$nodebuglog,
-	$noinfolog,
-	$noimages,
-	$novideo,
-	$nosb1slimp3sync,
-	$nostatistics,
 	$stdio,
 	$stop,
 	$perfwarn,
@@ -413,6 +402,7 @@ sub init {
 	}
 
 	Slim::Utils::OSDetect::init();
+	my $os = Slim::Utils::OSDetect->getOS();
 
 	# initialize server subsystems
 	initSettings();
@@ -466,7 +456,7 @@ sub init {
 	$failsafe ? $prefs->set('failsafe', 1) : $prefs->remove('failsafe');
 
 	# Change UID/GID after the pid & logfiles have been opened.
-	unless (Slim::Utils::OSDetect::getOS->dontSetUserAndGroup() || (defined($user) && $> != 0)) {
+	unless ($os->dontSetUserAndGroup() || (defined($user) && $> != 0)) {
 		main::INFOLOG && $log->info("Server settings effective user and group if requested...");
 		changeEffectiveUserAndGroup();		
 	}
@@ -485,7 +475,7 @@ sub init {
 	}
 
 	main::INFOLOG && $log->info("Server binary search path init...");
-	Slim::Utils::OSDetect::getOS->initSearchPath();
+	$os->initSearchPath();
 
 	# Find plugins and process any new ones now so we can load their strings
 	main::INFOLOG && $log->info("Server PluginManager init...");
@@ -623,7 +613,7 @@ sub init {
 	main::INFOLOG && $log->info("Server checkDataSource...");
 	checkDataSource();
 	
-	if ( Slim::Utils::OSDetect::getOS->canAutoRescan && $prefs->get('autorescan') ) {
+	if ( $os->canAutoRescan && $prefs->get('autorescan') ) {
 		require Slim::Utils::AutoRescan;
 		
 		main::INFOLOG && $log->info('Auto-rescan init...');
@@ -664,7 +654,7 @@ sub init {
 		Slim::Utils::PerfMon->init($perfwarn);
 	}
 
-	if ( $REVISION =~ /^\s*\d+\s*$/ && $prefs->get('checkVersion') ) {
+	if ( !$os->runningFromSource && $prefs->get('checkVersion') ) {
 		require Slim::Utils::Update;
 		Slim::Utils::Timers::setTimer(
 			undef,
@@ -869,24 +859,25 @@ sub initOptions {
 		'prefsfile=s'   => \$prefsfile,
 		# prefsdir is parsed by Slim::Utils::Prefs prior to initOptions being run
 		'quiet'	        => \$quiet,
-		'nodebuglog'    => \$nodebuglog,
-		'noinfolog'     => \$noinfolog,
-		'noimage'       => \$noimages,
-		'novideo'       => \$novideo,
 		'norestart'     => \$norestart,
 		'nosetup'       => \$nosetup,
 		'noserver'      => \$noserver,
-		'nostatistics'  => \$nostatistics,
-		'noupnp'        => \$noupnp,
-		'nosb1slimp3sync'=> \$nosb1slimp3sync,
-		'notranscoding' => \$notranscoding,
-		'noweb'         => \$noweb,
 		'failsafe'      => \$failsafe,
 		'perfwarn=s'    => \$perfwarn,  # content parsed by PerfMon if set
 		'checkstrings'  => \$checkstrings,
 		'charset=s'     => \$charset,
 		'dbtype=s'      => \$dbtype,
 		'd_startup'     => \$d_startup, # Needed for Slim::bootstrap
+		# these values are parsed separately, we don't need these values in a variable - just get them off the list
+		'nodebuglog'    => sub {},
+		'noinfolog'     => sub {},
+		'noimage'       => sub {},
+		'novideo'       => sub {},
+		'nostatistics'  => sub {},
+		'noupnp'        => sub {},
+		'nosb1slimp3sync'=> sub {},
+		'notranscoding' => sub {},
+		'noweb'         => sub {},
 	);
 
 	# make --logging and --debug synonyms, but prefer --logging

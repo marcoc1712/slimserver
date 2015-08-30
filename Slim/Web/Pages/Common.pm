@@ -8,6 +8,7 @@ package Slim::Web::Pages::Common;
 # version 2.
 
 use strict;
+use File::Basename qw(basename);
 use File::ReadBackwards;
 use Scalar::Util qw(blessed);
 
@@ -39,6 +40,8 @@ sub init(){
 	Slim::Web::Pages->addPageFunction(qr/^tunein\.(?:htm|xml)/,\&tuneIn);
 	Slim::Web::Pages->addPageFunction(qr/^update_firmware\.(?:htm|xml)/,\&update_firmware);
 	
+	# cleanup potential left-overs from downloading ZIPped log files
+	Slim::Utils::Misc::deleteFiles(Slim::Utils::OSDetect::dirsFor('log'), qr/^(?:server|scanner).*zip$/i);
 }
 
 sub _lcPlural {
@@ -442,24 +445,66 @@ sub tuneIn {
 }
 
 sub logFile {
-	my ($class, $params, $response, $logfile) = @_;
+	my ($class, $httpClient, $params, $response, $logfile) = @_;
+	
+	$logfile =~ s/log/server/;
+	$logfile .= 'LogFile';
+	
+	my $logFile = Slim::Utils::Log->$logfile;
+
+	if ( $params->{zip} && -f $logFile ) {
+		my $zip;
+
+		eval {
+			require Archive::Zip;
+
+			Archive::Zip::setErrorHandler( sub {
+				$log->error("Error compressing log file: " . shift);
+			} );
+			
+			$zip = Archive::Zip->new();
+		};
+		
+		if (defined $zip) {
+			# COMPRESSION_LEVEL_FASTEST == 1
+			my $member = $zip->addFile( $logFile, basename($logFile), 1 );
+			
+			my $zipFile = $logFile . '.zip';
+			
+			# AZ_OK == 0
+			if ( $member && $zip->writeToFileNamed( $zipFile ) == 0 ) {
+				$response->code(HTTP::Status::RC_OK);
+				Slim::Web::HTTP::sendStreamingFile( $httpClient, $response, 'application/zip', $zipFile  );
+				return;
+			}
+		}
+
+		$log->error("Error compressing log file using Archive::Zip $@ - returning uncompressed log file instead");
+		$params->{full} = 1;
+	}
+	
+	if ( $params->{full} && -f $logFile ) {
+		$response->code(HTTP::Status::RC_OK);
+		Slim::Web::HTTP::sendStreamingFile( $httpClient, $response, 'text/plain', $logFile );
+		return;
+	}
 
 	$response->header("Refresh" => "10; url=" . $params->{path} . ($params->{lines} ? '?lines=' . $params->{lines} : ''));
 	$response->header("Content-Type" => "text/plain; charset=utf-8");
 		
-	$logfile =~ s/log/server/;
-	$logfile .= 'LogFile';
-		
-	my $count = $params->{lines} || 50;
+	my $count = ($params->{lines} * 1) || 50;
 
 	my $body = '';
 
-	my $file = File::ReadBackwards->new(Slim::Utils::Log->$logfile);
+	my $file = File::ReadBackwards->new($logFile);
 		
 	if ($file){
 
 		my @lines;
 		while ( --$count && (my $line = $file->readline()) ) {
+			$line = "<span style=\"color:green\">$line<\/span>" if $line =~ /main::init.*Starting/;
+			$line =~ s/(error)\b/<span style="color:red">$1<\/span>/ig;
+			$line =~ s/(warn.*?)\b/<span style="color:orange">$1<\/span>/ig;
 			unshift (@lines, $line);
 		}
 		$body .= join('', @lines);
@@ -467,7 +512,7 @@ sub logFile {
 		$file->close();			
 	};		
 
-	return ("text/plain", \$body)
+	return ("text/html", \"<pre>$body</pre>");
 }
 
 sub statusTxt {

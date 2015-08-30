@@ -494,7 +494,7 @@ sub _conditionWrapper {
 		};
 		
 		if ($@) {
-			$log->warn("Couldn't call menu-filter", Slim::Utils::PerlRunTime::realNameForCodeRef($filter), ": $@");
+			$log->warn("Couldn't call menu-filter", main::DEBUGLOG ? Slim::Utils::PerlRunTime::realNameForCodeRef($filter) : 'unk', ": $@");
 			# Assume true
 			next;
 		}
@@ -937,14 +937,22 @@ sub _generic {
 
 sub _search {
 	my ($client, $callback, $args, $pt) = @_;
+	
+	my $items = searchItems($client);
+	
+	if ( my $library_id = Slim::Music::VirtualLibraries->getLibraryIdForClient($client) ) {
+		foreach (@$items) {
+			$_->{'passthrough'} = [
+				{ 'library_id' => $library_id }
+			];
+		}
+	}
 
-	my %feed = (
+	$callback->( {
 		name  => cstring($client, 'SEARCH'),
 		icon => 'html/images/search.png',
-		items => searchItems($client),
-	);
-	
-	$callback->( \%feed );
+		items => $items,
+	} );
 }
 
 sub _globalSearchMenu {

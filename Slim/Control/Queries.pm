@@ -1773,7 +1773,7 @@ sub librariesQuery {
 	if ( $request->isQuery([['libraries'], ['getid']]) && (my $client = $request->client) ) {
 		my $id = Slim::Music::VirtualLibraries->getLibraryIdForClient($client) || 0;
 		$request->addResult('id', $id);
-		$request->addResult('name', Slim::Music::VirtualLibraries->getNameForId($id)) if $id;
+		$request->addResult('name', Slim::Music::VirtualLibraries->getNameForId($id, $client)) if $id;
 	}
 	else {
 		my $i = 0;	
@@ -1892,6 +1892,8 @@ sub mediafolderQuery {
 	# url overrides any folderId
 	my $params = ();
 	my $mediaDirs = Slim::Utils::Misc::getMediaDirs($type || 'audio');
+	
+	$params->{recursive} = $request->getParam('recursive');
 	
 	# add "volatile" folders which are not scanned, to be browsed and played on the fly
 	push @$mediaDirs, map { 
@@ -2457,6 +2459,7 @@ sub playlistsTracksQuery {
 	my $quantity   = $request->getParam('_quantity');
 	my $tagsprm    = $request->getParam('tags');
 	my $playlistID = $request->getParam('playlist_id');
+	my $libraryId  = Slim::Music::VirtualLibraries->getRealId($request->getParam('library_id'));
 
 	if (!defined $playlistID) {
 		$request->setStatusBadParams();
@@ -2472,7 +2475,7 @@ sub playlistsTracksQuery {
 	my $playlistObj = Slim::Schema->find('Playlist', $playlistID);
 
 	if (blessed($playlistObj) && $playlistObj->can('tracks')) {
-		$iterator = $playlistObj->tracks();
+		$iterator = $playlistObj->tracks($libraryId);
 		$request->addResult("__playlistTitle", $playlistObj->name) if $playlistObj->name;
 	}
 
@@ -3235,6 +3238,8 @@ sub serverstatusQuery {
 				$request->addResultLoop('players_loop', $cnt, 
 					'power', $eachclient->power());
 				$request->addResultLoop('players_loop', $cnt, 
+					'isplaying', $eachclient->isPlaying() ? 1 : 0);
+				$request->addResultLoop('players_loop', $cnt, 
 					'displaytype', $eachclient->vfdmodel())
 					unless ($eachclient->model() eq 'http');
 				$request->addResultLoop('players_loop', $cnt, 
@@ -3531,7 +3536,7 @@ sub statusQuery {
 	
 	if (my $library_id = Slim::Music::VirtualLibraries->getLibraryIdForClient($client)) {
 		$request->addResult("library_id", $library_id);
-		$request->addResult("library_name", Slim::Music::VirtualLibraries->getNameForId($library_id));
+		$request->addResult("library_name", Slim::Music::VirtualLibraries->getNameForId($library_id, $client));
 	}
 
 	# add showBriefly info
