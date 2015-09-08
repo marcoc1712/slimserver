@@ -40,7 +40,7 @@ my @allAttributes = (qw(
 	
 	rating lastplayed playcount virtual
 	
-	comment genre
+	_comment genre
 	
 	stash
 	error
@@ -105,6 +105,40 @@ sub path {
 	}
 	
 	return $url;
+}
+
+sub comment {
+	my ($self, $new) = @_;
+	
+	if (defined $new) {	
+		$self->_comment(_mergeComments($new));
+	}
+
+	# if the comment is a list, merge those lines
+	if (ref $self->_comment && ref $self->_comment eq 'ARRAY') {
+		$self->_comment(_mergeComments($self->_comment));
+	}
+	
+	return $self->_comment;
+}
+
+sub _mergeComments {
+	my $new = shift;
+	
+	if (ref $new && ref $new eq 'ARRAY') {
+		my $comment;
+		
+		foreach my $c (@$new) {
+			# put a slash between multiple comments.
+			$comment .= ' / ' if $comment;
+			$c =~ s/^eng(.*)/$1/;
+			$comment .= $c;
+		}
+		
+		$new = $comment if $comment;
+	}
+
+	return $new;
 }
 
 sub contributorsOfType {}
@@ -252,6 +286,11 @@ my %localTagMapping = (
 	albumartist            => 'artistname',
 	trackartist            => 'artistname',
 	album                  => 'albumname',
+	rate                   => 'samplerate',
+	age                    => 'timestamp',
+	ct                     => 'content_type',
+	fs                     => 'filesize',
+	comment                => '_comment',
 	composer               => undef,
 	conductor              => undef,
 	band                   => undef,
@@ -266,7 +305,7 @@ sub setAttributes {
 	
 	%availableTags = map { $_ => 1 } @allAttributes unless keys %availableTags;
 	
-#	main::DEBUGLOG && $log->debug("$url: $self => ", Data::Dump::dump($attributes));
+	main::DEBUGLOG && $log->debug($self->url . " => ", Data::Dump::dump($attributes));
 	
 	while (my($key, $value) = each %{$attributes}) {
 		next if !defined $value; # XXX not sure about this

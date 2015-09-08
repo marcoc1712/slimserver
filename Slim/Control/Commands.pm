@@ -1829,7 +1829,7 @@ sub playlistcontrolCommand {
 	my $client              = $request->client();
 	my $cmd                 = $request->getParam('cmd');
 	my $jumpIndex           = $request->getParam('play_index');
-
+	
 	if (Slim::Music::Import->stillScanning()) {
 		$request->addResult('rescan', "1");
 	}
@@ -1942,11 +1942,15 @@ sub playlistcontrolCommand {
 
 			$cmd .= "tracks";
 
+			my $library_id = Slim::Music::VirtualLibraries->getRealId($request->getParam('library_id')) || Slim::Music::VirtualLibraries->getLibraryIdForClient($client);
+			my $query = 'playlist.id=' . $playlist_id;
+			$query   .= '&library_id=' . $library_id if $library_id;
+			
 			Slim::Control::Request::executeRequest(
-				$client, ['playlist', $cmd, 'playlist.id=' . $playlist_id, undef, undef, $jumpIndex]
+				$client, ['playlist', $cmd, $query, undef, undef, $jumpIndex]
 			);
 
-			$request->addResult( 'count', $playlist->tracks->count() );
+			$request->addResult( 'count', $playlist->tracks($library_id)->count() );
 
 			$request->setStatusDone();
 			
@@ -2585,9 +2589,7 @@ sub rescanCommand {
 	
 	if ( $mode eq 'external' ) {
 		# The old way of rescanning using scanner.pl
-		my %args = (
-			cleanup => 1,
-		);
+		my %args = ();
 
 		if ($originalMode eq 'playlists') {
 			$args{playlists} = 1;
@@ -3303,6 +3305,9 @@ sub _playlistXtracksCommand_parseSearchTerms {
 				$terms->{$key} = $value;
 
 			}
+			elsif ($term =~ /^(library_id)=(.*)/) {
+				$terms->{'librarytracks.library'} = URI::Escape::uri_unescape($2);
+			}
 		}
 	}
 
@@ -3408,7 +3413,7 @@ sub _playlistXtracksCommand_parseSearchTerms {
 
 			$client->currentPlaylist($playlist) if $cmd && $cmd =~ /^(?:play|load)/;
 
-			return $playlist->tracks;
+			return $playlist->tracks($library_id);
 		}
 
 		return ();

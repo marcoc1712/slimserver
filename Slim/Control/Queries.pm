@@ -1773,7 +1773,7 @@ sub librariesQuery {
 	if ( $request->isQuery([['libraries'], ['getid']]) && (my $client = $request->client) ) {
 		my $id = Slim::Music::VirtualLibraries->getLibraryIdForClient($client) || 0;
 		$request->addResult('id', $id);
-		$request->addResult('name', Slim::Music::VirtualLibraries->getNameForId($id)) if $id;
+		$request->addResult('name', Slim::Music::VirtualLibraries->getNameForId($id, $client)) if $id;
 	}
 	else {
 		my $i = 0;	
@@ -1883,7 +1883,7 @@ sub mediafolderQuery {
 		$volatileUrl = 1;
 	}
 
-	if ($url =~ /^tmp:/) {
+	if (Slim::Music::Info::isVolatileURL($url)) {
 		# if we're dealing with temporary items, store the real URL in $volatileUrl
 		$volatileUrl = $url;
 		$volatileUrl =~ s/^tmp/file/;
@@ -1892,6 +1892,8 @@ sub mediafolderQuery {
 	# url overrides any folderId
 	my $params = ();
 	my $mediaDirs = Slim::Utils::Misc::getMediaDirs($type || 'audio');
+	
+	$params->{recursive} = $request->getParam('recursive');
 	
 	# add "volatile" folders which are not scanned, to be browsed and played on the fly
 	push @$mediaDirs, map { 
@@ -2102,7 +2104,7 @@ sub mediafolderQuery {
 			
 			# volatile folder in browse root?
 			my $isDir;
-			if (!$realName || $realName =~ /^tmp/ && $id < 0) {
+			if (!$realName || Slim::Music::Info::isVolatileURL($realName) && $id < 0) {
 				my $url2 = $url;
 				$url2 =~ s/^tmp/file/;
 				$realName = '[' . Slim::Music::Info::fileName($url2) . ']';
@@ -2128,7 +2130,7 @@ sub mediafolderQuery {
 					my $itemDetails = $sth->fetchrow_hashref;
 					
 					if ($type eq 'video') {
-						foreach my $k (keys $itemDetails) {
+						foreach my $k (keys %$itemDetails) {
 							$itemDetails->{"videos.$k"} = $itemDetails->{$k} unless $k =~ /^videos\./;
 						}
 						
@@ -2139,7 +2141,7 @@ sub mediafolderQuery {
 						utf8::decode( $itemDetails->{'images.title'} ) if exists $itemDetails->{'images.title'};
 						utf8::decode( $itemDetails->{'images.album'} ) if exists $itemDetails->{'images.album'};
 
-						foreach my $k (keys $itemDetails) {
+						foreach my $k (keys %$itemDetails) {
 							$itemDetails->{"images.$k"} = $itemDetails->{$k} unless $k =~ /^images\./;
 						}
 						_imageData($request, $loopname, $chunkCount, $tags, $itemDetails);
@@ -2457,6 +2459,7 @@ sub playlistsTracksQuery {
 	my $quantity   = $request->getParam('_quantity');
 	my $tagsprm    = $request->getParam('tags');
 	my $playlistID = $request->getParam('playlist_id');
+	my $libraryId  = Slim::Music::VirtualLibraries->getRealId($request->getParam('library_id'));
 
 	if (!defined $playlistID) {
 		$request->setStatusBadParams();
@@ -2472,7 +2475,7 @@ sub playlistsTracksQuery {
 	my $playlistObj = Slim::Schema->find('Playlist', $playlistID);
 
 	if (blessed($playlistObj) && $playlistObj->can('tracks')) {
-		$iterator = $playlistObj->tracks();
+		$iterator = $playlistObj->tracks($libraryId);
 		$request->addResult("__playlistTitle", $playlistObj->name) if $playlistObj->name;
 	}
 
@@ -3235,6 +3238,8 @@ sub serverstatusQuery {
 				$request->addResultLoop('players_loop', $cnt, 
 					'power', $eachclient->power());
 				$request->addResultLoop('players_loop', $cnt, 
+					'isplaying', $eachclient->isPlaying() ? 1 : 0);
+				$request->addResultLoop('players_loop', $cnt, 
 					'displaytype', $eachclient->vfdmodel())
 					unless ($eachclient->model() eq 'http');
 				$request->addResultLoop('players_loop', $cnt, 
@@ -3531,7 +3536,7 @@ sub statusQuery {
 	
 	if (my $library_id = Slim::Music::VirtualLibraries->getLibraryIdForClient($client)) {
 		$request->addResult("library_id", $library_id);
-		$request->addResult("library_name", Slim::Music::VirtualLibraries->getNameForId($library_id));
+		$request->addResult("library_name", Slim::Music::VirtualLibraries->getNameForId($library_id, $client));
 	}
 
 	# add showBriefly info

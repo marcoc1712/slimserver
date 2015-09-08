@@ -2,7 +2,7 @@
 <ul>
 	<li>New Features:</li>
 	<ul>
-		<li>Improved Library Browsing:
+		<li>Library Browsing improvements:
 			<ul>
 				<li>Add option to use two browse modes for Album Artists and All Artists instead of one single, configurable list.</li>
 				<li>Add "Random Album" browse mode, to give access to a random selection of albums.</li>
@@ -20,6 +20,8 @@
 				<li>Add Fulltext Search: when searching music the results are no longer limited to a simple title or name search. Fulltext search
 				    includes a lot more data like artist names, lyrics (if available), file type etc. in the evaluation of the search term.</li>
 				<li>Improve "Advanced Search": allow searching for ratings, ranges of years, save results, use results as virtual library etc.</li>
+				<li>Give (limited) control over other players connected to your server from the web UI: power them on/off or start/pause 
+				    playback without the need to switch the currently controlled player</li> 
 				<li>Allow the web UI's right hand side panel with player control and current playlist to be hidden.</li>
 				<li>Allow the web UI to be opened with a given navigation for the left hand navigation panel (eg. start with Album Artists).</li>
 				<li>Speed up library browsing in the web UI by caching rendered pages</li>
@@ -37,6 +39,7 @@
 			
 		<li>Add support for DSD/DSF files on some platforms.</li>
 		<li>Add new way to read player specific transcoding settings from helper files (eg. for room correction). Thanks LMS0815!</li>
+		<li>Add update auto-download and/or notification for Linux distributions</li>
 	</ul>
 	<br />
 
@@ -178,13 +181,17 @@
 <ul>
 	<li>Server Changes:</li>
 	<ul>
+		<li>Change Rhapsody/Napster implementation to use AAC instead of MP3.</li>
+		<li>Improve compatibility with latest iTunes 12 updates.</li>
 		<li>Limit the number of items to be added in RandomPlay. Large numbers would cause database errors.</li>
+		<li>Remove defunct Last.fm and RadioIO plugins.</li>
 	</ul>
 	<br />
 
 	<li>Bug Fixes:</li>
 	<ul>
 		<li><a href="http://bugs.slimdevices.com/show_bug.cgi?id=17727">#17727</a> - Playback stops with mp3 + cue sheets combination</li>
+		<li><a href="http://bugs.slimdevices.com/show_bug.cgi?id=17901">#17901</a> - "Some settings were changed. Do you want to save them?" doesn't honor button clicked.</li>
 	</ul>
 	<br />
 </ul>

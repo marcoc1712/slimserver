@@ -60,7 +60,7 @@ sub scanPathOrURL {
 
 	# use the same code for volatile tracks as for regular tracks, but replace the URLs
 	# and create track objects for those temporary items
-	if ( Slim::Music::Info::isRemoteURL($pathOrUrl) && $pathOrUrl !~ /^tmp:/ ) {
+	if ( Slim::Music::Info::isRemoteURL($pathOrUrl) && !Slim::Music::Info::isVolatileURL($pathOrUrl) ) {
 
 		# Do not scan remote URLs now, they will be scanned right before playback by
 		# an onJump handler.
@@ -69,7 +69,7 @@ sub scanPathOrURL {
 
 	} else {
 		
-		if ( $pathOrUrl =~ /^tmp:/ ) {
+		if ( Slim::Music::Info::isVolatileURL($pathOrUrl) ) {
 			require Slim::Player::Protocols::Volatile;
 	
 			$args->{'volatile'} = $pathOrUrl;
@@ -112,9 +112,9 @@ Starting at $topDir, uses L<File::Next> to find any files matching our list of s
 sub findFilesMatching {
 	my $class  = shift;
 	my $topDir = shift;
-	my $args   = shift;
+	my $args   = shift || {};
 
-	my $types  = Slim::Music::Info::validTypeExtensions();
+	my $types  = $args->{types} || Slim::Music::Info::validTypeExtensions();
 
 	my $descend_filter = sub {
 		return Slim::Utils::Misc::folderFilter($File::Next::dir, 0, $types);
@@ -123,7 +123,6 @@ sub findFilesMatching {
 	my $file_filter = sub {
 		return Slim::Utils::Misc::fileFilter($File::Next::dir, $_, $types);
 	};
-
 
 	$topDir = Slim::Utils::Unicode::encode_locale($topDir);
 
@@ -137,6 +136,11 @@ sub findFilesMatching {
 	my $found = $args->{'foundItems'} || [];
 
 	while (my $file = $iter->()) {
+		# call idle streams to service timers - used for blocking animation.
+		if (!scalar @$found % 3) {
+			main::idleStreams();
+		}
+
 		# Only check for Windows Shortcuts on Windows.
 		# Are they named anything other than .lnk? I don't think so.
 		if ( main::ISWINDOWS && $file =~ /\.lnk$/i ) {
@@ -164,6 +168,7 @@ sub findFilesMatching {
 
 				$class->findFilesMatching($file, {
 					'foundItems' => $found,
+					'types'      => $types,
 				});
 
 				next;
@@ -184,6 +189,7 @@ sub findFilesMatching {
 
 				$class->findFilesMatching($file, {
 					'foundItems' => $found,
+					'types'      => $types,
 				});
 
 				next;
@@ -208,102 +214,59 @@ sub scanDirectory {
 	my $args   = shift;
 	my $return = shift;	# if caller wants a list of items we found
 
-	my $foundItems = $args->{'foundItems'} || [];
+	my $foundItems = $return && ($args->{foundItems} || []);
+	
+	my $url = $args->{volatile} || $args->{url};
 
 	# Can't do much without a starting point.
-	if (!$args->{'url'}) {
+	if (!$url) {
 		return $foundItems;
 	}
-
-	# Create a Path::Class::Dir object for later use.
-	my $topDir = dir($args->{'url'});
-
-	if ( main::INFOLOG && $log->is_info ) {
-		$log->info("About to look for files in $topDir");
-		$log->info("For files with extensions in: ", Slim::Music::Info::validTypeExtensions());
+	
+	my @items;
+	
+	if ( Slim::Music::Info::isSong($url) ) {
+		push @items, {
+			url => Slim::Utils::Misc::fileURLFromPath($url),
+			type => 'audio'
+		};
 	}
-
-	my $files  = $class->findFilesMatching($topDir->stringify, $args);
-
-	if (!scalar @{$files}) {
-
-		$log->warn("Didn't find any valid files in: [$topDir]");
-
-		return $foundItems;
-
-	} else {
-		
-		$log->error( sprintf( "Found %d files in %s\n", scalar @{$files}, $topDir ) );
+	elsif ( Slim::Music::Info::isPlaylist($url) ) {
+		push @items, {
+			url => Slim::Utils::Misc::fileURLFromPath($url),
+			type => 'playlist'
+		};
 	}
-
-	for my $file (@{$files}) {
-		
-		# Skip client playlists
-		next if $file =~ /clientplaylist.*\.m3u$/;
-
-		Slim::Schema->clearLastError;
-
-		my $url = Slim::Utils::Misc::fileURLFromPath($file);
-		
-		$url =~ s/^file/tmp/ if $args->{volatile};
-
-		if (Slim::Music::Info::isSong($url)) {
-
-			main::DEBUGLOG && $log->debug("Adding $url to database.");
-
-			my $track = Slim::Schema->updateOrCreate({
-				'url'        => $url,
-				'readTags'   => 1,
-				'checkMTime' => $args->{volatile} ? undef : 1,
-				'create'     => $args->{volatile} ? 1 : undef,
-			});
-			
-			if ( defined $track && $return ) {
-
-				if ( $args->{volatile} ) {
-					Slim::Player::Protocols::Volatile->getMetadataFor(undef, $url);
-					push @{$foundItems}, $url;
-				}
-				else {
-					push @{$foundItems}, $track;
-				}
-
-			}
-			
-			if ( !defined $track ) {
-				$log->error( "ERROR SCANNING $file: " . Slim::Schema->lastError );
-			}
-
-		} 
-		
-		elsif ($args->{volatile}) {
-			# can't handle volatile playlists (yet?)
+	else {
+		my $request = Slim::Control::Request->new( undef, [ 'musicfolder', 0, 999_999, 'url:' . $url, 'tags:u', 'type:list|audio', 'recursive:1' ] );
+		$request->execute();
+	
+		if ( $request->isStatusError() ) {
+			$log->error($request->getStatusText());
 		}
-		
-		elsif (Slim::Music::Info::isCUE($url) || 
-			(Slim::Music::Info::isPlaylist($url) && Slim::Utils::Misc::inPlaylistFolder($url))) {
+		elsif ($return) {
+			@items = @{ $request->getResult('folder_loop') || [] };
+		}
+	}
 
-			# Only read playlist files if we're in the playlist dir. Read cue sheets from anywhere.
-			main::DEBUGLOG && $log->debug("Adding playlist $url to database.");
-
-			# Bug: 3761 - readTags, so the title is properly decoded with the locale.
+	foreach ( @items ) {
+		if ($_->{type} =~ /track|audio/) {
+			push @{$foundItems}, $_->{url};
+		}
+		elsif ($_->{type} =~ /playlist/) {
 			my $playlist = Slim::Schema->updateOrCreate({
-				'url'        => $url,
+				'url'        => Slim::Utils::Misc::fileURLFromPath($url),
 				'readTags'   => 1,
 				'checkMTime' => 1,
 				'playlist'   => 1,
-				'attributes' => {
-					'MUSICMAGIC_MIXABLE' => 1,
-				}
 			});
 
-			my @tracks = Slim::Utils::Scanner::Local::scanPlaylistFileHandle($playlist, FileHandle->new($file));
+			my @tracks = Slim::Utils::Scanner::Local::scanPlaylistFileHandle($playlist, FileHandle->new(Slim::Utils::Misc::pathFromFileURL($_->{url})));
 			
-			if ( scalar @tracks && $return ) {
+			if ( scalar @tracks ) {
 				push @{$foundItems}, @tracks;
 			}
 		}
-
 	}
 
 	return $foundItems;

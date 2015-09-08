@@ -16069,21 +16069,6 @@ RADIO_TUNEIN
 	SV	Ange webbadress
 	ZH_CN	收音机网址
 
-RADIOIO
-	CS	RadioIO
-	DA	RadioIO
-	DE	RadioIO
-	EN	RadioIO
-	ES	RadioIO
-	FI	RadioIO
-	FR	RadioIO
-	IT	RadioIO
-	NL	RadioIO
-	NO	RadioIO
-	PL	RadioIO
-	RU	RadioIO
-	SV	RadioIO
-
 SHOUTCAST
 	CS	SHOUTcast
 	DA	SHOUTcast
@@ -20739,6 +20724,10 @@ SETUP_DEBUG_PERFMON_LOG_DESC
 	RU	Файл журнала мониторинга производительности Logitech Media Server хранится здесь:
 	SV	Prestandaövervakning loggas här:
 
+SETUP_LOG_ZIPPED
+	DE	ZIP Datei
+	EN	ZIP archive
+
 SETUP_DEBUG_LEVEL_OFF
 	CS	Vypnuto
 	DA	Fra
@@ -24189,3 +24178,10 @@ SERVER_UPDATE_AVAILABLE
 	PL	Dostępna jest nowa wersja oprogramowania Logitech Media Server (%s). <a href="%s" target="update">Kliknij tutaj, aby pobrać</a>.
 	RU	Доступна новая версия Logitech Media Server (%s). <a href="%s" target="update">Для загрузки щелкните здесь</a>.
 	SV	Det finns en ny version av Logitech Media Server (%s). <a href="%s" target="update">Klicka här för att ladda ner den</a>.
+
+SERVER_LINUX_UPDATE_AVAILABLE
+	DE	Eine neue Version von Logitech Media Server ist verfügbar (%s). <a href="/html/docs/linux-update.html?installerFile=%s" target="update">Klicken Sie hier für weitere Instruktionen</a>.
+	EN	A new version of Logitech Media Server is available (%s). <a href="/html/docs/linux-update.html?installerFile=%s" target="update">Click here for further information</a>.
+	FR	Une nouvelle version de Logitech Media Server est disponible (%s). <a href="/html/docs/linux-update.html?installerFile=%s" target="update">Cliquez ici pour plus d'info</a>.
+	NL	Er is een nieuwe versie van Logitech Media Server beschikbaar (%s). <a href="/html/docs/linux-update.html?installerFile=%s" target="update">Klik op hier</a>.
+	
