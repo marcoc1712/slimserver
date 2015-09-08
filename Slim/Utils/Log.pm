@@ -817,6 +817,7 @@ sub logGroups {
 				'scan.scanner'           => 'DEBUG',
 				'scan.import'            => 'DEBUG',
 				'artwork'                => 'DEBUG',
+				'database.info'          => 'DEBUG',
 				'plugin.itunes'          => 'DEBUG',
 				'plugin.musicip'         => 'DEBUG',
 			},
@@ -882,7 +883,6 @@ sub logLevels {
 		'network.protocol.slimp3'    => 'ERROR',
 		'network.upnp'               => 'ERROR',
 		'network.jsonrpc'            => 'ERROR',
-		'network.squeezenetwork'     => 'ERROR',
 		'network.cometd'             => 'ERROR',
 
 		'formats.audio'              => 'ERROR',
@@ -930,6 +930,8 @@ sub logLevels {
 		'perfmon'                    => 'WARN, screen-raw, perfmon', # perfmon assumes this is set to WARN
 	};
 	
+	$categories->{'network.squeezenetwork'} = 'ERROR' unless main::NOMYSB;
+
 	return $categories unless $group;
 	
 	my $logGroups = logGroups();

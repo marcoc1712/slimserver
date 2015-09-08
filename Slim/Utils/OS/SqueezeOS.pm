@@ -75,6 +75,8 @@ sub initPrefs {
 	$defaults->{dontTriggerScanOnPrefChange} = 0;
 }
 
+sub canDBHighMem { 0 }
+
 my %prefSyncHandlers = (
 	SQUEEZEPLAY_PREFS . 'SetupLanguage.lua' => sub {
 		my $data = shift;
@@ -240,7 +242,7 @@ sub dirsFor {
 		push @dirs, $class->SUPER::dirsFor($dir);
 		push @dirs, "/usr/squeezecenter/Slim/Plugin", "/usr/share/squeezecenter/Plugins";
 		
-	} elsif ($dir =~ /^(?:strings|revision)$/) {
+	} elsif ($dir =~ /^(?:strings|revision|repositories)$/) {
 
 		push @dirs, "/usr/squeezecenter";
 

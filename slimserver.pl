@@ -14,6 +14,28 @@
 require 5.008_001;
 use strict;
 
+# Bug 7491 - bug in PerlSvc: ARGV is not populated when executable is run in service mode.
+# Try to work around this limitation by reading the command line from the registry. Ugh...
+BEGIN {
+	if ($PerlSvc::VERSION && $^O =~ /^m?s?win/i && !@ARGV) {
+		eval {
+			require Win32::TieRegistry;
+			my $swKey = $Win32::TieRegistry::Registry->Open(
+				'LMachine/System/ControlSet001/services/squeezesvc', 
+				{ 
+					Access => Win32::TieRegistry::KEY_READ(), 
+					Delimiter =>'/' 
+				}
+			);
+			
+			if ($swKey) {
+				push @ARGV, split(" ", $swKey->{ImagePath});
+				shift @ARGV;	# remove script name
+			}
+		};
+	}
+}
+
 # leaving this flag in for the moment - unlikely but possibly some 3rd party plugin is referring to it
 use constant SLIM_SERVICE => 0;
 use constant SCANNER      => 0;
@@ -26,6 +48,7 @@ use constant STATISTICS   => ( grep { /--nostatistics/ } @ARGV ) ? 0 : 1;
 use constant SB1SLIMP3SYNC=> ( grep { /--nosb1slimp3sync/ } @ARGV ) ? 0 : 1;
 use constant WEBUI        => ( grep { /--noweb/ } @ARGV ) ? 0 : 1;
 use constant NOUPNP       => ( grep { /--noupnp/ } @ARGV ) ? 1 : 0;
+use constant NOMYSB       => ( grep { /--nomysqueezebox/ } @ARGV ) ? 1 : 0;
 use constant IMAGE        => ( grep { /--noimage/ } @ARGV ) ? 0 : !NOUPNP;
 use constant VIDEO        => ( grep { /--novideo/ } @ARGV ) ? 0 : !NOUPNP;
 use constant ISWINDOWS    => ( $^O =~ /^m?s?win/i ) ? 1 : 0;
@@ -52,6 +75,7 @@ sub Startup {
 	# Tell PerlSvc to bundle these modules
 	if (0) {
 		require 'auto/Compress/Raw/Zlib/autosplit.ix';
+		require Cache::FileCache;
 	}
 	
 	# added to workaround a problem with 5.8 and perlsvc.
@@ -238,13 +262,13 @@ use Slim::Utils::Scanner::Local;
 use Slim::Utils::Scheduler;
 use Slim::Networking::Async::DNS;
 use Slim::Networking::Select;
-use Slim::Networking::SqueezeNetwork;
 use Slim::Networking::UDP;
 use Slim::Control::Stdio;
 use Slim::Utils::Strings qw(string);
 use Slim::Utils::Timers;
 use Slim::Networking::Slimproto;
 use Slim::Networking::SimpleAsyncHTTP;
+use Slim::Networking::Repositories;
 use Slim::Utils::Firmware;
 use Slim::Control::Jive;
 use Slim::Formats::RemoteMetadata;
@@ -294,8 +318,6 @@ my $prefs        = preferences('server');
 our $VERSION     = '7.9.0';
 our $REVISION    = undef;
 our $BUILDDATE   = undef;
-our $audiodir    = undef;
-our $playlistdir = undef;
 our $httpport    = undef;
 
 our (
@@ -325,15 +347,6 @@ our (
 	$nosetup,
 	$noserver,
 	$norestart,
-	$noupnp,
-	$noweb,
-	$notranscoding,
-	$nodebuglog,
-	$noinfolog,
-	$noimages,
-	$novideo,
-	$nosb1slimp3sync,
-	$nostatistics,
 	$stdio,
 	$stop,
 	$perfwarn,
@@ -389,6 +402,7 @@ sub init {
 	}
 
 	Slim::Utils::OSDetect::init();
+	my $os = Slim::Utils::OSDetect->getOS();
 
 	# initialize server subsystems
 	initSettings();
@@ -442,7 +456,7 @@ sub init {
 	$failsafe ? $prefs->set('failsafe', 1) : $prefs->remove('failsafe');
 
 	# Change UID/GID after the pid & logfiles have been opened.
-	unless (Slim::Utils::OSDetect::getOS->dontSetUserAndGroup() || (defined($user) && $> != 0)) {
+	unless ($os->dontSetUserAndGroup() || (defined($user) && $> != 0)) {
 		main::INFOLOG && $log->info("Server settings effective user and group if requested...");
 		changeEffectiveUserAndGroup();		
 	}
@@ -461,7 +475,7 @@ sub init {
 	}
 
 	main::INFOLOG && $log->info("Server binary search path init...");
-	Slim::Utils::OSDetect::getOS->initSearchPath();
+	$os->initSearchPath();
 
 	# Find plugins and process any new ones now so we can load their strings
 	main::INFOLOG && $log->info("Server PluginManager init...");
@@ -490,8 +504,14 @@ sub init {
 	Slim::Networking::Async::HTTP->init;
 	Slim::Networking::SimpleAsyncHTTP->init;
 	
-	main::INFOLOG && $log->info("SqueezeNetwork Init...");
-	Slim::Networking::SqueezeNetwork->init();
+	if (!main::NOMYSB) {
+		main::INFOLOG && $log->info("SqueezeNetwork Init...");
+		require Slim::Networking::SqueezeNetwork;
+		Slim::Networking::SqueezeNetwork->init();
+	}
+	
+	main::INFOLOG && $log->info("Download repositories init...");
+	Slim::Networking::Repositories->init();
 	
 	main::INFOLOG && $log->info("Firmware init...");
 	Slim::Utils::Firmware->init;
@@ -593,7 +613,7 @@ sub init {
 	main::INFOLOG && $log->info("Server checkDataSource...");
 	checkDataSource();
 	
-	if ( Slim::Utils::OSDetect::getOS->canAutoRescan && $prefs->get('autorescan') ) {
+	if ( $os->canAutoRescan && $prefs->get('autorescan') ) {
 		require Slim::Utils::AutoRescan;
 		
 		main::INFOLOG && $log->info('Auto-rescan init...');
@@ -634,7 +654,7 @@ sub init {
 		Slim::Utils::PerfMon->init($perfwarn);
 	}
 
-	if ( $prefs->get('checkVersion') ) {
+	if ( !$os->runningFromSource && $prefs->get('checkVersion') ) {
 		require Slim::Utils::Update;
 		Slim::Utils::Timers::setTimer(
 			undef,
@@ -791,6 +811,8 @@ Usage: $0 [--diag] [--daemon] [--stdio]
     --noimage        => Disable scanning for images.
     --novideo        => Disable scanning for videos.
     --noupnp         => Disable UPnP subsystem
+    --nomysqueezebox => Disable mysqueezebox.com integration.
+                        Warning: This effectively disables all music services provided by Logitech apps.
     --nobrowsecache  => Disable caching of rendered browse pages.
     --perfmon        => Enable internal server performance monitoring
     --perfwarn       => Generate log messages if internal tasks take longer than specified threshold
@@ -837,24 +859,25 @@ sub initOptions {
 		'prefsfile=s'   => \$prefsfile,
 		# prefsdir is parsed by Slim::Utils::Prefs prior to initOptions being run
 		'quiet'	        => \$quiet,
-		'nodebuglog'    => \$nodebuglog,
-		'noinfolog'     => \$noinfolog,
-		'noimage'       => \$noimages,
-		'novideo'       => \$novideo,
 		'norestart'     => \$norestart,
 		'nosetup'       => \$nosetup,
 		'noserver'      => \$noserver,
-		'nostatistics'  => \$nostatistics,
-		'noupnp'        => \$noupnp,
-		'nosb1slimp3sync'=> \$nosb1slimp3sync,
-		'notranscoding' => \$notranscoding,
-		'noweb'         => \$noweb,
 		'failsafe'      => \$failsafe,
 		'perfwarn=s'    => \$perfwarn,  # content parsed by PerfMon if set
 		'checkstrings'  => \$checkstrings,
 		'charset=s'     => \$charset,
 		'dbtype=s'      => \$dbtype,
 		'd_startup'     => \$d_startup, # Needed for Slim::bootstrap
+		# these values are parsed separately, we don't need these values in a variable - just get them off the list
+		'nodebuglog'    => sub {},
+		'noinfolog'     => sub {},
+		'noimage'       => sub {},
+		'novideo'       => sub {},
+		'nostatistics'  => sub {},
+		'noupnp'        => sub {},
+		'nosb1slimp3sync'=> sub {},
+		'notranscoding' => sub {},
+		'noweb'         => sub {},
 	);
 
 	# make --logging and --debug synonyms, but prefer --logging

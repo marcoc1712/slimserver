@@ -53,26 +53,6 @@ use Slim::Web::JSONRPC;
 use Slim::Web::Cometd;
 use Slim::Utils::Prefs;
 
-BEGIN {
-	# Use Cookie::XS if available
-	my $hasCookieXS;
-
-	sub hasCookieXS {
-		# Bug 9830, disable Cookie::XS for now as it has a bug
-		return 0;
-		
-		return $hasCookieXS if defined $hasCookieXS;
-
-		$hasCookieXS = 0;
-		eval {
-			require Cookie::XS;
-			$hasCookieXS = 1;
-		};
-
-		return $hasCookieXS;
-	}
-}
-
 use constant HALFYEAR	 => 60 * 60 * 24 * 180;
 
 use constant METADATAINTERVAL => 32768;
@@ -379,7 +359,6 @@ sub processHTTP {
 	# this will hold our context and is used to fill templates
 	my $params = {};
 	$params->{'userAgent'} = $request->header('user-agent');
-	$params->{'browserType'} = $skinMgr->detectBrowser($request);
 
 	# this bundles up all our response headers and content
 	my $response = HTTP::Response->new();
@@ -515,25 +494,10 @@ sub processHTTP {
 			}
 		}
 		
-		# Dont' process cookies for graphics
-		if ($path && $path !~ m/(gif|png)$/i) {
+		# Dont' process cookies for graphics, stylesheets etc.
+		if ($path && $path !~ m/(?:gif|png|jpe?g|css)$/i && $path !~ m{^/(?:music/[a-f\d]+/cover|imageproxy/.*/image)} ) {
 			if ( my $cookie = $request->header('Cookie') ) {
-				if ( hasCookieXS() ) {
-					# Parsing cookies this way is about 8x faster than using CGI::Cookie directly
-					my $cookies = Cookie::XS->parse($cookie);
-					$params->{'cookies'} = {
-						map {
-							$_ => bless {
-								name  => $_,
-								path  => '/',
-								value => $cookies->{ $_ },
-							}, 'CGI::Cookie';
-						} keys %{ $cookies }
-					};
-				}
-				else {
-					$params->{'cookies'} = { CGI::Cookie->parse($cookie) };
-				}
+				$params->{'cookies'} = { CGI::Cookie->parse($cookie) };
 			}
 		}
 		
@@ -636,10 +600,6 @@ sub processHTTP {
 		if ($path) {
 
 			$params->{'webroot'} = '/';
-
-			if ($path =~ s{^/slimserver/}{/}i) {
-				$params->{'webroot'} = "/slimserver/"
-			}
 
 			$path =~ s|^/+||;
 
@@ -1012,13 +972,15 @@ sub generateHTTPResponse {
 		$params->{'player'} = $client->id();
 		$params->{'myClientState'} = $client;
 		
-		# save the player id in a cookie
-		my $cookie = CGI::Cookie->new(
-			-name    => 'Squeezebox-player',
-			-value   => $params->{'player'},
-			-expires => '+1y',
-		);
-		$response->headers->push_header( 'Set-Cookie' => $cookie );
+		if ( $path !~ m{(?:^progress\.|settings/)} ) {
+			# save the player id in a cookie
+			my $cookie = CGI::Cookie->new(
+				-name    => 'Squeezebox-player',
+				-value   => $params->{'player'},
+				-expires => '+1y',
+			);
+			$response->headers->push_header( 'Set-Cookie' => $cookie );
+		}
 	}
 
 	# this might do well to break up into methods
@@ -1034,6 +996,9 @@ sub generateHTTPResponse {
  		# static content should expire from cache in one hour
 		$response->expires( time() + $max );
 		$response->header('Cache-Control' => 'max-age=' . $max);
+	}
+	elsif ( $path !~ m{^(?:music|imageproxy)/} ) {
+		$params->{'browserType'} = $skinMgr->detectBrowser($response->request);
 	}
 
 	if ($contentType =~ /text/ && $contentType !~ /(?:css|javascript)/ && $path !~ /(?:json|memoryusage|html\/js-)/) {
@@ -1093,7 +1058,7 @@ sub generateHTTPResponse {
 			
 			$params->{'imageproxy'} = Slim::Networking::SqueezeNetwork->url(
 				"/public/imageproxy"
-			);
+			) if !main::NOMYSB;
 
 			main::PERFMON && (my $startTime = AnyEvent->time);
 
@@ -1209,7 +1174,7 @@ sub generateHTTPResponse {
 			$response->content_type('text/html');
 			$response->code(RC_NOT_FOUND);
 		
-			$body = filltemplatefile('html/errors/404.html', $params);
+			$$body = "<h1>404 Not Found: $path</h1><p>Logitech Media Server web UI is not available in --noweb mode.</p>";
 		
 			return prepareResponseForSending(
 				$client,
@@ -1260,7 +1225,10 @@ sub generateHTTPResponse {
 		} elsif ($path =~ /(server|scanner|perfmon|log)\.(?:log|txt)/) {
 
 			if ( main::WEBUI ) {
-				($contentType, $body) = Slim::Web::Pages::Common->logFile($params, $response, $1);
+				($contentType, $body) = Slim::Web::Pages::Common->logFile($httpClient, $params, $response, $1);
+				
+				# when the full file is requested, then all the streaming is handled in the logFile call. Nothing is returned.
+				return 0 unless $contentType;
 			}
 		
 		} elsif ($path =~ /status\.txt/) {
@@ -2535,9 +2503,9 @@ sub checkAuthorization {
 sub addCloseHandler{
 	my $funcPtr = shift;
 	
-	if ( main::INFOLOG && $log->is_info ) {
+	if ( main::DEBUGLOG && $log->is_debug ) {
 		my $funcName = Slim::Utils::PerlRunTime::realNameForCodeRef($funcPtr);
-		$log->info("Adding Close handler: $funcName");
+		$log->debug("Adding Close handler: $funcName");
 	}
 	
 	push @closeHandlers, $funcPtr;

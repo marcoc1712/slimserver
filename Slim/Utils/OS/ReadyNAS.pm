@@ -130,4 +130,36 @@ sub ignoredItems {
 	);
 }
 
+sub canAutoUpdate { 1 }
+sub installerExtension { 'bin' }; 
+
+# don't return any value, but process the URL: we don't want the installer to be downloaded
+sub getUpdateParams {
+	my ($class, $url) = @_;
+	
+	if ($url) {
+		$url =~ /(\d\.\d\.\d).*?(\d{5,})/;
+		$::newVersion = Slim::Utils::Strings::string('SERVER_UPDATE_AVAILABLE', "$1 - $2", $url);
+	}
+	
+	return;
+}
+
+sub installerOS {
+	my $class = shift;
+	
+	if ($class->{osDetails}->{osArch} =~ /sparc/) {
+		return 'readynas';	
+	}
+	elsif ($class->{osDetails}->{osArch} =~ /arm/) {
+		return 'readynasarm';
+	}
+	elsif ($class->{osDetails}->{osArch} =~ /86/) {
+		# good luck with that...
+		return 'readynaspro';
+	}
+	
+	return '';
+}
+
 1;

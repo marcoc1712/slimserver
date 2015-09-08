@@ -34,7 +34,7 @@ use File::Basename;
 use File::Slurp qw(read_file);
 use File::Spec::Functions qw(:ALL);
 
-use Slim::Networking::SqueezeNetwork;
+use Slim::Networking::Repositories;
 use Slim::Networking::SimpleAsyncHTTP;
 use Slim::Utils::Log;
 use Slim::Utils::Misc;
@@ -52,9 +52,7 @@ my $updatesDir;
 
 # Download location
 sub BASE {
-	'http://'
-	. Slim::Networking::SqueezeNetwork->get_server("update")
-	. '/update/firmware';
+	return Slim::Networking::Repositories->getUrlForRepository('firmware');
 }
 
 # Check interval when firmware can't be downloaded
@@ -75,7 +73,6 @@ download().
 =cut
 
 sub init {
-	
 	# Must initialize these here, not in declaration so that options have been parsed.
 	$dir        = Slim::Utils::OSDetect::dirsFor('Firmware');
 	$updatesDir = Slim::Utils::OSDetect::dirsFor('updates');
@@ -311,7 +308,7 @@ sub url {
 
 	# when running on SqueezeOS, return the direct link from SqueezeNetwork
 	if ( Slim::Utils::OSDetect->getOS()->directFirmwareDownload() ) {
-		return BASE() . '/' . $::VERSION . '/' . $model
+		return BASE() . $::VERSION . '/' . $model
 			. '_' . $firmwares->{$model}->{version} 
 			. '_r' . $firmwares->{$model}->{revision} 
 			. '.bin';
@@ -459,7 +456,7 @@ sub downloadAsync {
 	$filesDownloading{$file} ||= [];
 	
 	# URL to download
-	my $url = BASE() . '/' . $::VERSION . '/' . basename($file);
+	my $url = BASE() . $::VERSION . '/' . basename($file);
 	
 	# Save to a tmp file so we can check SHA
 	my $http = Slim::Networking::SimpleAsyncHTTP->new(

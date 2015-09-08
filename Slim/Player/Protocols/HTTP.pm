@@ -141,7 +141,7 @@ sub parseMetadata {
 		
 		my $handled = eval { $parser->( $client, $url, $metadata ) };
 		if ( $@ ) {
-			my $name = Slim::Utils::PerlRunTime::realNameForCodeRef($parser);
+			my $name = main::DEBUGLOG ? Slim::Utils::PerlRunTime::realNameForCodeRef($parser) : 'unk';
 			logger('formats.metadata')->error( "Metadata parser $name failed: $@" );
 		}
 		return if $handled;
@@ -154,6 +154,11 @@ sub parseMetadata {
 		main::DEBUGLOG && $log->is_debug && $log->debug("Icy metadata received: $metadata");
 
 		my $newTitle = Slim::Utils::Unicode::utf8decode_guess($1);
+		
+		# Some stations provide TuneIn enhanced metadata (TPID, itunesTrackID, etc.) in the title - remove it
+		if ( $newTitle =~ /(.*?)- text="(.*?)"/ ) {
+			$newTitle = "$1 - $2";
+		}
 
 		# Bug 15896, a stream had CRLF in the metadata
 		$newTitle =~ s/\s*[\r\n]+\s*//g;
@@ -654,7 +659,7 @@ sub getMetadataFor {
 	if ( $provider ) {
 		my $metadata = eval { $provider->( $client, $url ) };
 		if ( $@ ) {
-			my $name = Slim::Utils::PerlRunTime::realNameForCodeRef($provider);
+			my $name = main::DEBUGLOG ? Slim::Utils::PerlRunTime::realNameForCodeRef($provider) : 'unk';
 			$log->error( "Metadata provider $name failed: $@" );
 		}
 		elsif ( scalar keys %{$metadata} ) {
@@ -739,22 +744,6 @@ sub getMetadataFor {
 			};
 		}
 	}
-=pod XXX - no longer needed with RadioIO metadata handling in its own plugin
-	elsif ( $playlistURL =~ /radioio/i ) {
-		if ( Slim::Plugin::InternetRadio::Plugin::RadioIO->can('_pluginDataFor') ) {
-			# RadioIO
-			my $icon = Slim::Plugin::InternetRadio::Plugin::RadioIO->_pluginDataFor('icon');
-				
-			return {
-				artist   => $artist,
-				title    => $title,
-				cover    => $icon,
-				icon     => $icon,
-				type     => 'MP3 (RadioIO)',
-			};
-		}
-	}
-=cut
 	else {	
 
 		if ( (my $handler = Slim::Player::ProtocolHandlers->handlerForURL($url)) !~ /^(?:$class|Slim::Player::Protocols::MMS)$/ )  {

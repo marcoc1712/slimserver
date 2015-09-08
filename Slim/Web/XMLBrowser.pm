@@ -491,9 +491,9 @@ sub handleFeed {
 						$search = $searchQuery;
 					}
 					
-					if ( main::DEBUGLOG && $log->is_info ) {
+					if ( main::DEBUGLOG && $log->is_debug ) {
 						my $cbname = Slim::Utils::PerlRunTime::realNameForCodeRef( $subFeed->{url} );
-						$log->info( "Fetching OPML from coderef $cbname" );
+						$log->debug( "Fetching OPML from coderef $cbname" );
 					}
 
 					# XXX: maybe need to pass orderBy through
@@ -703,6 +703,7 @@ sub handleFeed {
 						"$_:" . $actionItem->{fixedParams}->{$_}
 					} keys %{ $actionItem->{fixedParams} };
 					
+					main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($command));
 					$client->execute($command);
 				}
 			} elsif ($action eq 'insert') {

@@ -14,6 +14,7 @@ use FileHandle;
 use Path::Class ();
 use Scalar::Util qw(blessed);
 
+use Slim::Formats::Playlists;
 use Slim::Utils::Misc ();
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
@@ -255,6 +256,20 @@ sub rescan {
 			)
 			WHERE scanned_files.url LIKE '$basedir%'
 		};
+
+		# bug 18078 - Windows doesn't handle DST changes in a file's timestamp correctly. We need to do this on our end.
+		if ( main::ISWINDOWS && !(main::SCANNER && $main::wipe) ) {
+			my $isDST = (localtime(time()))[8] ? 1 : 0;
+	
+			if ( $isDST != Slim::Music::Import->getLastScanTimeIsDST() ) {
+				my $offset = $isDST ? 3600 : -3600;
+				
+				$log->error("DST has changed since last scan - fix timestamps in tracks table");
+				
+				$dbh->do("UPDATE tracks SET timestamp = (timestamp + $offset)");
+				Slim::Music::Import->setLastScanTimeIsDST();
+			}
+		}
 		
 		$log->error("Get deleted tracks count") unless main::SCANNER && $main::progress;
 		# only remove missing tracks when looking for audio tracks
@@ -922,7 +937,7 @@ sub changed {
 	my $content_type = _content_type($url);
 	
 	if ( Slim::Music::Info::isSong($url, $content_type) ) {
-		$log->error("Handling changed audio track $url") unless main::SCANNER && $main::progress;
+		main::INFOLOG && $log->is_info && !(main::SCANNER && $main::progress) && $log->info("Handling changed audio track $url");
 		
 		my $work = sub {
 			# Fetch some original track, album, contributors, and genre information
@@ -1076,6 +1091,7 @@ sub markDone {
 	if (!main::SCANNER && $changes) {
 		main::DEBUGLOG && $log->is_debug && $log->debug("Scanner made $changes changes, updating last rescan timestamp");
 		Slim::Music::Import->setLastScanTime();
+		Slim::Music::Import->setLastScanTimeIsDST();
 	}
 	
 	$pending{$path} &= ~$type if $type;
@@ -1116,6 +1132,7 @@ sub markDone {
 				if ($changes) {
 					main::DEBUGLOG && $log->is_debug && $log->debug("Scanner made $changes changes, updating last rescan timestamp");
 					Slim::Music::Import->setLastScanTime();
+					Slim::Music::Import->setLastScanTimeIsDST();
 				}
 				
 				# Persist the count of "changes since last optimization"

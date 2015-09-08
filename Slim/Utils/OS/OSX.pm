@@ -104,6 +104,8 @@ sub initPrefs {
 	$prefs->{wizardDone} = 1;
 }
 
+sub canDBHighMem { 1 }
+
 sub canFollowAlias { 
 	return $canFollowAlias if defined $canFollowAlias;
 	
@@ -146,7 +148,7 @@ sub dirsFor {
 	my @dirs = $class->SUPER::dirsFor($dir);
 	
 	# These are all at the top level.
-	if ($dir =~ /^(?:strings|revision|convert|types)$/) {
+	if ($dir =~ /^(?:strings|revision|convert|types|repositories)$/) {
 
 		push @dirs, $Bin;
 

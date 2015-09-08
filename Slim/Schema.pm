@@ -2664,7 +2664,7 @@ sub _preCheckAttributes {
 		COMPILATION REPLAYGAIN_ALBUM_PEAK REPLAYGAIN_ALBUM_GAIN 
 		MUSICBRAINZ_ARTIST_ID MUSICBRAINZ_ALBUMARTIST_ID MUSICBRAINZ_ALBUM_ID 
 		MUSICBRAINZ_ALBUM_TYPE MUSICBRAINZ_ALBUM_STATUS
-		ALBUMARTISTSORT
+		ALBUMARTISTSORT COMPOSERSORT CONDUCTORSORT BANDSORT
 	)) {
 
 		next unless defined $attributes->{$tag};
@@ -3056,7 +3056,8 @@ sub totals {
 		album => ['albums', 0, 1, 'tags:CC'],
 		contributor => ['artists', 0, 1, 'tags:CC'],
 		genre => ['genres', 0, 1, 'tags:CC'],
-		track => ['titles', 0, 1, 'tags:CC']
+		track => ['titles', 0, 1, 'tags:CC'],
+		playlist => ['playlists', 0, 1, 'tags:CC'],
 	);
 	
 	while (my ($key, $query) = each %categories) {

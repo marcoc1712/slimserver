@@ -37,7 +37,6 @@ use JSON::XS::VersionOneAndTwo;
 use Slim::Utils::Alarm;
 use Slim::Utils::Log;
 use Slim::Utils::Misc;
-use Slim::Utils::Scanner;
 use Slim::Utils::Prefs;
 use Slim::Utils::OSDetect;
 use Slim::Utils::Scanner::Local;
@@ -304,15 +303,19 @@ sub clientConnectCommand {
 		$host = $request->getParam('_where');
 		
 		# Bug 14224, if we get jive/baby/fab4.squeezenetwork.com, use the configured prod SN hostname
-		if ( $host =~ /^(?:jive|baby|fab4)/i ) {
+		if ( !main::NOMYSB && $host =~ /^(?:jive|baby|fab4)/i ) {
 			$host = Slim::Networking::SqueezeNetwork->get_server('sn');
 		}
 		
-		if ( $host =~ /^www\.(?:squeezenetwork|mysqueezebox)\.com$/i ) {
+		if ( !main::NOMYSB && $host =~ /^www\.(?:squeezenetwork|mysqueezebox)\.com$/i ) {
 			$host = 1;
 		}
-		elsif ( $host =~ /^www\.test\.(?:squeezenetwork|mysqueezebox)\.com$/i ) {
+		elsif ( !main::NOMYSB && $host =~ /^www\.test\.(?:squeezenetwork|mysqueezebox)\.com$/i ) {
 			$host = 2;
+		}
+		elsif ( main::NOMYSB && $host =~ /(?:squeezenetwork|mysqueezebox)\.com$/i ) {
+			$request->setStatusBadParams();
+			return;
 		}
 		elsif ( $host eq '0' ) {
 			# Logitech Media Server (used on SN)
@@ -890,6 +893,7 @@ sub playlistDeleteitemCommand {
 		Slim::Player::Playlist::removeMultipleTracks($client, [$absitem]);
 
 	} elsif (Slim::Music::Info::isDir($absitem)) {
+		require Slim::Utils::Scanner;
 		
 		Slim::Utils::Scanner->scanPathOrURL({
 			'url'      => Slim::Utils::Misc::pathFromFileURL($absitem),
@@ -1518,6 +1522,8 @@ sub playlistXitemCommand {
 
 		my @dirItems     = ();
 
+		require Slim::Utils::Scanner;
+
 		Slim::Utils::Scanner->scanPathOrURL({
 			'url'      => $path,
 			'listRef'  => \@dirItems,
@@ -1568,6 +1574,9 @@ sub playlistXitemCommand {
 				},
 			} );
 		}
+
+		require Slim::Utils::Scanner;
+		
 		Slim::Utils::Scanner->scanPathOrURL({
 			'url'      => $isReferenced ? $url : $path,
 			'listRef'  => Slim::Player::Playlist::playList($client),
@@ -1820,7 +1829,7 @@ sub playlistcontrolCommand {
 	my $client              = $request->client();
 	my $cmd                 = $request->getParam('cmd');
 	my $jumpIndex           = $request->getParam('play_index');
-
+	
 	if (Slim::Music::Import->stillScanning()) {
 		$request->addResult('rescan', "1");
 	}
@@ -1933,11 +1942,15 @@ sub playlistcontrolCommand {
 
 			$cmd .= "tracks";
 
+			my $library_id = Slim::Music::VirtualLibraries->getRealId($request->getParam('library_id')) || Slim::Music::VirtualLibraries->getLibraryIdForClient($client);
+			my $query = 'playlist.id=' . $playlist_id;
+			$query   .= '&library_id=' . $library_id if $library_id;
+			
 			Slim::Control::Request::executeRequest(
-				$client, ['playlist', $cmd, 'playlist.id=' . $playlist_id, undef, undef, $jumpIndex]
+				$client, ['playlist', $cmd, $query, undef, undef, $jumpIndex]
 			);
 
-			$request->addResult( 'count', $playlist->tracks->count() );
+			$request->addResult( 'count', $playlist->tracks($library_id)->count() );
 
 			$request->setStatusDone();
 			
@@ -2576,9 +2589,7 @@ sub rescanCommand {
 	
 	if ( $mode eq 'external' ) {
 		# The old way of rescanning using scanner.pl
-		my %args = (
-			cleanup => 1,
-		);
+		my %args = ();
 
 		if ($originalMode eq 'playlists') {
 			$args{playlists} = 1;
@@ -2689,7 +2700,7 @@ sub rescanCommand {
 	$request->setStatusDone();
 }
 
-sub setSNCredentialsCommand {
+sub setSNCredentialsCommand { if (!main::NOMYSB) {
 	my $request = shift;
 
 	if ($request->isNotCommand([['setsncredentials']])) {
@@ -2759,7 +2770,7 @@ sub setSNCredentialsCommand {
 		$prefs->set('sn_password_sha', '');
 		Slim::Networking::SqueezeNetwork->shutdown();
 	}
-}
+} }
 
 sub showCommand {
 	my $request = shift;
@@ -3039,10 +3050,10 @@ sub wipecacheCommand {
 	
 	else {
 
-		# Clear all the active clients's playlists
+		# replace local tracks with volatile versions - we're gong to wipe the database
 		for my $client (Slim::Player::Client::clients()) {
 
-			$client->execute([qw(playlist clear)]);
+			Slim::Player::Playlist::makeVolatile($client);
 		}
 		
 		if ( Slim::Utils::OSDetect::getOS->canAutoRescan && $prefs->get('autorescan') ) {
@@ -3294,6 +3305,9 @@ sub _playlistXtracksCommand_parseSearchTerms {
 				$terms->{$key} = $value;
 
 			}
+			elsif ($term =~ /^(library_id)=(.*)/) {
+				$terms->{'librarytracks.library'} = URI::Escape::uri_unescape($2);
+			}
 		}
 	}
 
@@ -3399,7 +3413,7 @@ sub _playlistXtracksCommand_parseSearchTerms {
 
 			$client->currentPlaylist($playlist) if $cmd && $cmd =~ /^(?:play|load)/;
 
-			return $playlist->tracks;
+			return $playlist->tracks($library_id);
 		}
 
 		return ();

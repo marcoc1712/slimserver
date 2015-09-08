@@ -422,7 +422,10 @@ sub installerExtension { '' };
 sub installerOS { '' };
 
 # XXX - disable AutoRescan for all but SqueezeOS for now
-sub canAutoRescan { 0 };
+sub canAutoRescan { 0 }
+
+# can we use more memory to improve DB performance?
+sub canDBHighMem { 0 }
 
 # some systems support checking ACLs in addition to simpler file tests
 my $filetest;
@@ -463,5 +466,9 @@ sub restartServer { 0 }
 sub canRestartServer { 0 }
 
 sub progressJSON { }
+
+sub runningFromSource {
+	$::REVISION =~ /^\s*\d+\s*$/ ? 0 : 1;
+}
 
 1;
