@@ -1,6 +1,6 @@
 package Plugins::mc2Library::Plugin;
 
-# Logitech Media Server Copyright 2001-2014 Logitech.
+# marco curti (marcoc1712 at gmail dot com) Copyright 2001-2014 Logitech.
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License,
 # version 2.

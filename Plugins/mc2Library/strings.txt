@@ -1,7 +1,7 @@
 PLUGIN_MC2_LIBRARY
-	EN	Virtual Library Definition
+	EN	Virtual Library Definition.
 
-PLUGIN_MC2_LIBRARY_DESC
+PLUGIN_MC2_LIBRARY_TXT
 	EN	Plugin based upon the LIBRARY DEMO PLUGIN by LOGITECH. This plugin will create some virtual libraries.
 	
 PLUGIN_MC2_LIBRARY_CLASSICAL_ARTISTS

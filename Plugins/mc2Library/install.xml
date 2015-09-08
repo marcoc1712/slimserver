@@ -5,7 +5,7 @@
 	<module>Plugins::mc2Library::Plugin</module>
 	<importmodule>Plugins::mc2Library::Plugin</importmodule>
 	<version>1.0</version>
-	<description>PLUGIN_MC2_LIBRARY_DESC</description>
+	<description>PLUGIN_MC2_LIBRARY_TXT</description>
 	<creator>marcoc1712</creator>
 	<defaultState>enabled</defaultState>
 	<homepageURL>http://www.mysqueezebox.com/support</homepageURL>
