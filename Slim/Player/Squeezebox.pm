@@ -603,8 +603,8 @@ sub stream_s {
 			main::INFOLOG && $sourcelog->is_info && $sourcelog->info(
 				'TRACK:' . Data::Dump::dump({
 				sampleSize	=> $client->pcm_sample_sizes($track),
-				sampleRateT => $track->samplerate(),
-				sampleRateC => $client->pcm_sample_rates($track),
+				sampleRateTrack => $track->samplerate(),
+				sampleRateClient => $client->pcm_sample_rates($track),
 				channels	=> $track->channels()
 			}));
 					

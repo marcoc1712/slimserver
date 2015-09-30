@@ -386,6 +386,8 @@ sub open {
 	
 	main::INFOLOG && $log->info("seek=", ($self->seekdata() ? 'true' : 'false'), ' time=', ($self->seekdata() ? $self->seekdata()->{'timeOffset'} : 0),
 		 ' canSeek=', $self->canSeek());
+	
+	main::INFOLOG && $log->info("TRANSCODING = ", (main::TRANSCODING ? 'true' : 'false'));
 		 
 	my $transcoder;
 	my $error;
