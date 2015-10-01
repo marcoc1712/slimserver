@@ -349,7 +349,8 @@ sub getConvertCommand2 {
 
 		push @profiles, "$type-$checkFormat-*-*";
 		
-		if ($type eq $checkFormat && enabledFormat("$type-$checkFormat-*-*")) {
+		#if ($type eq $checkFormat && enabledFormat("$type-$checkFormat-*-*"))
+		if (enabledFormat("$type-$checkFormat-*-*")) {
 			push @profiles, "$type-$checkFormat-transcode-*";
 		}
 	}
