@@ -29,6 +29,9 @@ BEGIN {
 
 use Scalar::Util qw(blessed);
 
+#use Carp qw<longmess>;
+#use Data::Dumper;
+
 use constant STATUS_READY     => 0;
 use constant STATUS_STREAMING => 1;
 use constant STATUS_PLAYING   => 2;
@@ -78,6 +81,9 @@ my @_playlistCloneAttributes = qw(
 sub new {
 	my ($class, $owner, $index, $seekdata) = @_;
 
+	#my $mess = longmess();
+    #print Dumper( $mess );
+	
 	my $client = $owner->master();
 	
 	my $objOrUrl = Slim::Player::Playlist::song($client, $index) || return undef;
@@ -401,6 +407,8 @@ sub open {
 		push (@streamFormats, 'I') if (! $wantTranscoderSeek);
 		
 		push @streamFormats, ($handler->isRemote && !Slim::Music::Info::isVolatile($handler) ? 'R' : 'F');
+		
+		main::INFOLOG && $log->is_info && $log->info("TRANSCODING: calling getConvertCommand");
 		
 		($transcoder, $error) = Slim::Player::TranscodingHelper::getConvertCommand2(
 			$self,
@@ -834,6 +842,8 @@ sub canDoSeek {
 				
 				# If dealing with local file and transcoding then best let transcoder seek if it can
 				
+				main::INFOLOG && $log->is_info && $log->info("canDoSeek: can seek - calling getConvertCommand");
+				
 				# First see how we would stream without seeking question
 				my $transcoder = Slim::Player::TranscodingHelper::getConvertCommand2(
 					$self,
@@ -851,6 +861,8 @@ sub canDoSeek {
 				}
 				
 				# no, then could we get a seeking transcoder?
+				main::INFOLOG && $log->is_info && $log->info("canDoSeek: mot a pass trougth, calling getConvertCommand");
+				
 				if (Slim::Player::TranscodingHelper::getConvertCommand2(
 					$self,
 					Slim::Music::Info::contentType($self->currentTrack),
@@ -875,6 +887,7 @@ sub canDoSeek {
 				# Note: this is intended to fall through to the below code
 			}
 		} 
+		main::INFOLOG && $log->is_info && $log->info("canDoSeek: last chance - calling getConvertCommand");
 		
 		if (Slim::Player::TranscodingHelper::getConvertCommand2(
 				$self,

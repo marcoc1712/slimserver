@@ -27,6 +27,9 @@ use Slim::Utils::Misc;
 use Slim::Utils::Network;
 use Slim::Utils::Prefs;
 
+use Carp qw<longmess>;
+use Data::Dumper;
+
 my $prefs = preferences('server');
 
 my $log       = logger('network.protocol.slimproto');
@@ -69,6 +72,8 @@ sub reconnect {
 	# paused, then stop.
 
 	my $controller = $client->controller();
+
+	main::INFOLOG && $sourcelog->is_info && $sourcelog->info(!$reconnect ? "RECONNECT" : "NOT RECONNECTING");
 
 	if (!$reconnect) {
 
@@ -529,6 +534,9 @@ sub stream_s {
 
 	my $format = $params->{'format'};
 	
+	#my $mess = longmess();
+    #main::INFOLOG && $sourcelog->is_info && $sourcelog->info(Dumper($mess));
+	
 	main::INFOLOG && $sourcelog->is_info && $sourcelog->info("format:" . length($format));
 
 
@@ -595,7 +603,7 @@ sub stream_s {
 			#	$track->samplerate() = $tags->{RATE};
 			#	$track->channels() = $tags->{CHANNELS}; 
 			#}
-
+			
 			$pcmsamplesize = $client->pcm_sample_sizes($track);
 			$pcmsamplerate = $client->pcm_sample_rates($track);
 			$pcmchannels   = $track->channels() || '2';
@@ -607,14 +615,44 @@ sub stream_s {
 				sampleRateClient => $client->pcm_sample_rates($track),
 				channels	=> $track->channels()
 			}));
-					
-			main::INFOLOG && $sourcelog->is_info && $sourcelog->info(
-				'PCM:' . Data::Dump::dump({
-				sampleSize	=> $pcmsamplesize,
-				sampleRate => $pcmsamplerate,
-				channels	=> $pcmchannels
-			}));
 		}
+		# Since the max sample rate was not stored, wen downloding take place
+		# We should inform clients, otherwise nothing will play, just white noise.
+		#
+		# Since the encoding of sample rate to its symbols is mabe by any diffetent player
+		# with his own method, we should mod ->pcm_sample_rates() for all the players.
+		#
+		# here done just for Squeezeplay.
+		#
+		my $song = $controller->song;
+		main::INFOLOG && $sourcelog->is_info && $sourcelog->info(defined($song)? "Song is defined" : "Song is not defined");
+
+		if ($song){
+
+			my $samplerateLimit = $song ? 
+				Slim::Player::CapabilitiesHelper::samplerateLimit($song) : 
+				undef;
+
+			main::INFOLOG && $sourcelog->is_info && $sourcelog->info("SAMPLERATE LIMIT: $samplerateLimit");
+
+			my $pcmsamplerateLimit = $samplerateLimit ? 
+				$client->pcm_sample_rates(undef, $samplerateLimit) : 
+				undef;
+			
+			main::INFOLOG && $sourcelog->is_info && $sourcelog->info("PCM SAMPLERATE LIMIT: $pcmsamplerateLimit");
+
+			$pcmsamplerate = $pcmsamplerateLimit ? 
+				$pcmsamplerateLimit :  $pcmsamplerate;
+				
+			main::INFOLOG && $sourcelog->is_info && $sourcelog->info("PCM SAMPLERATE: $pcmsamplerate");
+		}
+		
+		main::INFOLOG && $sourcelog->is_info && $sourcelog->info(
+			'PCM:' . Data::Dump::dump({
+			sampleSize	=> $pcmsamplesize,
+			sampleRate => $pcmsamplerate,
+			channels	=> $pcmchannels
+		}));
 
 	} elsif ($format eq 'aif') {
 

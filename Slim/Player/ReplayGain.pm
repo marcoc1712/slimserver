@@ -18,6 +18,7 @@ use Slim::Player::Source;
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
 
+my $log = logger('player.source');
 my $prefs = preferences('server');
 
 sub fetchGainMode {
@@ -199,9 +200,6 @@ sub trackSampleRateMatch {
 
 	my ($current_track, $compare_track) = $class->findTracksByIndex($client, $offset);
 
-	logError("current track: [$current_track]");
-	logError("compare track: [$compare_track]");
-	
 	return if (!$current_track || !$compare_track);
 	
 	if (!blessed($current_track) || !blessed($compare_track)) {
@@ -251,12 +249,18 @@ sub trackSampleRateMatch {
 		}
 	}
 
+	my $current_trackNo;
+	my $compare_trackNo;
+	my $current_trackNo = $current_track->tracknum;
+	my $compare_trackNo = $compare_track->tracknum;
+	
 	# Check sample rates match
+	
 	my $compare_rate = $compare_track->samplerate;
 	my $current_rate = $current_track->samplerate;
 	
-	logError("current rate: [$current_rate]");
-	logError("compare rate: [$compare_rate]");
+	logError("current track number: [$current_trackNo] rate: [$current_rate]");
+	logError("compare track number: [$compare_trackNo] rate: [$compare_rate]");
 	
 	if ($compare_rate && $current_rate &&
 		($compare_rate == $current_rate)) {

@@ -328,7 +328,7 @@ sub getConvertCommand2 {
 		}
 		push @$want, 'B';
 	}
-	
+
 	my $rate = $song->currentTrack()->samplerate;
 	main::INFOLOG && $log->is_info && $log->info(
 				'SONG SAMPLERATE: ', $rate ? $rate : "undefined");
@@ -383,8 +383,8 @@ sub getConvertCommand2 {
 		my $streamMode = undef;
 		my $caps = $capabilities{$profile};
 		
-		main::INFOLOG && $log->is_info && $log->info(
-			Data::Dump::dump(%capabilities));
+		main::DEBUGLOG && $log->is_debug
+				&& $log->debug(Data::Dump::dump(%capabilities));
 			
 		main::INFOLOG && $log->is_info && $log->info(
 		'CAPS:' . Data::Dump::dump({

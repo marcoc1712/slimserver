@@ -30,6 +30,7 @@ use Slim::Utils::Prefs;
 my $log     = logger('player.ui');
 my $nplog   = logger('network.protocol');
 my $synclog = logger('player.sync');
+my $sourcelog = logger('player.source');
 
 my $prefs = preferences('server');
 
@@ -293,6 +294,8 @@ sub power {
 	
 			$client->welcomeScreen();
 		}
+
+		main::INFOLOG && $sourcelog->is_info && $sourcelog->info("Player powering ON");
 
 		$controller->playerActive($client);
 

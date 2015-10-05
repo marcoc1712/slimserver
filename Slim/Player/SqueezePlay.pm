@@ -16,9 +16,13 @@ use vars qw(@ISA);
 use Slim::Utils::Prefs;
 use Slim::Utils::Log;
 
+use Carp qw<longmess>;
+use Data::Dumper;
+
 my $prefs = preferences('server');
 
 my $log = logger('network.protocol.slimproto');
+my $sourcelog = logger('player.source');
 
 BEGIN {
 	require Slim::Player::Squeezebox2;
@@ -203,6 +207,10 @@ sub formats {
 sub pcm_sample_rates {
 	my $client = shift;
 	my $track = shift;
+	my $sampleRate = shift;
+
+	#my $mess = longmess();
+    #main::INFOLOG && $sourcelog->is_info && $sourcelog->info(Dumper($mess));
 
 	# extend rate lookup table to allow for up to 384k playback with 3rd party kernels and squeezeplay desktop
 	# note: higher rates only used if supported by MaxSampleRate returned by player
@@ -224,7 +232,14 @@ sub pcm_sample_rates {
 		384000 => '>',
 	);
 	
-	my $rate = $pcm_sample_rates{$track->samplerate()};
+	main::INFOLOG && $sourcelog->is_info && $sourcelog->info("Samplerate: $sampleRate");
+	
+	my $trackRate = $track ? $pcm_sample_rates{$track->samplerate()} : undef;
+	my $inRate = $sampleRate ? $pcm_sample_rates{$sampleRate} : undef;
+
+	my $rate = $inRate ? $inRate : $trackRate;
+	
+	main::INFOLOG && $sourcelog->is_info && $sourcelog->info("Rate: $rate");
 	
 	return defined $rate ? $rate : '3';
 }

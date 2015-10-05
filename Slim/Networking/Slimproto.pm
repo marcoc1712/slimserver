@@ -33,6 +33,7 @@ my $faclog    = logger('factorytest');
 my $synclog   = logger('player.sync');
 my $firmlog   = logger('player.firmware');
 my $psdlog    = logger('player.streaming.direct');
+my $sourcelog = logger('player.source');
 
 # Bug 10443: Increase this from 60s to 300s to allow recovery during the full extent of buffered data
 my $forget_disconnected_time = 300; # disconnected clients will be forgotten unless they reconnect before this
@@ -965,9 +966,9 @@ sub _hello_handler {
 	my $mac = join(':', @mac);
 	my $id  = $mac;
 
-	if (main::INFOLOG && $log->is_info) {
+	if (main::INFOLOG && $sourcelog->is_info) {
 
-		$log->info(join(' ', 
+		$sourcelog->info(join(' ', 
 			"Squeezebox says hello: ",
 			"Deviceid: $deviceid",
 			"revision: $revision",
@@ -1121,7 +1122,8 @@ sub _hello_handler {
 
 	if (!defined($client)) {
 
-		main::INFOLOG && $log->info("Creating new client, id: $id ipport: $ipport{$s}");
+        main::INFOLOG && $sourcelog->info("Creating new client, id: $id ipport: $ipport{$s}");
+		#main::INFOLOG && $log->info("Creating new client, id: $id ipport: $ipport{$s}");
 
 		Slim::bootstrap::tryModuleLoad($client_class);
 
@@ -1150,6 +1152,11 @@ sub _hello_handler {
 
 		$client->macaddress($mac);
 		$client->init($deviceids[$deviceid], $capabilities, $syncgroupid);
+		
+		my $maxsamplerate = $client->maxSupportedSamplerate();
+		
+		main::INFOLOG && $sourcelog->info("max sample rate: [$maxsamplerate]");
+
 		$client->reconnect($paddr, $revision, $s, undef, undef, $syncgroupid);
 
 	} else {

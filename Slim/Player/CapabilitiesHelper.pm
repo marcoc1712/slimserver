@@ -16,22 +16,29 @@ sub samplerateLimit {
 	my $song     = shift;
 	
 	my $srate = $song->currentTrack()->samplerate;
-
+	
+	main::INFOLOG && $log->is_info && $log->info("current sample rate: $srate");
+	
 	return undef if ! $srate;
 
 	my $maxRate = 0;
 	
 	foreach ($song->master()->syncGroupActiveMembers()) {
 		my $rate = $_->maxSupportedSamplerate();
+		
+		main::INFOLOG && $log->is_info && $log->info(" detected max sample rate: $rate");
+		
 		if ($rate && ($maxRate && $maxRate > $rate || !$maxRate)) {
 			$maxRate = $rate;
 		}
 	}
+	main::INFOLOG && $log->is_info && $log->info(" minimum max sample rate: $maxRate");
 	
 	if ($maxRate && $maxRate < $srate) {
 		if (($maxRate % 12000) == 0 && ($srate % 11025) == 0) {
 			$maxRate = int($maxRate * 11025 / 12000);
 		}
+		main::INFOLOG && $log->is_info && $log->info("returned max sample rate: $maxRate");
 		return $maxRate;
 	}
 	
