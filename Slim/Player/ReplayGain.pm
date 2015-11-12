@@ -259,8 +259,8 @@ sub trackSampleRateMatch {
 	my $compare_rate = $compare_track->samplerate;
 	my $current_rate = $current_track->samplerate;
 	
-	logError("current track number: [$current_trackNo] rate: [$current_rate]");
-	logError("compare track number: [$compare_trackNo] rate: [$compare_rate]");
+	#logError("current track number: [$current_trackNo] rate: [$current_rate]");
+	#logError("compare track number: [$compare_trackNo] rate: [$compare_rate]");
 	
 	if ($compare_rate && $current_rate &&
 		($compare_rate == $current_rate)) {

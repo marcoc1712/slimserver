@@ -47,8 +47,11 @@ sub loadConversionTables {
 
 	my @convertFiles = ();
 
-	main::INFOLOG && $log->info("Loading conversion config files...");
-
+	if (main::INFOLOG && $log->is_info) {
+		
+		$log->info("Loading conversion config files...");
+	}
+	
 	# custom convert files allowed at server root or root of plugin directories
 	for my $baseDir (Slim::Utils::OSDetect::dirsFor('convert')) {
 
@@ -103,13 +106,12 @@ sub loadConversionTables {
 				$command =~ s/^\s*//o;
 				$command =~ s/\s*$//o;
 
-				if ( main::DEBUGLOG && $log->is_debug ) {
-					$log->debug(
-						"input: '$inputtype' output: '$outputtype' clienttype: " .
-						"'$clienttype': clientid: '$clientid': '$command'"
-					);
+				if (main::DEBUGLOG && $log->is_debug) {
+						$log->debug('DEBUG', 
+							"input: '$inputtype' output: '$outputtype' clienttype: " .
+							"'$clienttype': clientid: '$clientid': '$command'");
 				}
-
+				
 				next unless defined $command && $command !~ /^\s*$/;
 
 				$commandTable{$profile} = $command;
@@ -213,19 +215,21 @@ sub enabledFormat {
 	if (!@disabled) {
 		return 1;
 	}
-
-	if ( main::DEBUGLOG && $log->is_debug ) {
-		$log->debug("There are " . scalar @disabled . " disabled formats...");
+	if (main::DEBUGLOG && $log->is_debug) {	
+			$log->debug("There are " . scalar @disabled . " disabled formats...");
 	}
 	
 	for my $format (@disabled) {
 
-		main::DEBUGLOG && $log->debug("Testing $format vs $profile");
-
+		if (main::DEBUGLOG && $log->is_debug) {	
+			$log->debug("Testing DISABLED $format vs PROFILE $profile");
+		}
 		if ($format eq $profile) {
 
-			main::DEBUGLOG && $log->debug("** $profile Disabled **");
-
+			if (main::DEBUGLOG && $log->is_debug) {	
+				$log->debug("** $profile IS Disabled **");
+			}
+			
 			return 0;
 		}
 	}
@@ -239,18 +243,24 @@ sub checkBin {
 
 	my $command;
 
-	main::DEBUGLOG && $log->debug("Checking formats for: $profile");
-
+	if (main::DEBUGLOG && $log->is_debug) {	
+		$log->debug("Checking formats for: $profile");
+	}
 	# get the command for this profile
 	$command = $commandTable{$profile};
 
+	if (main::DEBUGLOG && $log->is_debug) {	
+		$log->debug('Command: '.$command."\n".
+				   'Ignoreprefsettings: '.(defined($ignoreprefsettings) ? "Si" : "No" )."\n".
+				   'Enabled: '.enabledFormat($profile)? "Si" : "No");
+	}
 	# if the user's disabled the profile, then skip it unless we're changing the prefs...
 	return undef unless $command && ( defined($ignoreprefsettings) || enabledFormat($profile) );
 
-	main::DEBUGLOG && $log->debug("   enabled");
-
 	if ($command) {
-		main::DEBUGLOG && $log->debug("  Found command: $command");
+		if (main::INFOLOG && $log->is_info) {	
+			$log->info("  Found command: $command");
+		}
 	}
 
 	# if we don't have one or more of the requisite binaries, then move on.
@@ -286,17 +296,17 @@ sub getConvertCommand2 {
 	my $song;
 	my $client;
 	
-	main::INFOLOG && $log->is_info && $log->info(
-		'INPUTS:' . Data::Dump::dump({
+	if (main::INFOLOG && $log->is_info) {	
+		$log->info('INPUTS:' . Data::Dump::dump({
 			songOrTrack	=> ref $songOrTrack eq 'Slim::Player::Song' ? 'song' : 'track',
 			type => $type,
 			streamModes	=> $streamModes,
 			need	=> $need,
 			want	=> $want,
 			formatOverride	=> $formatOverride,
-			rateOverride	=> $rateOverride
-	}));
-
+			rateOverride	=> $rateOverride}));
+	}
+	
 	if ( ref $songOrTrack eq 'Slim::Player::Song' ) {
 		$song   = $songOrTrack;
 		$track  = $song->currentTrack();
@@ -377,21 +387,31 @@ sub getConvertCommand2 {
 	
 	# Test each profile in turn
 	PROFILE: foreach my $profile (@profiles) {
+	
+		if (main::DEBUGLOG && $log->is_debug) {	
+				$log->debug("PROFILE: $profile");
+		}		
 		my $command = checkBin($profile);
+		
+		if (!$command){
+			if (main::DEBUGLOG && $log->is_debug) {	
+				$log->debug("Rejecting $command becouse no available bin: ");
+			}
+		}
 		next PROFILE if !$command;
 
 		my $streamMode = undef;
 		my $caps = $capabilities{$profile};
 		
-		main::DEBUGLOG && $log->is_debug
-				&& $log->debug(Data::Dump::dump(%capabilities));
-			
-		main::INFOLOG && $log->is_info && $log->info(
-		'CAPS:' . Data::Dump::dump({
-			profile => $profile,
-			caps => $caps
-		}));
+		if (main::DEBUGLOG && $log->is_debug) {	
+			$log->debug('DEBUG', Data::Dump::dump(%capabilities));
+		}
 		
+		if (main::INFOLOG && $log->is_info) {	
+		$log->info('CAPS:' . Data::Dump::dump({
+							profile => $profile,
+							caps => $caps}));
+		}
 		# Find a profile supporting available stream modes
 		foreach (@$streamModes) {
 			if ($caps->{$_}) {
@@ -400,22 +420,24 @@ sub getConvertCommand2 {
 			}
 		}
 		if (! $streamMode) {
-			main::DEBUGLOG && $log->is_debug
-				&& $log->debug("Rejecting $command because no available stream mode supported: ",
+			if (main::INFOLOG && $log->is_info) {	
+					$log->info("Rejecting $command because no available stream mode supported: ",
 							(join(',', @$streamModes)));
+			}
 			next PROFILE;
 		}
 		
 		# Check for mandatory capabilities
 		foreach (@$need) {
 			if (! $caps->{$_}) {
-				main::DEBUGLOG && $log->is_debug
-					&& $log->debug("Rejecting $command because required capability $_ not supported: ");
-				if ($_ eq 'D') {
-					$error ||= 'UNSUPPORTED_SAMPLE_RATE';
+				if (main::INFOLOG && $log->is_info) {	
+					$log->info("Rejecting $command because required capability $_ not supported: ");
 				}
-				next PROFILE;
 			}
+			if ($_ eq 'D') {
+				$error ||= 'UNSUPPORTED_SAMPLE_RATE';
+			}
+			next PROFILE;
 		}
 
 		# We can't handle WMA Lossless in firmware.
@@ -424,9 +446,9 @@ sub getConvertCommand2 {
 				next PROFILE;
 		}
 
-		main::INFOLOG && $log->is_info && $log->info(
-				'samplerate limit BEFORE: '. Data::Dump::dump($samplerateLimit ? $samplerateLimit : "undefined"));
-
+		if (main::INFOLOG && $log->is_info) {	
+				$log->info('samplerate limit BEFORE: '. Data::Dump::dump($samplerateLimit ? $samplerateLimit : "undefined"));
+		}
 		$transcoder = {
 			command          => $command,
 			profile          => $profile,
@@ -476,14 +498,18 @@ sub getConvertCommand2 {
 	}
 
 	if (! $transcoder) {
-		main::INFOLOG && $log->info("Error: Didn't find any command matches for type: $type");
+		if (main::INFOLOG && $log->is_info) {	
+			$log->info("Error: Didn't find any command matches for type: $type");
+		}
 	} else {
-		main::INFOLOG && $log->is_info && $log->info("Matched: $type->", $transcoder->{'streamformat'}, " via: ", $transcoder->{'command'});
+		if (main::INFOLOG && $log->is_info) {	
+			$log->info("TRANSCODE Matched: $type->", $transcoder->{'streamformat'}, " via: ", $transcoder->{'command'});
+		}
 	}
 
-	main::INFOLOG && $log->is_info && $log->info(
-		'TRANSCODER:' . Data::Dump::dump($transcoder));
-
+	if (main::INFOLOG && $log->is_info) {	
+		$log->info('TRANSCODER:' . Data::Dump::dump($transcoder));
+	}
 	return wantarray ? ($transcoder, $error) : $transcoder;
 }
 
@@ -519,6 +545,10 @@ sub tokenizeConvertCommand2 {
 		$binaries{$1} = Slim::Utils::Misc::findbin($1) unless $binaries{$1};
 	}
 	$command =~ s/\[([^\]]+)\]/'"' . $binaries{$1} . '"'/eg;
+	
+	if (main::INFOLOG && $log->is_info) {	
+		$log->info("command before: ".Data::Dump::dump($command));
+	}
 	
 	my ($start, $end);
 	
@@ -564,8 +594,8 @@ sub tokenizeConvertCommand2 {
 	# Except on Windows where $ and ` shouldn't be escaped and "
 	# isn't allowed in filenames.
 	if (!main::ISWINDOWS) {
-		$filepath =~ s/([\$\"\`])/\\$1/g;
-		$fullpath =~ s/([\$\"\`])/\\$1/g;
+		$filepath =~ s/([\$\"\`])/\\$1/g; #"
+		$fullpath =~ s/([\$\"\`])/\\$1/g; #"
 	}
 	
 	# Check to see if we need to flip the endianess on output
@@ -579,8 +609,8 @@ sub tokenizeConvertCommand2 {
 	$subs{'CLIENTID'}  = do { (my $tmp = $transcoder->{'clientid'}) =~ tr/.:/-/;  $tmp };
 	$subs{'PLAYER'}    = do { (my $tmp = $transcoder->{'player'}  ) =~ tr/\" /_/; $tmp };
 	$subs{'NAME'}      = do { (my $tmp = $transcoder->{'name'}    ) =~ tr/\" /_/; $tmp };
-	$subs{'GROUPID'}   = $transcoder->{'groupid'} eq 0 ? $subs{'CLIENTID'} : do { (my $tmp = sprintf ( "g%011x", $transcoder->{'groupid'}) ) =~ s/..\K(?=.)/-/g; $tmp};
-
+	$subs{'GROUPID'}   = $transcoder->{'groupid'} eq 0 ? $subs{'CLIENTID'} : do { (my $tmp = sprintf ( "g%011x", $transcoder->{'groupid'}) ) =~ s/..\K(?=.)/-/g; $tmp}; #"
+	
 	foreach my $v (keys %vars) {
 		my $value;
 		
@@ -621,7 +651,11 @@ sub tokenizeConvertCommand2 {
 	foreach (keys %subs) {
 		$command =~ s/\$$_\$/$subs{$_}/g;
 	}
-
+	
+	if (main::INFOLOG && $log->is_info) {	
+		$log->info("command after: ".Data::Dump::dump($command));
+	}
+	
 	# Try to read parameters from file referenced in the command's placeholder '${PREF-FILE.KEY}$' 
 	while ($command && $command =~ /\${(.*?)}\$/g) {
 		my $placeholder = $1;
@@ -652,8 +686,9 @@ sub tokenizeConvertCommand2 {
 		$command .= ' |';
 	}
 
-	main::INFOLOG && $log->is_info && $log->info("Using command for conversion: ", Slim::Utils::Unicode::utf8decode_locale($command));
-
+	if (main::INFOLOG && $log->is_info) {	
+		$log->info("Using command for conversion: ", Slim::Utils::Unicode::utf8decode_locale($command));
+	}
 	return $command;
 }
 
@@ -680,7 +715,5 @@ sub _rateLimit {
 	
 	return $maxRate;
 }
-
 1;
-
 __END__

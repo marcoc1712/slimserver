@@ -29,8 +29,8 @@ BEGIN {
 
 use Scalar::Util qw(blessed);
 
-#use Carp qw<longmess>;
-#use Data::Dumper;
+use Carp qw<longmess>;
+use Data::Dumper;
 
 use constant STATUS_READY     => 0;
 use constant STATUS_STREAMING => 1;
