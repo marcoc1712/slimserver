@@ -1,9 +1,29 @@
+#!/usr/bin/perl
+#
+# This program is part of the C-3PO Plugin. 
+# See Plugin.pm for credits, license terms and others.
+#
+# Logitech Media Server Copyright 2001-2011 Logitech.
+# This Plugin Copyright 2015 Marco Curti (marcoc1712 at gmail dot com)
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License,
+# version 2.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+#########################################################################
+
 package Plugins::C3PO::Transcoder;
 
 #
 # See plugin.pm for description and terms of use.
 
 use strict;
+use warnings;
 
 #use Data::Dump;
 
@@ -101,6 +121,49 @@ sub useFlacToDecodeWhenSplitting {
 	if (!($inCodec eq 'flc')) {return 0};
 	
 	return 0; # AIF will not worlk with 1. See FlacTranscode.
+}
+sub needRestoreHeader{
+	my $transcodeTable =shift;
+	
+	my $testFile=$transcodeTable->{'testfile'};
+	
+	return (defined $testFile);
+
+}
+sub getTestFile{
+	my $transcodeTable =shift;
+	
+	my $fileName = "header.".$transcodeTable->{'inCodec'};
+	my $outfile  = Plugins::C3PO::OsHelper::getTemporaryFile($fileName);
+		
+	Plugins::C3PO::Logger::debugMessage('out file : '.$outfile);
+	
+	saveHeaderFile(\*STDIN, $outfile);
+	
+	Plugins::C3PO::Logger::debugMessage('returning : '.$outfile);
+	return $outfile;
+}
+
+sub saveHeaderFile{
+	my $fh = shift;
+	my $testHeaderFile = shift;
+	
+	my $head = FileHandle->new;
+	$head->open("> $testHeaderFile") or die $!;
+	binmode ($head);
+
+	my $headbuffer;
+
+	if (
+		sysread ($fh, $headbuffer, 8192)	# read in (up to) 64k chunks, write
+		and syswrite $head, $headbuffer	# exit if read or write fails
+	  ) {};
+	  die "Problem writing: $!\n" if $!;
+
+	flush $head;
+	close $head;
+	
+	return 1;
 }
 ################################################################################
 sub useSoxToEncodeWhenResampling {
@@ -435,16 +498,23 @@ sub useC3PO{
 	#	U => 'END=-w %w', 
 	D => 'RESAMPLE=-r %d' };
 	
+	#Enable stdIn pipes (Quboz) but disable seek (cue sheets)
+	# In windows I does not works insiede C3PO, so it's disabled.)
+	if(!enableSeek($transcodeTable) && !main::ISWINDOWS){
 	#if(!enableSeek($transcodeTable)){
-	#	
-	#	$capabilities->{I}= 'noArgs';
-	#	
-	#
-	#} else {
+
+		#Disabling this and enabling the followings LMS will use R capabilities and 
+		# pass the Qobuz link to C3PO, but it does not works, needs the quboz plugin pipe 
+		# to be activated via I.
+		#
+		$capabilities->{I}= 'noArgs';  
+		#$capabilities->{T}='START=-s %s';
+		#$capabilities->{U}='END=-w %w';
+	} else {
 
 		$capabilities->{T}='START=-s %s';
 		$capabilities->{U}='END=-w %w';
-	#}
+	}
 
 	$result->{'capabilities'}=$capabilities;
 	
@@ -468,14 +538,14 @@ sub useServer {
 	#	U => 'END=-w %w',
 		D => 'RESAMPLE=-r %d' };
 		
-	if(!enableSeek($transcodeTable)){
+	if(!enableSeek($transcodeTable) && 0){
 		
 		# cue files will always play from the beginning of first track.
-		$capabilities->{I}= 'FILE=%f';
-		$capabilities->{F}= 'FILE=%f';
-		$capabilities->{R}= 'FILE=%F';
-		$capabilities->{T}='START=--skip=%t';
-		$capabilities->{U}='END=--until=%v';
+		$capabilities->{I}= 'noArgs';
+		
+		# enabling the following, track > 1 in cue file will not play at all.
+		#$capabilities->{T}='START=--skip=%t';
+		#$capabilities->{U}='END=--until=%v';
 		
 	}elsif (useFFMpegToSplit($transcodeTable)){
 		
@@ -486,9 +556,8 @@ sub useServer {
 
 		$capabilities->{T}='START=--skip=%t';
 		$capabilities->{U}='END=--until=%v';
-
 	}
-
+	
 	$transcodeTable->{'capabilities'}=$capabilities;	
 	
 	$transcodeTable= buildCommand($transcodeTable);
@@ -548,9 +617,42 @@ sub buildCommand {
 	}
 	$transcodeTable->{'command'}=$command;
 	
+	if (needRestoreHeader($transcodeTable)){
+	
+		$transcodeTable = restoreHeader($transcodeTable);
+		
+	}
+	
 	return $transcodeTable;
 }
+sub restoreHeader{
+	my $transcodeTable = shift;
+	
+	my $willStart				 = $transcodeTable->{'C3POwillStart'};
+	my $pathToPerl				 = $transcodeTable->{'pathToPerl'};
+	my $pathToHeaderRestorer_pl	 = $transcodeTable->{'pathToHeaderRestorer_pl'};
+	my $pathToHeaderRestorer_exe = $transcodeTable->{'pathToHeaderRestorer_exe'};
+	my $testfile				 = $transcodeTable->{'testfile'};
 
+	my $commandString= "";
+
+	if ($willStart eq 'pl'){
+		
+			$commandString =  qq("$pathToPerl" "$pathToHeaderRestorer_pl" );
+							  
+			
+	} else {
+			
+			$commandString =  qq("$pathToHeaderRestorer_exe" );
+	}
+	
+	$commandString = $commandString.
+					 qq(-d $main::logLevel -l "$main::logfile" "$testfile" | );
+									
+	$transcodeTable->{'command'}=$commandString.$transcodeTable->{'command'};
+	
+	return $transcodeTable;
+}
 sub splitTranscodeAndResample{
 	my $transcodeTable = shift;
 
@@ -727,37 +829,26 @@ sub checkResample{
 	
 	my $willStart=$transcodeTable->{'C3POwillStart'};
 	
-	if (defined $willStart && defined $file){
+	#if (defined $willStart && defined $file && 
+	#	!isAStdInPipe($transcodeTable)){
 	
-		my $lib;
-		
-		# The executables are located in some subfolder of the Bin directory,
-		# depending on OS, architechture and perl version.
-		
-		Plugins::C3PO::Logger::debugMessage('Will start '.$willStart);
-		
-		if ($willStart && $willStart eq 'exe'){
-
-                        $lib = $transcodeTable->{'C3POfolder'};
-                        
-		
-		} elsif ($willStart && $willStart eq 'pl'){
+	if (defined $willStart && $willStart){
+	
+		my $testfile=$file;
+		if (!defined $file || isAStdInPipe($transcodeTable)){
 			
-			$lib = $transcodeTable->{'serverFolder'};
-
-		} else {
-                        Plugins::C3PO::Logger::debugMessage('else '.$willStart);
-			Plugins::C3PO::Logger::ErrorMessage('Could not run');
+			$testfile= getTestFile($transcodeTable);
+			Plugins::C3PO::Logger::debugMessage('testfile: '.$testfile);
+			$transcodeTable->{'testfile'}=$testfile;
 		}
-		Plugins::C3PO::Logger::debugMessage('$file '.$file);
-                Plugins::C3PO::Logger::debugMessage('$lib '.$lib);
-                
-		$fileInfo= Plugins::C3PO::AudioScanHelper::getFileInfo(
-						$file,$lib);
-
+		Plugins::C3PO::Logger::debugMessage('testfile: '.$testfile);
+		$fileInfo= Audio::Scan->scan($testfile);
+		
+		Plugins::C3PO::Logger::debugMessage('AudioScan: '.Data::Dump::dump ($fileInfo));
+		
 		$transcodeTable->{'fileInfo'}=$fileInfo;
 		$fileSamplerate=$fileInfo->{info}->{samplerate};
-	
+		
 		Plugins::C3PO::Logger::debugMessage('file samplerate: '.$fileSamplerate);
 			
 		if ($fileSamplerate){
@@ -907,7 +998,6 @@ sub getMaxSyncrounusSampleRate{
 	} 
 	#Data::Dump::dump($max);
 	return ($max > 0 ? $max : undef);
-}							
+}	
 ###############################################################################
-
 1;

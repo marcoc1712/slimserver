@@ -1,9 +1,14 @@
 #!/usr/bin/perl
-# $Id$
 #
 # This program is part of the C-3PO Plugin. 
-#
 # See Plugin.pm for credits, license terms and others.
+#
+# Logitech Media Server Copyright 2001-2011 Logitech.
+# This Plugin Copyright 2015 Marco Curti (marcoc1712 at gmail dot com)
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License,
+# version 2.
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -35,6 +40,7 @@
 package main;
 
 use strict;
+use warnings;
 
 use FindBin qw($Bin);
 use lib $Bin;
@@ -42,7 +48,7 @@ use lib $Bin;
 use File::Spec::Functions qw(:ALL);
 use File::Basename;
 
-my $C3PODir;
+my $C3PODir=$Bin;
 my ($volume,$directories,$file) =File::Spec->splitpath($0);
 
 
@@ -100,7 +106,8 @@ use constant NOMYSB       => 1;
 use Logger;
 use Transcoder;
 use Shared;
-use AudioScanHelper;
+use OsHelper;
+use Pipeline;
 
 use FfmpegHelper;
 use FlacHelper;
@@ -111,23 +118,24 @@ use Utils::Log;
 use Utils::File;
 use Utils::Config;
 
+require FileHandle;
 require Getopt::Long;
 require YAML::XS;
 require File::HomeDir;
 require Data::Dump;
 require Audio::Scan;
 
+our $logFolder;
 our $logfile;
 our $isDebug;
 our $logLevel = DEBUGLOG ? 'debug' : INFOLOG ? 'info' : 'warn';
 
-$logLevel='verbose'; #to show more debug mesages
-#$logLevel='debug';
+#$logLevel='verbose'; #to show more debug mesages
+$logLevel='debug';
 #$logLevel='info';
 #$logLevel='warn'; #to show less debug mesages
 
 main();
-
 #################
 
 sub main{
@@ -144,7 +152,7 @@ sub main{
 	if (!defined $options) {Plugins::C3PO::Logger::dieMessage("Missing options");}
 	
 	$isDebug= $options->{debug};
-	Plugins::C3PO::Logger::infoMessage('debug? '.$isDebug);
+	Plugins::C3PO::Logger::infoMessage('debug? '.$isDebug ? 'Yes' : 'No');
 	
 	Plugins::C3PO::Logger::debugMessage('options '.Data::Dump::dump($options));
 	
@@ -152,7 +160,7 @@ sub main{
 		
 	if (defined $options->{logFolder}){
 	
-		my $logFolder=$options->{logFolder};
+		$logFolder=$options->{logFolder};
 
 		Plugins::C3PO::Logger::debugMessage ('found log foder in options: '.$logFolder);
 		
@@ -228,12 +236,14 @@ sub main{
 	$transcodeTable->{'inCodec'}=$options->{inCodec};
 	my $commandTable=Plugins::C3PO::Transcoder::buildCommand($transcodeTable);
 	
-	execCommand($commandTable->{'command'});
+	executeCommand($commandTable->{'command'});
 }
 # launch command and die, passing Output directly to LMS, so far the best.
-sub execCommand{
+# but does not work in Windows with I capability (socketwrapper involved)
+#
+sub executeCommand{
 	my $command=shift;
-	
+
 	#some hacking on quoting and escaping for differents Os...
 	$command= Plugins::C3PO::Shared::finalizeCommand($command);
 
@@ -246,8 +256,7 @@ sub execCommand{
 	} else {
 	
 		my @args =($command);
-		exec @args or &Plugins::C3PO::Logger::errorMessage("couldn't exec command: $!");
-	
+		exec @args or &Plugins::C3PO::Logger::errorMessage("couldn't exec command: $!");	
 	}
 }
 sub loadPreferences {
@@ -322,5 +331,6 @@ sub getAncestor{
 
 	return File::Spec->catfile($volume, File::Spec->catdir( @dirs ), $file);
 }
+
 1;
 

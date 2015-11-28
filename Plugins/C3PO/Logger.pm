@@ -1,11 +1,21 @@
 #!/usr/bin/perl
 #
-# @File File.pm
-# $Id$
+# This program is part of the C-3PO Plugin. 
+# See Plugin.pm for credits, license terms and others.
 #
+# Logitech Media Server Copyright 2001-2011 Logitech.
+# This Plugin Copyright 2015 Marco Curti (marcoc1712 at gmail dot com)
 #
-# @Author Marco Curti <marcoc1712@gmail.com>
-# @Created 1-nov-2015 23.53.58
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License,
+# version 2.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+#########################################################################
 #
 
 package Plugins::C3PO::Logger;
@@ -52,22 +62,8 @@ sub dieMessage{
 sub guessFileFatal{
 	my $filemane= shift || 'C-3PO.fatal';
 	
-        my $dir;
-        
-        if (main::ISWINDOWS || main::ISMAC){
-        
-            #require File::HomeDir;
-
-            $dir = File::HomeDir->my_home;
-        
-        } else {
-        
-            #some sort of linux, in UBUNTU we could not write in the home dir...
-            
-            $dir= "/var/log";
-            
-        }
-        my $fatal=File::Spec->catfile($dir, $filemane);
-        return $fatal;
+	my $dir = Plugins::C3PO::OsHelper::getFatalDir();
+	my $fatal=File::Spec->catfile($dir, $filemane);
+	return $fatal;
 }
 1;

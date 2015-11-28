@@ -1,20 +1,21 @@
 #!/usr/bin/perl
 #
-# @File Config.pm
-# $Id$
+# This program is part of the C-3PO Plugin. 
+# See Plugin.pm for credits, license terms and others.
 #
 # Logitech Media Server Copyright 2001-2011 Logitech.
+# This Plugin Copyright 2015 Marco Curti (marcoc1712 at gmail dot com)
+#
 # This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License, version 2
-
-# This code originally lived in slimserver.pl - but with other programs
-# needing to use the same @INC, was broken out into a separate package.
+# modify it under the terms of the GNU General Public License,
+# version 2.
 #
-# 2005-11-09 - dsully
-
-# Modified by Marco Curti <marcoc1712@gmail.com>
-# @Created 1-nov-2015 23.53.58
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
+#########################################################################
 
 package Utils::Config;
 

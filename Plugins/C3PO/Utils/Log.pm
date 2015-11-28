@@ -1,21 +1,29 @@
 #!/usr/bin/perl
 #
-# @File File.pm
-# $Id$
+# This program is part of the C-3PO Plugin. 
+# See Plugin.pm for credits, license terms and others.
 #
+# Logitech Media Server Copyright 2001-2011 Logitech.
+# This Plugin Copyright 2015 Marco Curti (marcoc1712 at gmail dot com)
 #
-# @Author Marco Curti <marcoc1712@gmail.com>
-# @Created 1-nov-2015 23.53.58
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License,
+# version 2.
 #
-		
-#print ( (caller(1))[3] )."\n";
-#print "\n";
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+#########################################################################
 
 package Utils::Log;
 
-use strict;
+use strict;	
 
 #use File::Spec::Functions qw(:ALL);
+#print ( (caller(1))[3] )."\n";
+#print "\n";
 
 sub evalLog{
 	my $logLevel= shift;
@@ -52,19 +60,19 @@ sub writeLog {
                 
 		if (open(my $fh, ">>", qq($logfile))){
                 
-                    print $fh "\n $line \n";
-                    close $fh;
+			print $fh "$line \n";
+			close $fh;
 
-                } else{
-                    
-                   #die ("can't write logFile ".qq($logfile));
-                   #do nothing at the moment.
-                   
-                   #TODO: Beter handle logs.
-                    
-                }
-                
-                if ($isDebug){
+		} else{
+
+		   #die ("can't write logFile ".qq($logfile));
+		   #do nothing at the moment.
+
+		   #TODO: Beter handle logs.
+
+		}
+
+		if ($isDebug){
 
 			print $line."\n";
 		}  

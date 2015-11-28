@@ -1,10 +1,22 @@
-#!/usr/bin/perl
+##!/usr/bin/perl
 #
-# @File TestC3PO.pl
-# @Author Marco Curti <marcoc1712@gmail.com>
-# @Created 14-ott-2015 12.54.03
+# This program is part of the C-3PO Plugin. 
+# See Plugin.pm for credits, license terms and others.
 #
-
+# Logitech Media Server Copyright 2001-2011 Logitech.
+# This Plugin Copyright 2015 Marco Curti (marcoc1712 at gmail dot com)
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License,
+# version 2.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+#########################################################################
+#
 use strict;
 
 use FindBin qw($Bin);
@@ -41,7 +53,7 @@ use constant NOMYSB       => 1;
 use Logger;
 use Transcoder;
 use Shared;
-use AudioScanHelper;
+use OsHelper;
 
 use FfmpegHelper;
 use FlacHelper;

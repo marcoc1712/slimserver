@@ -1,17 +1,18 @@
-package Plugins::C3PO::Plugin;
-
+#!/usr/bin/perl
 # $Id$
-
-# This plugin handles file type conversion and resampling.
-# It replace custom-convert.conf.
+#
+# Handles server side file type conversion and resampling.
+# Replace custom-convert.conf.
+#
+# To be used mainly with Squeezelite-R2 
+# (https://github.com/marcoc1712/squeezelite/releases)
 #
 # Logitech Media Server Copyright 2001-2011 Logitech.
 # This Plugin Copyright 2015 Marco Curti (marcoc1712 at gmail dot com)
 #
 # C3PO is inspired by the DSD Player Plugin by Kimmo Taskinen <www.daphile.com>
-# and Adrian Smith (triode1@btinternet.com).
-# 
-# but it does not replace it, DSD Play is still needed to play dsf and dff files.
+# and Adrian Smith (triode1@btinternet.com), but it  does not replace it, 
+# DSD Play is still needed to play dsf and dff files.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License,
@@ -22,6 +23,10 @@ package Plugins::C3PO::Plugin;
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
+################################################################################
+
+package Plugins::C3PO::Plugin;
+
 use strict;
 use FindBin qw($Bin);
 use lib $Bin; #not needed here, we just neeed to know $Bin
@@ -48,7 +53,7 @@ if ( main::WEBUI ) {
 use Plugins::C3PO::Shared;
 use Plugins::C3PO::Logger;
 use Plugins::C3PO::Transcoder;
-use Plugins::C3PO::AudioScanHelper;
+use Plugins::C3PO::OsHelper;
 use Plugins::C3PO::FfmpegHelper;
 use Plugins::C3PO::FlacHelper;
 use Plugins::C3PO::SoxHelper;
@@ -172,8 +177,11 @@ sub getPreferences{
 	return $preferences;
 }
 my $pathToPerl;
-my $pathToC3PO_exe;
 my $pathToC3PO_pl;
+my $pathToC3PO_exe;
+
+my $pathToHeaderRestorer_pl;
+my $pathToHeaderRestorer_exe;
 
 my $pathToprefFile;
 my $pathToFlac;
@@ -201,6 +209,9 @@ sub initFilesLocations {
 	$pathToC3PO_pl	= calcPathToC3PO_pl();
 	
 	$C3POfolder		= File::Basename::dirname $pathToC3PO_pl;
+	
+	$pathToHeaderRestorer_pl  = catdir($C3POfolder, 'HeaderRestorer.pl');
+	$pathToHeaderRestorer_exe = Slim::Utils::Misc::findbin("HeaderRestorer");
 	
 }
 sub calcPathToC3PO_pl{
@@ -346,32 +357,34 @@ sub initPlugin {
 
 	# init preferences
 	$preferences->init({
-		serverFolder	=> $serverFolder,
-		logFolder		=> $logFolder,
-		pathToFlac		=> $pathToFlac,
-		pathToSox		=> $pathToSox,
-		pathToFaad		=> $pathToFaad,
-		pathToFFmpeg	=> $pathToFFmpeg,
-		pathToC3PO_pl	=> $pathToC3PO_pl,
-		pathToC3PO_exe	=> $pathToC3PO_exe,
-		C3POfolder		=> $C3POfolder,
-		pathToC3PO		=> undef,
-		pathToPerl		=> $pathToPerl,
-		C3POwillStart	=> $C3POwillStart,
-		useCueSheets	=> undef,
-		resampleWhen	=> "A",
-		resampleTo		=> "S",
-		outCodec		=> "wav",
-		outBitDepth		=> 3,
-		outByteOrder	=> "L",
-		outEncoding		=> "s",
-		outChannels		=> 2,
-		gain			=> 3,
-		quality			=> "v",
-		phase			=> "M",
-		aliasing		=> "on",
-		bandwidth		=> 907,
-		dither			=> "on",
+		serverFolder				=> $serverFolder,
+		logFolder					=> $logFolder,
+		pathToFlac					=> $pathToFlac,
+		pathToSox					=> $pathToSox,
+		pathToFaad					=> $pathToFaad,
+		pathToFFmpeg				=> $pathToFFmpeg,
+		pathToC3PO_pl				=> $pathToC3PO_pl,
+		pathToC3PO_exe				=> $pathToC3PO_exe,
+		C3POfolder					=> $C3POfolder,
+		pathToC3PO					=> undef,
+		pathToPerl					=> $pathToPerl,
+		C3POwillStart				=> $C3POwillStart,
+		pathToHeaderRestorer_pl		=>  $pathToHeaderRestorer_pl,
+		pathToHeaderRestorer_exe	=> $pathToHeaderRestorer_exe,
+		useCueSheets				=> undef,
+		resampleWhen				=> "A",
+		resampleTo					=> "S",
+		outCodec					=> "wav",
+		outBitDepth					=> 3,
+		outByteOrder				=> "L",
+		outEncoding					=> "s",
+		outChannels					=> 2,
+		gain						=> 3,
+		quality						=> "v",
+		phase						=> "M",
+		aliasing					=> "on",
+		bandwidth					=> 907,
+		dither						=> "on",
 	});
 	
 	#check File location at every startup.
@@ -387,6 +400,9 @@ sub initPlugin {
 	$preferences->set('pathToC3PO_pl', $pathToC3PO_pl);
 	
 	$preferences->set('C3POwillStart', $C3POwillStart);
+	
+	$preferences->set('pathToHeaderRestorer_pl', $pathToHeaderRestorer_pl);
+	$preferences->set('pathToHeaderRestorer_exe', $pathToHeaderRestorer_exe);
 	
 	$preferences->set('serverFolder', $serverFolder);
 	$preferences->set('logFolder', $logFolder);
