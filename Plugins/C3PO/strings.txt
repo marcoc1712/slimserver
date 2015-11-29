@@ -280,3 +280,11 @@ PLUGIN_C3PO_CODEC_SELECTION_TITLE
 PLUGIN_C3PO_CODEC_SELECTION_DESC
 	EN	List of formats (aka codecs) supported by the player. If some options appear disabled means that C-3PO does not support those formats. In particular, 'dsf' and 'dff' are handled similarly by the plugin DSDPlay, while generally 'lossy' formats are not supported. PCM is WAV
 	IT	Elenco dei formati (o codec) supportati dal lettore. Se alcune opzioni appaiono disabilitate significa che C-3PO non supporta quei formati. In particolare, 'dsf' e 'dff' vengono gestiti in modo analogo mediante il plugin DSDPlay, mentre in generale non sono gestiti i formati 'lossy'. PCM è WAV.
+
+PLUGIN_C3PO_ENABLE_SEEK_TITLE
+	EN	Enable seek (cue sheet)
+	IT	Abilita ricerca (cue sheet).
+	
+PLUGIN_C3PO_ENABLE_SEEK_DESC
+	EN	Enable seek capabilities ("T" and "U"), necessary for cue sheet usage but incompatible with "I" stream format, used by many on line services (i.e. Qobuz).
+	IT	Abilita la capacità di ricerca ("T" e "U"), indispensabile per l'uso dei cue sheets ma incompatibile con la modalità "I", necessaria per molti servizi on line (es. Qobuz).

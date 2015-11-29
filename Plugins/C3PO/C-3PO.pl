@@ -72,8 +72,8 @@ if ($file && $file eq 'C-3PO.exe'){
 
 } else{
 	
-	# at the monent.
-	die;
+	# at the moment.
+	die "unexpected filename";
 }
 
 use lib rel2abs(catdir($C3PODir, 'lib'));
@@ -107,7 +107,6 @@ use Logger;
 use Transcoder;
 use Shared;
 use OsHelper;
-use Pipeline;
 
 use FfmpegHelper;
 use FlacHelper;
@@ -175,15 +174,6 @@ sub main{
 
 		my $message="C-3PO says $options->{hello}! see $logfile for errors";
 		print $message;
-		#print "\n";
-		#print 'Bin is: '.$Bin;
-		#print "\n";
-		#print 'PluginDir is: '.$C3PODir;
-		#print "\n";
-		#print 'Inc is: '.Data::Dump::dump(@INC);
-		#print "\n";
-		#print 'Inc is: '.Data::Dump::dump(%INC);
-		#print "\n";
 
 		Plugins::C3PO::Logger::infoMessage($message);
 		Plugins::C3PO::Logger::debugMessage('Bin is: '.$Bin);
@@ -312,8 +302,6 @@ sub getOptions{
 	}
 	return undef;
 }
-
-1;
 sub getAncestor{
 	my $folder=shift;
 	my $lev=shift || 1;
@@ -331,6 +319,5 @@ sub getAncestor{
 
 	return File::Spec->catfile($volume, File::Spec->catdir( @dirs ), $file);
 }
-
 1;
 

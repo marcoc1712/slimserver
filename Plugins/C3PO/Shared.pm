@@ -24,15 +24,18 @@ use strict;
 #use Data::Dump qw(dump);
 
 my @clientPrefNamesScalar = qw(	id macaddress model modelName name 
-								maxSupportedSamplerate codecs);						
+								maxSupportedSamplerate codecs enableSeek);
+								
 my @clientPrefNamesHash	  = qw(	sampleRates);
 
 my @clientPrefNames= @clientPrefNamesScalar;
 push @clientPrefNames, @clientPrefNamesHash;
 
-my @sharedPrefNames		  = qw(	useCueSheets
+my @sharedPrefNames		  = qw(	#useCueSheets
 								resampleWhen resampleTo outCodec 
-								outBitDepth outByteOrder outEncoding 
+								outBitDepth 
+								#outByteOrder 
+								outEncoding 
 								outChannels gain quality phase aliasing 
 								bandwidth dither);
 

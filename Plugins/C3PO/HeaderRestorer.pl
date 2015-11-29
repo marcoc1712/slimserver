@@ -31,10 +31,6 @@ use File::Basename;
 my $C3PODir;
 my ($volume,$directories,$file) =File::Spec->splitpath($0);
 
-#print '$volume is      : '.$volume."\n";
-#print '$directories is : '.$directories."\n";
-#print '$file is   : '.$file."\n";
-
 if ($file && $file eq 'HeaderRestorer.exe'){
 
 	# We are running the compiled version in 
@@ -51,8 +47,8 @@ if ($file && $file eq 'HeaderRestorer.exe'){
 
 } else{
 	
-	# at the monent.
-	die;
+	# at the moment.
+	die "unexpected filename";
 }
 
 use lib rel2abs(catdir($C3PODir, 'lib'));

@@ -35,6 +35,7 @@ sub getFatalDir{
 		#some sort of linux, in UBUNTU we could not write in the home dir...
 		$dir= "/var/log";
 	}
+	return $dir;
 }
 
 sub getTemporaryDir{

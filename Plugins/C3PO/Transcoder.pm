@@ -51,15 +51,10 @@ sub enableSeek{
 	my $inCodec= isRuntime($transcodeTable) 
 		? $transcodeTable->{'transitCodec'} : $transcodeTable->{'inCodec'};
 	
-	#shortcut, should be handled in a much better way.
-	my $useCueSheets= $transcodeTable->{'useCueSheets'} ? 1 : 0;
+	my $enable = $transcodeTable->{'enableSeek'}->{$inCodec} ? 1 : 0;
+	Plugins::C3PO::Logger::debugMessage("codec: $inCodec - enableSeek: $enable");
 	
-	if ($inCodec eq 'wav') {return 1};
-	if ($inCodec eq 'pcm') {return 1};
-	if ($inCodec eq 'aif') {return 1};
-	if ($inCodec eq 'flc') {return $useCueSheets};
-	
-	return 0;
+	return $enable;
 }
 sub isCompressedCodec{
 	my $codec= shift;
@@ -385,6 +380,8 @@ sub initTranscoder{
 	my $transcodeTable= shift;
 	my $willStart=$transcodeTable->{'C3POwillStart'};
 	
+	Plugins::C3PO::Logger::debugMessage('Start initTranscoder');
+	
 	if (!((defined $willStart) &&
 		  (($willStart eq 'pl') ||($willStart eq 'exe')))){
 
@@ -408,13 +405,12 @@ sub initTranscoder{
 			(($transcodeTable->{'resampleTo'} eq 'S')||
 			($transcodeTable->{'resampleWhen'} eq 'E'))){
 			
-			#Data::Dump::dump ("useC3PO: ");
+			Plugins::C3PO::Logger::debugMessage('Use C3PO');
 			$cmd=useC3PO($transcodeTable);
 			#Data::Dump::dump ($cmd);
 
 		} else {
-			#Data::Dump::dump ($transcodeTable->{options});
-			#Data::Dump::dump ("useServer");
+			Plugins::C3PO::Logger::debugMessage('Use Server');	
 			$cmd=useServer($transcodeTable);
 			#Data::Dump::dump ($cmd);
 		}
@@ -434,6 +430,8 @@ sub initTranscoder{
 
 sub buildProfile{
 	my $transcodeTable = shift;
+	
+	Plugins::C3PO::Logger::debugMessage('Start buildProfile');
 	
 	my $macaddress= $transcodeTable->{'macaddress'};
 	my $inCodec= $transcodeTable->{'inCodec'};
@@ -458,6 +456,8 @@ sub buildProfile{
 sub useC3PO{
 	my $transcodeTable= shift;
 
+	Plugins::C3PO::Logger::debugMessage('Start useC3PO');
+	
 	my $result={};
 
 	my $macaddress= $transcodeTable->{'macaddress'};
@@ -496,7 +496,7 @@ sub useC3PO{
 		R => 'noArgs', 
 	#	T => 'START=-s %s', 
 	#	U => 'END=-w %w', 
-	D => 'RESAMPLE=-r %d' };
+		D => 'RESAMPLE=-r %d' };
 	
 	#Enable stdIn pipes (Quboz) but disable seek (cue sheets)
 	# In windows I does not works insiede C3PO, so it's disabled.)
@@ -523,6 +523,8 @@ sub useC3PO{
 sub useServer {
 	my $transcodeTable= shift;
 
+	Plugins::C3PO::Logger::debugMessage('Start useServer');
+
 	my $result={};
 
 	$result->{'profile'} =  buildProfile($transcodeTable);
@@ -538,8 +540,8 @@ sub useServer {
 	#	U => 'END=-w %w',
 		D => 'RESAMPLE=-r %d' };
 		
-	if(!enableSeek($transcodeTable) && 0){
-		
+	if(!enableSeek($transcodeTable)){
+		                              
 		# cue files will always play from the beginning of first track.
 		$capabilities->{I}= 'noArgs';
 		
@@ -606,7 +608,7 @@ sub buildCommand {
 	
 	}
 	$command = $transcodeTable->{'command'}||"";
-	Plugins::C3PO::Logger::debugMessage('command: '.$command);
+	Plugins::C3PO::Logger::debugMessage('transcode command: '.$command);
 	
 	# We could not exit with a null string, we need at least a dummy executable
 	# converter.
@@ -622,7 +624,8 @@ sub buildCommand {
 		$transcodeTable = restoreHeader($transcodeTable);
 		
 	}
-	
+	$command = $transcodeTable->{'command'}||"";
+	Plugins::C3PO::Logger::debugMessage('built command: '.$command);
 	return $transcodeTable;
 }
 sub restoreHeader{
@@ -832,10 +835,10 @@ sub checkResample{
 	#if (defined $willStart && defined $file && 
 	#	!isAStdInPipe($transcodeTable)){
 	
-	if (defined $willStart && $willStart){
+	if (isRuntime($transcodeTable) && defined $willStart && $willStart){
 	
 		my $testfile=$file;
-		if (!defined $file || isAStdInPipe($transcodeTable)){
+		if (isAStdInPipe($transcodeTable)){
 			
 			$testfile= getTestFile($transcodeTable);
 			Plugins::C3PO::Logger::debugMessage('testfile: '.$testfile);

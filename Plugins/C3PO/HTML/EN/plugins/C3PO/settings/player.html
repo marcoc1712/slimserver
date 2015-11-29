@@ -14,6 +14,18 @@
 			<label for="pref_codecs[% codec.key %]">[% codec.key | string %]&nbsp;&nbsp;</label>
 		[% END %]
 	[% END %]
+	
+	[% WRAPPER setting title="PLUGIN_C3PO_ENABLE_SEEK_TITLE" desc="PLUGIN_C3PO_ENABLE_SEEK_DESC" %]
+		[% FOREACH seek IN prefs.enableSeek %]
+			<input type="checkbox" name="pref_enableSeek[% seek.key %]" id="enableSeek[% seek.key %]" value="1" [% seek.value ? "checked" : "" %]
+			[% FOREACH c2 IN disabledCodecs %]
+				[% IF seek.key == c2.key %] 
+					[% IF c2.value %] disabled [% END %]
+				[% END %]
+			[% END %]>
+			<label for="pref_enableSeek[% seek.key %]">[% seek.key | string %]&nbsp;&nbsp;</label>
+		[% END %]
+	[% END %]
 
 	[% WRAPPER setting title="PLUGIN_C3PO_SAMPLE_RATE_LIST" desc="PLUGIN_C3PO_SAMPLE_RATE_LIST_DESC" %]
 		[% FOREACH rate IN prefs.sampleRates %]

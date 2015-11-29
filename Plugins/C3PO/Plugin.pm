@@ -87,12 +87,16 @@ my $log = Slim::Utils::Log->addLogCategory( {
 my %supportedCodecs=();
 $supportedCodecs{'wav'}{'supported'}=1;
 $supportedCodecs{'wav'}{'defaultEnabled'}=1;
+$supportedCodecs{'wav'}{'defaultEnableSeek'}=1;
 $supportedCodecs{'pcm'}{'supported'}=1;
 $supportedCodecs{'pcm'}{'defaultEnabled'}=1;
+$supportedCodecs{'pcm'}{'defaultEnableSeek'}=1;
 $supportedCodecs{'aif'}{'supported'}=1;
 $supportedCodecs{'aif'}{'defaultEnabled'}=1;
+$supportedCodecs{'aif'}{'defaultEnableSeek'}=1;
 $supportedCodecs{'flc'}{'supported'}=1;
 $supportedCodecs{'flc'}{'defaultEnabled'}=1;
+$supportedCodecs{'flc'}{'defaultEnableSeek'}=0;
 $supportedCodecs{'loc'}{'unlisted'}=1;
 #
 # samplerates
@@ -366,17 +370,17 @@ sub initPlugin {
 		pathToC3PO_pl				=> $pathToC3PO_pl,
 		pathToC3PO_exe				=> $pathToC3PO_exe,
 		C3POfolder					=> $C3POfolder,
-		pathToC3PO					=> undef,
+		#pathToC3PO					=> undef,
 		pathToPerl					=> $pathToPerl,
 		C3POwillStart				=> $C3POwillStart,
 		pathToHeaderRestorer_pl		=>  $pathToHeaderRestorer_pl,
 		pathToHeaderRestorer_exe	=> $pathToHeaderRestorer_exe,
-		useCueSheets				=> undef,
+		#useCueSheets				=> undef,
 		resampleWhen				=> "A",
 		resampleTo					=> "S",
 		outCodec					=> "wav",
 		outBitDepth					=> 3,
-		outByteOrder				=> "L",
+		#outByteOrder				=> "L",
 		outEncoding					=> "s",
 		outChannels					=> 2,
 		gain						=> 3,
@@ -395,7 +399,7 @@ sub initPlugin {
 
 	#Store them as preferences to be retieved and used by C3PO.
 	$preferences->set('pathToPerl', $pathToPerl);
-	$preferences->set('pathToC3PO', undef);
+	#$preferences->set('pathToC3PO', undef);
 	$preferences->set('pathToC3PO_exe', $pathToC3PO_exe);
 	$preferences->set('pathToC3PO_pl', $pathToC3PO_pl);
 	
@@ -633,14 +637,15 @@ sub initCodecs{
 	my $prefs= getPreferences($client);
 	my $codecList="";
 	my $prefCodecs;
+	my $prefEnableSeek;
 
 	if (!defined($prefs->client($client)->get('codecs'))){
 	
-		$prefCodecs = defaultCodecs($client);
+		($prefCodecs, $prefEnableSeek) = defaultCodecs($client);
 
 	} else {
 		
-		$prefCodecs = refreshCodecs($client);
+		($prefCodecs, $prefEnableSeek) = refreshCodecs($client);
 	}
 	#build the complete list string
 	for my $codec (keys %$prefCodecs){
@@ -652,6 +657,7 @@ sub initCodecs{
 		$codecList=$codecList.$codec;
 	}
 	$prefs->client($client)->set('codecs', $prefCodecs);
+	$prefs->client($client)->set('enableSeek', $prefEnableSeek);
 
 	if (main::DEBUGLOG && $log->is_debug) {
 			 $log->debug("New codecs: ".dump($prefCodecs));
@@ -669,6 +675,7 @@ sub defaultCodecs{
 	my $codecs= $caps->{'codecs'};
 	
 	my $prefCodecs =();
+	my $prefEnableSeek =();
 	my $supported=();
 	
 	#add all the codecs supported by the client.
@@ -681,43 +688,43 @@ sub defaultCodecs{
 	}
 	#set default enabled and remove unlisted.
 	for my $codec (keys %$supported){
-
-		if (exists $codecs->{$codec}->{'unlisted'}){
-
-			next;
-		}
 		
-		if (exists $codecs->{$codec}->{'supported'}){
-
-			if ($codecs->{$codec}->{'defaultEnabled'}){
-
-				$prefCodecs->{$codec}="on";
-
-			} else {
-
-				$prefCodecs->{$codec}=undef;
-			}	
-		} else {
+		if (exists $codecs->{$codec}->{'unlisted'}){ next;}
 		
-			$prefCodecs->{$codec}=undef;
+		$prefCodecs->{$codec}=undef;
+		$prefEnableSeek->{$codec}=undef;
+		
+		if ((exists $codecs->{$codec}->{'supported'}) &&
+			($codecs->{$codec}->{'defaultEnabled'})){
+
+			$prefCodecs->{$codec}="on";
+
+			if ($codecs->{$codec}->{'defaultEnableSeek'}){
+
+				$prefEnableSeek->{$codec}="on";
+			}
 		}
+			
 	}
 	
 	if (main::DEBUGLOG && $log->is_debug) {
-			 $log->debug("Default codecs: ".dump($prefCodecs));
+			 $log->debug("Default codecs  : ".dump($prefCodecs));
+			 $log->debug("Enable Seek for : ".dump($prefEnableSeek));
 	}
-	return $prefCodecs;
+	return ($prefCodecs, $prefEnableSeek);
 }
 sub refreshCodecs{
 	my $client=shift;
 	my $prefs= getPreferences($client);
 
 	my $prefRef = $prefs->client($client)->get('codecs');
+	my $prefEnableSeekRef = $prefs->client($client)->get('enableSeek');
 	
 	my $caps=getCapabilities();
 	my $codecs= $caps->{'codecs'};
 	
 	my $prefCodecs =();
+	my $prefEnableSeek=();
 	my $supported=();
 	
 	#add all the codecs supported by the client.
@@ -730,20 +737,19 @@ sub refreshCodecs{
 	}
 	#remove unlisted and unsupported.
 	for my $codec (keys %$prefRef){
-	
-		if (exists $codecs->{$codec}->{'unlisted'}){
 
+		if (exists $codecs->{$codec}->{'unlisted'}){
 			next;
 		}
-			
+		
+		$prefCodecs->{$codec}=undef;
+		$prefEnableSeek->{$codec}=undef;
+		
 		if (exists ($codecs->{$codec}->{'supported'}) &&
 		    ($codecs->{$codec}->{'supported'})){
 
 			$prefCodecs->{$codec}=$prefRef->{$codec};
-			
-		} else {
-			
-			$prefCodecs->{$codec}=undef;
+			$prefEnableSeek->{$codec}=$prefEnableSeekRef->{$codec}
 		}
 	}
 	for my $codec (keys %$supported){
@@ -752,14 +758,18 @@ sub refreshCodecs{
 
 			# codec is new added in supported
 			if (!exists $prefCodecs->{$codec}){
+			
 				$prefCodecs->{$codec}=undef;
+				$prefEnableSeek->{$codec}=undef;
+			
 			}
 		} 
 	}
 	if (main::DEBUGLOG && $log->is_debug) {
-			 $log->debug("Refreshed codecs: ".dump($prefCodecs));
+			 $log->debug("Refreshed codecs       : ".dump($prefCodecs));
+			 $log->debug("Refreshed seekk enabled: ".dump($prefEnableSeek));
 	}
-	return $prefCodecs
+	return ($prefCodecs,$prefEnableSeek); 
 }
 sub setupTranscoder{
 	my $client=shift;

@@ -17,6 +17,10 @@
 #
 #########################################################################
 #
+# TODO:
+# Remove $outByteOrder from parameters, should not be changed
+# and handled directly by SOX for different codecs.
+	
 package Plugins::C3PO::SoxHelper;
 
 use strict;
@@ -64,9 +68,6 @@ sub resample{
 	if ($outBitDepth){$outFormatSpec= $outFormatSpec.' -'.$outBitDepth};
 	if ($outEncoding){$outFormatSpec= $outFormatSpec.' -'.$outEncoding};
 	#if ($outByteOrder){$outFormatSpec= $outFormatSpec.' -'.$outByteOrder};
-	# TODO:
-	# Remove $outByteOrder from parametres, should not be changed
-	# and handled directly by SOX for different codecs.
 
 	if ($outCompression){$outFormatSpec= $outFormatSpec.' -C '.$outCompression};
 	

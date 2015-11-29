@@ -26,6 +26,5 @@ sub transcode{
 	Plugins::C3PO::Logger::infoMessage('Start dummyTranscoder using sox');
 	
 	return Plugins::C3PO::SoxHelper::transcode($transcodeTable);
-
 }
 1;

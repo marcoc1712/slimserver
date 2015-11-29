@@ -50,6 +50,8 @@ sub handler {
 	my $prefs=Plugins::C3PO::Plugin::getPreferences($client);
 	
 	my $prefCodecs = $prefs->client($client)->get('codecs');
+	my $prefSeeks  = $prefs->client($client)->get('enableSeek');
+	
 	my $prefSampleRates = Plugins::C3PO::Plugin::translateSampleRates(
 								$prefs->client($client)->get('sampleRates'));
 
@@ -79,6 +81,13 @@ sub handler {
 			$prefCodecs->{$codec} = $selected ? 'on' : undef;
 		}
 		$prefs->client($client)->set('codecs', $prefCodecs);
+		
+		for my $codec (keys %$prefSeeks){
+			
+			my $selected = $params->{'pref_enableSeek'.$codec};
+			$prefSeeks->{$codec} = $selected ? 'on' : undef;
+		}
+		$prefs->client($client)->set('enableSeek', $prefSeeks);
 		
 		for my $rate (keys %$prefSampleRates){
 			
@@ -113,6 +122,7 @@ sub handler {
 
 	
 	$params->{'prefs'}->{'codecs'}=$prefCodecs; 
+	$params->{'prefs'}->{'enableSeek'}=$prefSeeks; 
 	$params->{'prefs'}->{'sampleRates'}=$prefSampleRates; 
 	
 	
@@ -120,8 +130,7 @@ sub handler {
 	$params->{'showDetails'} = $showDetails{$client->id()};
 	
 	$params->{'disabledCodecs'}=getdisabledCodecs($prefCodecs);
-	
-	
+
 	if (main::DEBUGLOG && $log->is_debug) {$log->debug(
 			dump("disabledCodecs CODECS: ".$params->{'disabledCodecs'}));		
 	}
