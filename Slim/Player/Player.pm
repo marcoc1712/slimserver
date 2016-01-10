@@ -1005,13 +1005,6 @@ sub publishPlayPoint {
 		if ( abs($apparentStreamStartTime - $meanStartTime) < MAX_STARTTIME_VARIATION ) {
 			# Ok, good enough, publish it!
 			$client->playPoint( [$statusTime, $meanStartTime] );
-			
-			if ( 0 && $synclog->is_debug ) {
-				main::DEBUGLOG && $synclog->debug(
-					$client->id()
-					. " publishPlayPoint: $meanStartTime @ $statusTime"
-				);
-			}
 		}
 	}
 }

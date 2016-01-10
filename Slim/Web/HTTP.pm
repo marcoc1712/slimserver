@@ -647,7 +647,7 @@ sub processHTTP {
 					
 					# throw 404
 					$params->{'suggestion'} = qq(There is no "$desiredskin")
-						. qq( skin, try ) . Slim::Utils::Prefs::homeURL() . qq( instead.);
+						. qq( skin, try ) . Slim::Utils::Network::serverURL() . qq( instead.);
 
 					if ( $log->is_warn ) {
 						$log->warn("Invalid skin requested: [" . join(' ', ($request->method, $request->uri)) . "]");
@@ -1168,7 +1168,6 @@ sub generateHTTPResponse {
 		# return quickly with a 404 if web UI is disabled
 		} elsif ( !main::WEBUI && (
 			   $path =~ /status\.m3u/
-			|| $path =~ /status\.txt/
 			|| $path =~ /(server|scanner|perfmon|log)\.(?:log|txt)/
 		) ) {
 			$response->content_type('text/html');
@@ -1184,6 +1183,44 @@ sub generateHTTPResponse {
 				$response,
 			);
 
+		} elsif ($path =~ /music\/(-[0-9a-f]+)\/download/) {
+			my $obj = Slim::Schema->find('Track', $1);
+			
+			# our download code can't handle the volatile files directly - let's fake a local file here
+			if (blessed($obj) && Slim::Music::Info::isVolatile($obj->url)) {
+				my $handler = Slim::Player::ProtocolHandlers->handlerForURL($obj->url);
+				
+				my $url = Slim::Utils::Misc::fileURLFromPath($handler->pathFromFileURL($obj->url));
+				
+				my $tmpObj = Slim::Schema::RemoteTrack->updateOrCreate($url, {
+					content_type => Slim::Music::Info::typeFromPath($url)
+				});
+
+				main::INFOLOG && $log->is_info && $log->info("Disabling keep-alive for large file download");
+				delete $keepAlives{$httpClient};
+				Slim::Utils::Timers::killTimers( $httpClient, \&closeHTTPSocket );
+				$response->header( Connection => 'close' );
+
+				if ( blessed($tmpObj) && $tmpObj->id && downloadMusicFile($httpClient, $response, $tmpObj->id) ) {
+					return 0;
+				}
+			}
+
+			# 404 error
+			$log->is_warn && $log->warn("unable to find file for path: $path");
+
+			$response->content_type('text/html');
+			$response->code(RC_NOT_FOUND);
+
+			$body = filltemplatefile('html/errors/404.html', $params);
+
+			return prepareResponseForSending(
+				$client,
+				$params,
+				$body,
+				$httpClient,
+				$response,
+			);
 		} elsif ($path =~ /(?:music|video|image)\/([0-9a-f]+)\/download/) {
 			# Bug 10730
 			my $id = $1;
@@ -1229,12 +1266,6 @@ sub generateHTTPResponse {
 				
 				# when the full file is requested, then all the streaming is handled in the logFile call. Nothing is returned.
 				return 0 unless $contentType;
-			}
-		
-		} elsif ($path =~ /status\.txt/) {
-
-			if ( main::WEBUI ) {
-				($contentType, $body) = Slim::Web::Pages::Common->statusTxt($client, $httpClient, $response, $params, $p);
 			}
 		
 		} elsif ($path =~ /status\.m3u/) {
@@ -1336,17 +1367,6 @@ sub generateHTTPResponse {
 
 		# Set the body to nothing, so the length() check won't fail.
 		$$body = "";
-	}
-
-	# Tell the browser not to reload the playlist unless it's changed.
-	# XXXX - not fully baked. Need more testing.
-	if (0 && !defined $mtime && defined $client && ref($client->currentPlaylistRender())) {
-
-		$mtime = $client->currentPlaylistRender()->[0] || undef;
-
-		if (defined $mtime) {
-			$response->expires($mtime + 60);
-		}
 	}
 
 	# Create an ETag based on the mtime, file size and inode of the
