@@ -57,8 +57,8 @@ use OsHelper;
 
 use FfmpegHelper;
 use FlacHelper;
+use FaadHelper;
 use SoxHelper;
-use DummyTranscoderHelper;
 
 use Utils::Log;
 use Utils::File;
@@ -108,9 +108,6 @@ our $prefs={
   resampleWhen             => "A",
   outCodec                 => "wav",
   outBitDepth              => 3,
-  outByteOrder             => "L",
-  outChannels              => 2,
-  outEncoding              => "s",               
   phase                    => "M",
   quality                  => "v",
   aliasing                 => "on",
@@ -119,19 +116,6 @@ our $prefs={
   gain                     => 3,
   useGlogalSettings		   => "on",
   
-  resampleTo               => "X",
-  resampleWhen             => "A",
-  outCodec                 => "wav",
-  outBitDepth              => 3,
-  outByteOrder             => "L",
-  outChannels              => 2,
-  outEncoding              => "s",               
-  phase                    => "M",
-  quality                  => "v",
-  aliasing                 => "on",
-  bandwidth                => 907,
-  dither                   => "on",
-  gain                     => 3,
   serverFolder             => "G:/Sviluppo/slimserver",
   C3POfolder               => "G:\\Sviluppo\\slimserver\\Plugins\\C3PO",
   logFolder                => "C:\\\\Documents and Settings\\\\All Users\\\\Dati applicazioni\\\\SqueezeboxTest\\\\logs",
@@ -157,7 +141,6 @@ my $clientPrefs= {
   outCodec                 => "wav",
   outBitDepth              => 3,
   outByteOrder             => "L",
-  outChannels              => 2,
   outEncoding              => "s",               
   phase                    => "M",
   quality                  => "v",
@@ -191,12 +174,40 @@ my $codecs ={
 	aif => 1,
 	flc => 1,
 };
+my $seek ={
 
+	wav => 1,
+	aif => 0,
+	flc => 0,
+};
+my $stdin ={
+
+	wav => 0,
+	aif => 0,
+	flc => 1,
+};   
+my $convert ={
+
+	wav => 1,
+	aif => 1,
+	flc => 1,
+};
+my $resample={
+	wav => 1,
+	aif => 1,
+	flc => 1,
+}; 
+
+	
 our $client=Plugins::C3PO::Shared::buildClientString($options->{clientId});
 
 $prefs->{$client}=$clientPrefs;
 $prefs->{$client}->{sampleRates}=$samplerates;
 $prefs->{$client}->{codecs}=$codecs;
+$prefs->{$client}->{enableSeek}=$seek;
+$prefs->{$client}->{enableStdin}=$stdin;
+$prefs->{$client}->{enableConvert}=$convert;
+$prefs->{$client}->{enableResample}=$resample;
 
 ##############################################################################
 
@@ -402,11 +413,11 @@ sub doTest{
 }
 
 sub evaluateTest{
-	my $expected=shift;
-	my $got=shift;
+	my $expected=shift || "";
+	my $got=shift || "";
 	
 	Plugins::C3PO::Logger::infoMessage('Expected  : '.$expected);
-	if ($got && ($got eq $expected)) {return 1};
+	if ($got eq $expected) {return 1};
 	return 0;
 
 }

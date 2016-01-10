@@ -39,6 +39,13 @@ if ($file && $file eq 'HeaderRestorer.exe'){
 	
 	$C3PODir = File::Spec->canonpath(getAncestor($Bin,2));
 
+} elsif ($file eq 'HeaderRestorer'){
+
+	#running on linux or mac OS x from inside the Bin folder
+	#$C3PODir= File::Spec->canonpath(File::Basename::dirname(__FILE__)); #C3PO Folder
+	$C3PODir = File::Spec->canonpath(getAncestor($Bin,1));
+        
+
 } elsif ($file && $file eq 'HeaderRestorer.pl'){
 
 	#running .pl 
@@ -51,9 +58,19 @@ if ($file && $file eq 'HeaderRestorer.exe'){
 	die "unexpected filename";
 }
 
-use lib rel2abs(catdir($C3PODir, 'lib'));
-use lib rel2abs(catdir($C3PODir,'CPAN'));
 
+my $lib= File::Spec->rel2abs(catdir($C3PODir, 'lib'));
+my $cpan=  File::Spec->rel2abs(catdir($C3PODir,'CPAN'));
+my $util=  File::Spec->rel2abs(catdir($C3PODir,'Util'));
+
+#print '$directories is : '.$lib."\n";
+#print '$directories is : '.$cpan."\n";
+#print '$directories is : '.$util."\n";
+
+my @i=($C3PODir,$lib,$cpan);
+unshift @INC, @i;
+
+require Utils::Config;
 unshift @INC, Utils::Config::expandINC($C3PODir);
 
 # let standard modules load.
@@ -79,11 +96,11 @@ use constant NOMYSB       => 1;
 #
 #######################################################################
 
-use Logger;
-use OsHelper;
+require Logger;
+require OsHelper;
 
-use Utils::Log;
-use Utils::Config;
+require Utils::Log;
+require Utils::Config;
 
 require Getopt::Long;
 require Data::Dump;

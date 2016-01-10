@@ -19,11 +19,22 @@
 
 package Plugins::C3PO::Transcoder;
 
-#
-# See plugin.pm for description and terms of use.
-
 use strict;
 use warnings;
+
+my $logger;
+my $log;
+
+sub isLMSDebug{
+	
+	if ($logger && $logger->{DEBUGLOG} && $log && $log->is_debug) {return 1}
+	return 0;
+};
+sub isLMSInfo{
+
+	if ($logger && $logger->{INFOLOG} && $log && $log->is_info) {return 1}
+	return 0;
+};
 
 #use Data::Dump;
 
@@ -34,40 +45,34 @@ use warnings;
 #TODO: using FLAC to split an AIF file then upsampled by SOX, sometime do not 
 #work, at 192k (sox raise to 50% CPU). No probs at 176400.
 #
-
-sub enableSeek{
-	#
-	# TODO:
-	#
-	# 'I' Capability is necessary for Qubuz and other services, but is not
-	# compatible with 'T' and 'U' (seek) used by .cue sheets.
-	# Profiles could not include all of them at thee same time, unless we patch
-	# LMS as Daphile did.
-	#
-	#
+sub getOutputCodec{
 	my $transcodeTable =shift;
+	my $inCodec= $transcodeTable->{'inCodec'};
+	my $outCodec= $transcodeTable->{'outCodec'};
 	
-	#in runtime use transitCodec.	
-	my $inCodec= isRuntime($transcodeTable) 
-		? $transcodeTable->{'transitCodec'} : $transcodeTable->{'inCodec'};
+	if ($transcodeTable->{'enableConvert'}->{$inCodec}){return $outCodec;}
 	
-	my $enable = $transcodeTable->{'enableSeek'}->{$inCodec} ? 1 : 0;
-	Plugins::C3PO::Logger::debugMessage("codec: $inCodec - enableSeek: $enable");
-	
-	return $enable;
+	if ($transcodeTable->{'enableResample'}->{$inCodec} && 
+	    compareCodecs($inCodec, 'alc')){return $outCodec;}
+
+	return $inCodec;
 }
+
 sub isCompressedCodec{
 	my $codec= shift;
 
-	if ($codec eq 'flc') {return 1};
-	if ($codec eq 'alc') {return 1};
+	if (compareCodecs($codec, 'flc')) {return 1};
+	if (compareCodecs($codec, 'alc')) {return 1};
 	
 	return 0;
 }
+#TODO: using FLAC to split an AIF file then upsampled by SOX, sometime do not 
+#work, at 192k (sox raise to 50% CPU). No probs at 176400.
+#
 sub useFFMpegToSplit{
 
-	# use ffmpeg instead of flac to split files when usin cue sheets.
-	# needs ffmpeg to be installed, if not will use flac.
+	# use ffmpeg instead of flac or faad to split files when usin cue sheets.
+	# needs ffmpeg to be installed, if not will use flac or faad.
 	
 	my $transcodeTable =shift;
 	
@@ -76,13 +81,29 @@ sub useFFMpegToSplit{
 	#in runtime use transitCodec instead of inCodec.
 	my $inCodec= isRuntime($transcodeTable) 
 		? $transcodeTable->{'transitCodec'} : $transcodeTable->{'inCodec'};
-
-	if ($inCodec eq 'wav') {return 1};
-	if ($inCodec eq 'pcm') {return 1};
-	if ($inCodec eq 'aif') {return 1};
+ 
+	if (compareCodecs($inCodec, 'wav')) {return 1};
+	if (compareCodecs($inCodec, 'aif')) {return 1};
+	if (compareCodecs($inCodec, 'alc')) {return 0};
+	if (compareCodecs($inCodec, 'flc')) {return 0};
 
 	return 0;
 }
+sub useFAADToSplit {
+	my $transcodeTable =shift;
+	my $inCodec= isRuntime($transcodeTable) ? $transcodeTable->{'transitCodec'} 
+											: $transcodeTable->{'inCodec'};
+		
+	if (useFFMpegToSplit($transcodeTable)) {return 0;}
+	
+	if (compareCodecs($inCodec, 'wav')) {return 0};
+	if (compareCodecs($inCodec, 'aif')) {return 0};
+	if (compareCodecs($inCodec, 'alc')) {return 1};
+	if (compareCodecs($inCodec, 'flc')) {return 0};
+	
+	return 0;
+	}
+
 sub useFFMpegToTranscode {
 	
 	# decode to $outcodec when splitting or
@@ -94,29 +115,86 @@ sub useFFMpegToTranscode {
 	if (!defined $transcodeTable->{'pathToFFmpeg'}) {return 0};
 	
 	my $inCodec= $transcodeTable->{'transitCodec'};
-	my $outcodec= $transcodeTable->{'outCodec'};
+	my $outcodec= getOutputCodec($transcodeTable);
 	
 	# avoid to encode before upsampling.
 	if (isCompressedCodec($outcodec)) {return 0};
 	
-	if ($inCodec eq 'wav') {return 1};
-	if ($inCodec eq 'pcm') {return 1};
-	if ($inCodec eq 'aif') {return 1};
+	if (compareCodecs($inCodec, 'wav')) {return 1};
+	if (compareCodecs($inCodec, 'aif')) {return 1};
+	if (compareCodecs($inCodec, 'alc')) {return 0};
+	if (compareCodecs($inCodec, 'flc')) {return 0};
 	
 	return 0;
 }
 sub useFlacToDecodeWhenSplitting {
 
 	# decode to $outcodec when splitting, no meaning if not splitting.
+	# if not ALWAIS output WAV.
 
 	my $transcodeTable =shift;
 	my $inCodec= $transcodeTable->{'inCodec'};
-	my $outCodec=$transcodeTable->{'outCodec'};
+	my $outCodec=getOutputCodec($transcodeTable);
 
-	if (!($inCodec eq 'flc')) {return 0};
+	if (!compareCodecs($inCodec, 'flc')) {return 0};
 	
 	return 0; # AIF will not worlk with 1. See FlacTranscode.
 }
+sub useSoxToDecodeWhenResampling {
+	
+	# decode from input codec wile resampling, 
+	# no meaning if not resampling or splitting
+	
+	my $transcodeTable =shift;
+	my $inCodec= $transcodeTable->{'inCodec'};
+	
+	if (compareCodecs($inCodec, 'alc')) {return 0};
+	if (compareCodecs($inCodec, 'flc')) {return 1};
+	if (compareCodecs($inCodec, 'wav')) {return 1};
+	if (compareCodecs($inCodec, 'aif')) {return 1};
+	
+	return 1;
+}
+sub useSoxToEncodeWhenResampling {
+	
+	# encode to the output codec wile resampling, 
+	# no meaning if not resampling.
+	
+	my $transcodeTable =shift;
+
+	return 1;
+}
+
+sub useFlacToFinalEncode{
+
+	# transcode to flac at the end if requested and not upsampling
+	# If not will use sox.
+	
+	return 1;
+}
+###################
+
+sub enableStdin{
+
+	my $transcodeTable =shift;
+	my $inCodec= $transcodeTable->{'inCodec'};
+	
+	my $enable = $transcodeTable->{'enableStdin'}->{$inCodec} ? 1 : 0;
+	Plugins::C3PO::Logger::debugMessage("codec: $inCodec - enableStdin: $enable");
+	
+	return $enable;
+}
+sub enableSeek{
+
+	my $transcodeTable =shift;
+	my $inCodec= $transcodeTable->{'inCodec'};
+	
+	my $enable = $transcodeTable->{'enableSeek'}->{$inCodec} ? 1 : 0;
+	Plugins::C3PO::Logger::debugMessage("codec: $inCodec - enableSeek: $enable");
+	
+	return $enable;
+}
+
 sub needRestoreHeader{
 	my $transcodeTable =shift;
 	
@@ -161,33 +239,39 @@ sub saveHeaderFile{
 	return 1;
 }
 ################################################################################
-sub useSoxToEncodeWhenResampling {
-	
-	# encode to the output codec wile resampling, 
-	# no meaning if not resampling.
-	
-	my $transcodeTable =shift;
-
-	return 1;
-}
-
-sub useFlacToFinalEncode{
-
-	# transcode to flac at the end if requested and not upsampling
-	# If not will use sox.
-	
-	return 1;
-}
 sub isRuntime{
 	my $transcodeTable =shift;
 
 	return (defined $transcodeTable->{'options'}->{clientId} ? 1 : 0)
 }
+sub isNative{
+	my $transcodeTable =shift;
+	my $inCodec = $transcodeTable->{'inCodec'};
+	
+	if (! $transcodeTable->{'enableConvert'}->{$inCodec} &&
+		! $transcodeTable->{'enableResample'}->{$inCodec}) {return 1;}
+		
+	return 0;
+}
+sub compareCodecs{
+	my $Acodec= shift;
+	my $Bcodec= shift;
+	
+	if ($Acodec eq 'pcm'){ $Acodec = 'wav';}
+	if ($Bcodec eq 'pcm'){ $Bcodec = 'wav';}
+	
+	return ($Acodec eq $Bcodec);
 
+}
 sub isSplittingRequested{
 	my $transcodeTable =shift;
+	my $inCodec= $transcodeTable->{'inCodec'};
 	
-	if (!isRuntime($transcodeTable)) {return 1;} 
+	if (!isResamplingRequested($transcodeTable) && 
+		compareCodecs($inCodec, getOutputCodec($transcodeTable))){ return 0;}
+	
+	if (!isRuntime($transcodeTable) && 
+	    $transcodeTable->{'enableSeek'}->{$inCodec}) {return 1;} 
 	
 	if  (defined $transcodeTable->{'options'}->{startTime}) {return 1;}  
 	if  (defined $transcodeTable->{'options'}->{endTime}){return 1;} 
@@ -198,61 +282,126 @@ sub isSplittingRequested{
 	return 0;
 }
 
-sub isDecodingRequested{
+sub isTranscodingRequested{
 	my $transcodeTable =shift;
+	my $inCodec		 = $transcodeTable->{'inCodec'};
+	my $outCodec	 = getOutputCodec($transcodeTable);
+	my $transitCodec = $transcodeTable->{'transitCodec'};
 	
-	my $inCodec= $transcodeTable->{'transitCodec'};
-	my $outCodec=$transcodeTable->{'outCodec'};
+	if (!isRuntime($transcodeTable) && 
+	    !compareCodecs($inCodec, $outCodec) &&
+	    $transcodeTable->{'enableConvert'}->{$inCodec}) {return 1;}
+	
+	if (!isRuntime($transcodeTable)) {return 0;}
+	
+	# WAV -> WAV -> FLAC [v] -> 1
+	if (compareCodecs($inCodec, $transitCodec) &&
+	    !compareCodecs($inCodec, $outCodec) &&
+	    $transcodeTable->{'enableConvert'}->{$inCodec}) {return 1;}
 		
-	return ($inCodec eq $outCodec);
+	# WAV -> WAV -> FLAC [ ] -> 0
+	if (compareCodecs($inCodec, $transitCodec) &&
+	    !compareCodecs($inCodec, $outCodec) &&
+	    !$transcodeTable->{'enableConvert'}->{$inCodec}) {return 0;}
+		
+	# FLAC -> WAV -> FLAC [v] -> 1
+	if (!compareCodecs($inCodec, $transitCodec) &&
+		!compareCodecs($transitCodec, $outCodec) &&
+		!compareCodecs($inCodec, $outCodec) &&
+	    $transcodeTable->{'enableConvert'}->{$inCodec}) {return 1;}
+	
+	# FLAC -> WAV -> FLAC [v] -> 1
+	if (!compareCodecs($inCodec, $transitCodec) &&
+		!compareCodecs($transitCodec, $outCodec) &&
+		!compareCodecs($inCodec, $outCodec) &&
+	    $transcodeTable->{'enableConvert'}->{$inCodec}) {return 1;}
+
+	# FLAC -> WAV -> FLAC [ ] -> 1
+	if (!compareCodecs($inCodec, $transitCodec) &&
+		!compareCodecs($transitCodec, $outCodec) &&
+		!compareCodecs($inCodec, $outCodec) &&
+	    !$transcodeTable->{'enableConvert'}->{$inCodec}) {return 1;}
+		
+	# FLAC -> WAV -> WAV [v] -> 1
+	if (!compareCodecs($inCodec, $transitCodec) &&
+		compareCodecs($transitCodec, $outCodec) &&
+	    $transcodeTable->{'enableConvert'}->{$inCodec}) {return 0;}
+	
+	# FLAC -> WAV -> WAV [v] -> 0
+	if (!compareCodecs($inCodec, $transitCodec) &&
+		compareCodecs($transitCodec, $outCodec) &&
+	    $transcodeTable->{'enableConvert'}->{$inCodec}) {return 0;}
+	
+	# WAV -> FLAC -> AIF [v] -> 1
+	if (!compareCodecs($inCodec, $transitCodec) &&
+		!compareCodecs($transitCodec, $outCodec) &&
+		!compareCodecs($inCodec,$outCodec) &&
+	    $transcodeTable->{'enableConvert'}->{$inCodec}) {return 1;}
+	
+	# WAV -> FLAC -> AIF [ ] -> 1
+	if (!compareCodecs($inCodec, $transitCodec) &&
+		!compareCodecs($transitCodec, $outCodec) &&
+		!compareCodecs($inCodec, $outCodec) &&
+	    !$transcodeTable->{'enableConvert'}->{$inCodec}) {return 0;}
+		
+	# WAV -> WAV -> WAV [v] -> 0
+	if (compareCodecs($inCodec, $transitCodec) &&
+		compareCodecs($transitCodec, $outCodec) &&
+	    $transcodeTable->{'enableConvert'}->{$inCodec}) {return 0;}
+	
+	# WAV -> WAV -> WAV [ ] -> 0
+	if (compareCodecs($inCodec, $transitCodec)&&
+		compareCodecs($transitCodec, $outCodec) &&
+	    !$transcodeTable->{'enableConvert'}->{$inCodec}) {return 0;}
+	
+	# fault back.
+	
+	$inCodec= $transcodeTable->{'transitCodec'};
+	return (compareCodecs($inCodec, $outCodec));
 }
 
 sub isResamplingRequested{
 	my $transcodeTable =shift;
+	my $inCodec= $transcodeTable->{'inCodec'};
+	
+	if (!$transcodeTable->{'enableResample'}->{$inCodec}) {return 0;}
 	return !($transcodeTable->{'resampleWhen'} eq 'N');
 }
 sub willResample{
 	my $transcodeTable=shift;
 	
+	if (!isResamplingRequested($transcodeTable)) {return 0;}
 	#be sure to call checkResample before.
 	
 	my $targetSamplerate=$transcodeTable->{'targetSamplerate'};
 	my $fileSamplerate = $transcodeTable->{'fileInfo'}->{info}->{samplerate};
 	
-	Plugins::C3PO::Logger::verboseMessage("targetSamplerate: ".$targetSamplerate);
-	Plugins::C3PO::Logger::verboseMessage("fileSamplerate: ".$fileSamplerate);
+	Plugins::C3PO::Logger::verboseMessage("targetSamplerate: ". defined $targetSamplerate ? $targetSamplerate : 'undef');
+	Plugins::C3PO::Logger::verboseMessage("fileSamplerate: ". defined $fileSamplerate ? $fileSamplerate : 'undef');
 
-	if ((defined $targetSamplerate) &&
-		((!$fileSamplerate) || !($fileSamplerate == $targetSamplerate))){
-
-		return 1
-		
-	}
+	if (!defined $targetSamplerate) {return 0;}
+	if (!$fileSamplerate || !($fileSamplerate == $targetSamplerate)){return 1;}
+	
 	return 0;
 }
 sub isOutputCompressed{
 	my $transcodeTable =shift;
-	
-	my $outCompression = $transcodeTable->{'outCompression'};
-	return (defined $outCompression ? 1 : 0);
+	my $outCodec= getOutputCodec($transcodeTable);
+    return isCompressedCodec($outCodec);
 }
 sub isInputCompressed{
 	my $transcodeTable =shift;	
-	
 	my $inCodec= $transcodeTable->{'inCodec'};
-	
 	return isCompressedCodec($inCodec);
-}
-sub isTranscodingRequested{
-	my $transcodeTable =shift;
-	
-	my $inCodec= $transcodeTable->{'transitCodec'};
-	my $outCodec=$transcodeTable->{'outCodec'};
-	
-	return !($outCodec eq $inCodec);
 }
 sub isAStdInPipe {
 	my $transcodeTable =shift;
+	my $inCodec= $transcodeTable->{'inCodec'};
+	
+	if (!isRuntime($transcodeTable) && 
+	    $transcodeTable->{'enableStdin'}->{$inCodec}) {return 1;} 
+	
+	if (!isRuntime($transcodeTable)) {return 0;} 
 	
 	if (!defined $transcodeTable->{'options'}->{'file'} ||
 		$transcodeTable->{'options'}->{'file'} eq '' ||
@@ -260,30 +409,12 @@ sub isAStdInPipe {
 		
 		return 1;
 	}	
-	
 	return 0;
-
 }
 ###############################################################################
 # Routines to be integrated when support for codecs is added.
 ###############################################################################
 
-sub splitAndTranscodeCompressedOutput{
-	my $transcodeTable=shift;
-	
-	Plugins::C3PO::Logger::debugMessage('Start splitAndTranscodeCompressedOutput');
-	
-	my $splitString="";
-	$transcodeTable->{'transitCodec'}='flc';		
-
-	$splitString=Plugins::C3PO::FlacHelper::encode($transcodeTable);
-		
-	$transcodeTable->{'split'}=$splitString;
-	my $command= $splitString;
-	$transcodeTable->{'command'}=$command;
-	
-	return $transcodeTable;
-}
 sub splitAndDecodeCompressedInput {
 	my $transcodeTable=shift;
 	
@@ -291,14 +422,14 @@ sub splitAndDecodeCompressedInput {
 	
 	my $commandString="";
 	
-	Plugins::C3PO::Logger::debugMessage('$inCodec '.$inCodec);
+	Plugins::C3PO::Logger::debugMessage('splitAndDecodeCompressedInput - $inCodec '.$inCodec);
 	
-	if ($inCodec eq 'flc' ) {
+	if (compareCodecs($inCodec, 'flc' )) {
 
 		#decode and split with flac.
 		if (useFlacToDecodeWhenSplitting($transcodeTable)){
 
-			$transcodeTable->{'transitCodec'}=$transcodeTable->{'outCodec'};
+			$transcodeTable->{'transitCodec'}=getOutputCodec($transcodeTable);
 			# See useFlacToDecodeWhenSplitting
 
 		} else {
@@ -308,16 +439,48 @@ sub splitAndDecodeCompressedInput {
 
 		}
 		$commandString=Plugins::C3PO::FlacHelper::decode($transcodeTable);
+
+	} elsif (compareCodecs($inCodec, 'alc' )){
+				
+		if (useFFMpegToSplit($transcodeTable)){
+			
+			Plugins::C3PO::Logger::debugMessage('$inCodec '.$inCodec.' use FFMpeg To Split');
+			
+			if (useFFMpegToTranscode($transcodeTable)){
+					
+				Plugins::C3PO::Logger::debugMessage(
+					'$inCodec '.$inCodec.' use FFMpeg To Decode to '.getOutputCodec($transcodeTable));
+
+				$transcodeTable->{'transitCodec'}=getOutputCodec($transcodeTable);
+			}
+			
+			# ELSE $transcodeTable->{'transitCodec'}=$transcodeTable->{'inCodec'};
+			
+			$commandString=Plugins::C3PO::FfmpegHelper::split_($transcodeTable);
+			
+		} else {
+		
+			Plugins::C3PO::Logger::debugMessage('$inCodec '.$inCodec.' use faad');
+		
+			# wav is the defauld option for FAAD.
+			$transcodeTable->{'transitCodec'}='wav';	
+			$commandString=Plugins::C3PO::FaadHelper::decode($transcodeTable);
+			
+			Plugins::C3PO::Logger::debugMessage('$commandString '.$commandString);
+		}
 	}
 	# add here other compressed codecs.
 	Plugins::C3PO::Logger::debugMessage('$commandString '.$commandString);
 	return $commandString;
 }
 
-sub splitAndEndcodeCompressedInput {
+sub splitAndEndcodeUnCompressedInputUsingFlac {
+	
+	# We need FLAC s output.
+	
 	my $transcodeTable=shift;
 	
-	Plugins::C3PO::Logger::verboseMessage('Start splitAndEndcodeCompressedInput');
+	Plugins::C3PO::Logger::verboseMessage('Start splitAndEndcodeUnCompressedInputUsingFlac');
 	
 	my $commandString="";
 	
@@ -333,18 +496,21 @@ sub splitAndEndcodeCompressedInput {
 }
 
 sub transcodeCompressedOutput{
+
+	# We need FLAC s output.
+	
 	my $transcodeTable = shift;
 	
 	Plugins::C3PO::Logger::verboseMessage('Start transcodeCompressedOutput');
 	
 	my $inCodec=$transcodeTable->{'transitCodec'};
-	my $outCodec = $transcodeTable->{'outCodec'};
+	my $outCodec = getOutputCodec($transcodeTable);
 	
 	Plugins::C3PO::Logger::verboseMessage('Start transcode');
 
 	my $commandstring="";
 	
-	if (($outCodec eq 'flc') && useFlacToFinalEncode($transcodeTable)){
+	if (compareCodecs($outCodec, 'flc') && useFlacToFinalEncode($transcodeTable)){
 
 		$commandstring = Plugins::C3PO::FlacHelper::encode($transcodeTable);
 	
@@ -358,7 +524,7 @@ sub normalizeCodecs{
 	my $transcodeTable =shift;
 
 	my $inCodec= $transcodeTable->{'inCodec'};
-	my $outCodec=$transcodeTable->{'outCodec'};
+	my $outCodec=getOutputCodec($transcodeTable);
 	
 	if ($transcodeTable->{'inCodec'} eq 'pcm'){ 
 
@@ -378,38 +544,38 @@ sub normalizeCodecs{
 
 sub initTranscoder{
 	my $transcodeTable= shift;
-	my $willStart=$transcodeTable->{'C3POwillStart'};
+	$logger= shift;
+	
+	if ($logger && $logger->{'log'}) {$log=$logger->{'log'};}
+	
+	if (isLMSDebug()) {
+		$log->debug("Using LMS DEBUG log.");
+	}
+	if (isLMSInfo()) {
+		$log->info("Using LMS INFO log.");
+	}
 	
 	Plugins::C3PO::Logger::debugMessage('Start initTranscoder');
-	
-	if (!((defined $willStart) &&
-		  (($willStart eq 'pl') ||($willStart eq 'exe')))){
-
-		#Fault back, resample to max supported samplerate.
-		$transcodeTable->{'resampleTo'}='X';
-		$transcodeTable->{'resampleWhen'}='A';
-	}
 	
 	my $commandTable={};
 	my $codecs=$transcodeTable->{'codecs'};
 
 	for my $codec (keys %$codecs){
-	
+		
+		if (!$codecs->{$codec}) {next;}
+		
 		my $cmd={};
 		
-		if (!($codecs->{$codec})) {next}
-		
 		$transcodeTable->{'inCodec'}=$codec;
-		
-		if (!(isRuntime($transcodeTable)) &&
-			(($transcodeTable->{'resampleTo'} eq 'S')||
-			($transcodeTable->{'resampleWhen'} eq 'E'))){
+
+		if (ceckC3PO($transcodeTable)){
 			
 			Plugins::C3PO::Logger::debugMessage('Use C3PO');
 			$cmd=useC3PO($transcodeTable);
 			#Data::Dump::dump ($cmd);
 
 		} else {
+		
 			Plugins::C3PO::Logger::debugMessage('Use Server');	
 			$cmd=useServer($transcodeTable);
 			#Data::Dump::dump ($cmd);
@@ -427,7 +593,42 @@ sub initTranscoder{
 	}
 	return $commandTable;
 }
+sub ceckC3PO{
+	my $transcodeTable= shift;
+	my $willStart=$transcodeTable->{'C3POwillStart'};
+	my $codec = $transcodeTable->{'inCodec'};
+	
+	if (!((defined $willStart) &&
+		  (($willStart eq 'pl') ||($willStart eq 'exe')))){
 
+		#Fault back, resample to max supported samplerate.
+		$transcodeTable->{'resampleTo'}='X';
+		$transcodeTable->{'resampleWhen'}='A';
+		return 0;
+	}
+	
+	# safety
+	if (isRuntime($transcodeTable)) {return 0;}
+	
+	# In windows I does not works insiede C3PO, so it's disabled.
+	if (main::ISWINDOWS &&
+	    enableStdin($transcodeTable) &&
+	    (($transcodeTable->{'resampleWhen'} eq 'E') || 
+	     ($transcodeTable->{'resampleTo'} eq 'S'))){
+		 
+		return 0;
+	}
+		
+	# there is nothing to do, native.
+	if (isNative($transcodeTable)) {return 0;}
+
+	# ELIMINARE PER USARE C-3PO quando possibile.
+	if ($transcodeTable->{'enableResample'}->{$codec} &&
+		$transcodeTable->{'resampleTo'} eq 'X') {return 0;}
+		
+	return 1;
+
+}
 sub buildProfile{
 	my $transcodeTable = shift;
 	
@@ -435,16 +636,16 @@ sub buildProfile{
 	
 	my $macaddress= $transcodeTable->{'macaddress'};
 	my $inCodec= $transcodeTable->{'inCodec'};
-	my $outCodec=$transcodeTable->{'outCodec'};
+	my $outCodec=getOutputCodec($transcodeTable);
 
 	# pcm/wav misuse...
-	if ($inCodec eq 'pcm'){$inCodec='wav'};
+	if (compareCodecs($inCodec,'wav')){$inCodec='wav'};
 	
-	if (($inCodec eq 'aif') && (($outCodec eq 'wav') || ($outCodec eq'pcm'))){
+	if (compareCodecs($inCodec, 'aif') && compareCodecs($outCodec, 'wav')){
 		
 		{$outCodec='aif'};
 		
-	} elsif ($outCodec eq 'wav'){
+	} elsif (compareCodecs($outCodec, 'wav')) {
 	
 		$outCodec='pcm'
 	};
@@ -462,7 +663,7 @@ sub useC3PO{
 
 	my $macaddress= $transcodeTable->{'macaddress'};
 	my $inCodec= $transcodeTable->{'inCodec'};
-	my $outCodec=$transcodeTable->{'outCodec'};
+	my $outCodec=getOutputCodec($transcodeTable);
 	my $prefFile = $transcodeTable->{'pathToPrefFile'};
 	my $pathToC3PO_pl = $transcodeTable->{'pathToC3PO_pl'};
 	my $logFolder = $transcodeTable->{'logFolder'};
@@ -484,7 +685,15 @@ sub useC3PO{
 	
 	$command = $command.qq("$prefFile" -l "$logFolder" -i $inCodec -o $outCodec )
 					   .'$START$ $END$ $RESAMPLE$ $FILE$';
-					   
+	
+	if (! isLMSDebug()) {
+		$command = $command." --nodebuglog";
+	}
+	
+	if (! isLMSInfo()) {
+		$command = $command." --noinfolog";
+	}
+		
 	$result->{'command'}= $command;
 	
 	my $capabilities = { 
@@ -500,9 +709,10 @@ sub useC3PO{
 	
 	#Enable stdIn pipes (Quboz) but disable seek (cue sheets)
 	# In windows I does not works insiede C3PO, so it's disabled.)
-	if(!enableSeek($transcodeTable) && !main::ISWINDOWS){
-	#if(!enableSeek($transcodeTable)){
-
+	
+	if(enableStdin($transcodeTable) && !main::ISWINDOWS){
+	
+	#if(enableStdin($transcodeTable)){}
 		#Disabling this and enabling the followings LMS will use R capabilities and 
 		# pass the Qobuz link to C3PO, but it does not works, needs the quboz plugin pipe 
 		# to be activated via I.
@@ -510,7 +720,8 @@ sub useC3PO{
 		$capabilities->{I}= 'noArgs';  
 		#$capabilities->{T}='START=-s %s';
 		#$capabilities->{U}='END=-w %w';
-	} else {
+		
+	} elsif (enableSeek($transcodeTable))  {
 
 		$capabilities->{T}='START=-s %s';
 		$capabilities->{U}='END=-w %w';
@@ -529,41 +740,62 @@ sub useServer {
 
 	$result->{'profile'} =  buildProfile($transcodeTable);
 
-	my $capabilities = { 
-	#	I => 'noArgs',   # Qubuz or .cue, see below.
-	#	I => 'FILE=-',   # Is the Daphile way, needs patch on LMS, don't work on standard
-		F => 'noArgs',
-		R => 'noArgs',
-	#	F => 'FILE=-f %f',
-	#	R => 'FILE=-f %F',
-	#	T => 'START=-s %s', 
-	#	U => 'END=-w %w',
-		D => 'RESAMPLE=-r %d' };
-		
-	if(!enableSeek($transcodeTable)){
-		                              
-		# cue files will always play from the beginning of first track.
-		$capabilities->{I}= 'noArgs';
-		
-		# enabling the following, track > 1 in cue file will not play at all.
-		#$capabilities->{T}='START=--skip=%t';
-		#$capabilities->{U}='END=--until=%v';
-		
-	}elsif (useFFMpegToSplit($transcodeTable)){
-		
-		$capabilities->{T}='START=-ss %s';
-		$capabilities->{U}='END=-t %w';
-		
-	} else { #use flac
+	if (isNative($transcodeTable)) {
+	
+		$transcodeTable->{'capabilities'}={
+				I => 'noArgs',
+				F => 'noArgs',
+			#	R => 'noArgs',
+			#	F => 'FILE=-f %f',
+			#	R => 'FILE=-f %F',
+			#	T => 'START=-s %s', 
+			#	U => 'END=-w %w',
+			#	D => 'RESAMPLE=-r %d' };
+		};
+	
+	} else{
+	
+		my $capabilities = { 
+		#	I => 'noArgs',   # Qubuz or .cue, see below.
+		#	I => 'FILE=-',   # Is the Daphile way, needs patch on LMS, don't work on standard
+			F => 'noArgs',
+			R => 'noArgs',
+		#	F => 'FILE=-f %f',
+		#	R => 'FILE=-f %F',
+		#	T => 'START=-s %s', 
+		#	U => 'END=-w %w',
+			D => 'RESAMPLE=-r %d' };
 
-		$capabilities->{T}='START=--skip=%t';
-		$capabilities->{U}='END=--until=%v';
+		if(enableStdin($transcodeTable)){
+
+			# cue files will always play from the beginning of first track.
+			$capabilities->{I}= 'noArgs';
+
+			# enabling the following, track > 1 in cue file will not play at all.
+			#$capabilities->{T}='START=--skip=%t';
+			#$capabilities->{U}='END=--until=%v';
+
+		}elsif (enableSeek($transcodeTable) && useFFMpegToSplit($transcodeTable)){
+
+			$capabilities->{T}='START=-ss %s';
+			$capabilities->{U}='END=-t %w';
+
+		} elsif (enableSeek($transcodeTable) && useFAADToSplit($transcodeTable)){
+
+			$capabilities->{T}='START=-j %s';
+			$capabilities->{U}='END=-e %u';
+
+		} elsif (enableSeek($transcodeTable)){ #use flac
+
+			$capabilities->{T}='START=--skip=%t';
+			$capabilities->{U}='END=--until=%v';
+		}
+
+		$transcodeTable->{'capabilities'}=$capabilities;	
+		
 	}
 	
-	$transcodeTable->{'capabilities'}=$capabilities;	
-	
 	$transcodeTable= buildCommand($transcodeTable);
-	
 	$result->{'command'}=$transcodeTable->{'command'};
 	$result->{'capabilities'}=$transcodeTable->{'capabilities'};
 	
@@ -577,21 +809,39 @@ sub useServer {
 sub buildCommand {
 	my $transcodeTable = shift;
 	
+	#$transcodeTable = setOutputCodec($transcodeTable);
+	
 	my $command="";
 	
-	Plugins::C3PO::Logger::debugMessage('Start buildCommand');
-
+	if (isLMSInfo()) {
+		$log->info('Start buildCommand');
+	} else{
+	
+		Plugins::C3PO::Logger::debugMessage('Start buildCommand');
+	}
+	
 	$transcodeTable=normalizeCodecs($transcodeTable);
-
+	
 	if (isResamplingRequested($transcodeTable)) {
 	
 		$transcodeTable= checkResample($transcodeTable);
-		
 	}
-	Plugins::C3PO::Logger::debugMessage('willResample ? '.willResample($transcodeTable));
 	
 	#save incodec.
 	$transcodeTable->{'transitCodec'}=$transcodeTable->{'inCodec'};
+	
+	if (isLMSInfo()) {
+		$log->info('inCodec: '.$transcodeTable->{'inCodec'});
+		$log->info('transitCodec: '.$transcodeTable->{'transitCodec'});
+		$log->info('outCodec: '.$transcodeTable->{'outCodec'});
+		$log->info('Is resampling requested? '.isResamplingRequested($transcodeTable));
+		$log->info('willResample ? '.willResample($transcodeTable));
+		$log->info('Is splitting requested? '.isSplittingRequested($transcodeTable));
+	} else{
+		Plugins::C3PO::Logger::debugMessage('Is resampling requested? '.isResamplingRequested($transcodeTable));
+		Plugins::C3PO::Logger::debugMessage('willResample ? '.willResample($transcodeTable));
+		Plugins::C3PO::Logger::debugMessage('Is splitting requested? '.isSplittingRequested($transcodeTable));
+	}
 	
 	if (willResample($transcodeTable)){
 	
@@ -610,12 +860,19 @@ sub buildCommand {
 	$command = $transcodeTable->{'command'}||"";
 	Plugins::C3PO::Logger::debugMessage('transcode command: '.$command);
 	
-	# We could not exit with a null string, we need at least a dummy executable
-	# converter.
-	
 	if ($command eq ""){
+		
+		if (isRuntime($transcodeTable)){
+			
+			# Using Header restorer to just pass IN to OUT.
+			$transcodeTable = restoreHeader($transcodeTable);
 
-		$command= Plugins::C3PO::DummyTranscoderHelper::transcode($transcodeTable);
+		} else {
+			
+			# Native
+			$command= "-";
+		
+		}
 	}
 	$transcodeTable->{'command'}=$command;
 	
@@ -634,8 +891,8 @@ sub restoreHeader{
 	my $willStart				 = $transcodeTable->{'C3POwillStart'};
 	my $pathToPerl				 = $transcodeTable->{'pathToPerl'};
 	my $pathToHeaderRestorer_pl	 = $transcodeTable->{'pathToHeaderRestorer_pl'};
-	my $pathToHeaderRestorer_exe = $transcodeTable->{'pathToHeaderRestorer_exe'};
-	my $testfile				 = $transcodeTable->{'testfile'};
+	my $pathToHeaderRestorer_exe = $transcodeTable->{'pathToHeaderRestorer_exe'} || "";
+	my $testfile				 = $transcodeTable->{'testfile'} || "";
 
 	my $commandString= "";
 
@@ -662,7 +919,7 @@ sub splitTranscodeAndResample{
 	Plugins::C3PO::Logger::debugMessage('Start splitTranscodeAndResample');
 
 	my $commandString= split_($transcodeTable);
- 
+	
 	Plugins::C3PO::Logger::debugMessage('Command: '.$commandString);
 
 	my $targetSamplerate = $transcodeTable->{'targetSamplerate'};
@@ -732,7 +989,25 @@ sub splitAndTranscodeUncompressedOutput{
 	return $transcodeTable;
 }
 
-### here splitAndTranscodeCompressedOutput.
+sub splitAndTranscodeCompressedOutput{
+	
+	#We Need FLAC
+	
+	my $transcodeTable=shift;
+	
+	Plugins::C3PO::Logger::debugMessage('Start splitAndTranscodeCompressedOutput');
+
+	my $splitString="";
+	$transcodeTable->{'transitCodec'}='flc';		
+
+	$splitString=Plugins::C3PO::FlacHelper::encode($transcodeTable);
+		
+	$transcodeTable->{'split'}=$splitString;
+	my $command= $splitString;
+	$transcodeTable->{'command'}=$command;
+	
+	return $transcodeTable;
+}
 
 sub transcode{
 	my $transcodeTable = shift;
@@ -740,11 +1015,13 @@ sub transcode{
 	Plugins::C3PO::Logger::verboseMessage('Start transcode');
 	
 	my $inCodec=$transcodeTable->{'transitCodec'};
-	my $outCodec = $transcodeTable->{'outCodec'};
+	my $outCodec = getOutputCodec($transcodeTable);
 	
 	my $commandstring="";
-
-	if (isOutputCompressed($transcodeTable)){
+	
+	if (compareCodecs($inCodec, $outCodec)){ #do nothing
+	
+	} elsif (isOutputCompressed($transcodeTable)){
 	
 		$commandstring = transcodeCompressedOutput($transcodeTable);
 	
@@ -779,10 +1056,19 @@ sub split_{
 		$commandString=splitUncompressedInput($transcodeTable);
 	} elsif (isAStdInPipe($transcodeTable)){
 	
-		# could not use SOX directly in this case.
+		# could not use SOX directly with stdIn.
 		
 		$commandString=splitAndDecodeCompressedInput($transcodeTable);
 	
+	}elsif (isInputCompressed($transcodeTable) &&
+			!(useSoxToDecodeWhenResampling($transcodeTable))){
+			
+		$commandString=splitAndDecodeCompressedInput($transcodeTable);
+	
+	}elsif (!(useSoxToDecodeWhenResampling($transcodeTable))){
+			#uncompressed input.
+			
+		$commandString=splitUnCompressedInput($transcodeTable);
 	}
 	$commandString=$commandString || "";
 	$transcodeTable->{'command'}=$commandString;
@@ -801,14 +1087,14 @@ sub splitUncompressedInput {
 
 		if (useFFMpegToTranscode($transcodeTable)){
 
-			$transcodeTable->{'transitCodec'}=$transcodeTable->{'outCodec'};
+			$transcodeTable->{'transitCodec'}=getOutputCodec($transcodeTable);
 		}
 
 		$commandString=Plugins::C3PO::FfmpegHelper::split_($transcodeTable);
 		
 	} else {
 
-		$commandString=splitAndEndcodeCompressedInput($transcodeTable);
+		$commandString=splitAndEndcodeUnCompressedInputUsingFlac($transcodeTable);
 	}
 	return $commandString;
 }
@@ -831,10 +1117,7 @@ sub checkResample{
 	my $maxSyncrounusSamplerate;
 	
 	my $willStart=$transcodeTable->{'C3POwillStart'};
-	
-	#if (defined $willStart && defined $file && 
-	#	!isAStdInPipe($transcodeTable)){
-	
+
 	if (isRuntime($transcodeTable) && defined $willStart && $willStart){
 	
 		my $testfile=$file;
@@ -879,13 +1162,13 @@ sub checkResample{
 
 		$targetSamplerate=$forcedSamplerate;
 
-	} elsif ($resampleWhen eq'N'){
+	} elsif ($resampleWhen eq'N'){ #do nothing
 
 	} elsif (!$fileSamplerate){
 	
 		$targetSamplerate=$maxsamplerate;
 	
-	} elsif (($resampleWhen eq'E')&& ($isSupported)){
+	} elsif (($resampleWhen eq'E')&& ($isSupported)){ #do nothing
 	
 	} elsif ($resampleTo eq'X'){
 		
@@ -923,7 +1206,7 @@ sub isSamplerateSupported{
 
 	for my $rate (keys %$samplerates){
 	
-		if ($fileSamplerate==$rate) {return 1;}
+		if ($samplerates->{$rate} && $fileSamplerate==$rate) {return 1;}
 	}
 	
 	return 0;
@@ -952,8 +1235,8 @@ sub getMaxSyncrounusSampleRate{
 	my $fileSamplerate=shift;
 	my $samplerates=shift;
 	
-	#Data::Dump::dump($fileSamplerate);
-	#Data::Dump::dump($samplerates);
+	Plugins::C3PO::Logger::debugMessage('fileSamplerate : '.$fileSamplerate);
+	Plugins::C3PO::Logger::debugMessage('Samplerates : '.Data::Dump::dump($samplerates));
 	
 	if (!defined $fileSamplerate || $fileSamplerate==0){
 		
@@ -988,13 +1271,13 @@ sub getMaxSyncrounusSampleRate{
 	
 	for my $rs (keys %$samplerates){
 		
+		if (! $samplerates->{$rs}){next;}
 		my $rate = $rs/1;
 		
 		#Data::Dump::dump($max,$rate, $rateFamily, $rate % $rateFamily, $samplerates->{$rate});
 		
 		if (($rate % $rateFamily == 0 ) && 
-		    ($rate>$max) && 
-			($samplerates->{$rate})){
+		    ($rate>$max)){
 			
 			$max = $rate;
 		}

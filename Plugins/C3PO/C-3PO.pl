@@ -56,7 +56,9 @@ my ($volume,$directories,$file) =File::Spec->splitpath($0);
 #print '$directories is : '.$directories."\n";
 #print '$file is   : '.$file."\n";
 
-if ($file && $file eq 'C-3PO.exe'){
+if (!$file) {die "undefined filename";}
+
+if ($file eq 'C-3PO.exe'){
 
 	# We are running the compiled version in 
 	# \Bin\MSWin32-x86-multi-thread folder inside the
@@ -64,7 +66,14 @@ if ($file && $file eq 'C-3PO.exe'){
 	
 	$C3PODir = File::Spec->canonpath(getAncestor($Bin,2));
 
-} elsif ($file && $file eq 'C-3PO.pl'){
+} elsif ($file eq 'C-3PO'){
+
+	#running on linux or mac OS x from inside the Bin folder
+	#$C3PODir= File::Spec->canonpath(File::Basename::dirname(__FILE__)); #C3PO Folder
+	$C3PODir = File::Spec->canonpath(getAncestor($Bin,1));
+        
+
+} elsif ($file eq 'C-3PO.pl'){
 
 	#running .pl 
 	#$C3PODir= File::Spec->canonpath(File::Basename::dirname(__FILE__)); #C3PO Folder
@@ -76,9 +85,19 @@ if ($file && $file eq 'C-3PO.exe'){
 	die "unexpected filename";
 }
 
-use lib rel2abs(catdir($C3PODir, 'lib'));
-use lib rel2abs(catdir($C3PODir,'CPAN'));
+my $lib = File::Spec->rel2abs(catdir($C3PODir, 'lib'));
+my $cpan= File::Spec->rel2abs(catdir($C3PODir,'CPAN'));
+my $util= File::Spec->rel2abs(catdir($C3PODir,'Util'));
 
+#print '$directories is : '.$lib."\n";
+#print '$directories is : '.$cpan."\n";
+#print '$directories is : '.$util."\n";
+
+my @i=($C3PODir,$lib,$cpan);
+
+unshift @INC, @i;
+
+require Utils::Config;
 unshift @INC, Utils::Config::expandINC($C3PODir);
 
 # let standard modules load.
@@ -103,19 +122,19 @@ use constant LOCALFILE    => 0;
 use constant NOMYSB       => 1;
 #
 #######################################################################
-use Logger;
-use Transcoder;
-use Shared;
-use OsHelper;
+require Logger;
+require Transcoder;
+require Shared;
+require OsHelper;
 
-use FfmpegHelper;
-use FlacHelper;
-use SoxHelper;
-use DummyTranscoderHelper;
+require FfmpegHelper;
+require FlacHelper;
+require FaadHelper;
+require SoxHelper;
 
-use Utils::Log;
-use Utils::File;
-use Utils::Config;
+require Utils::Log;
+require Utils::File;
+require Utils::Config;
 
 require FileHandle;
 require Getopt::Long;
@@ -127,10 +146,10 @@ require Audio::Scan;
 our $logFolder;
 our $logfile;
 our $isDebug;
-our $logLevel = DEBUGLOG ? 'debug' : INFOLOG ? 'info' : 'warn';
+our $logLevel = main::DEBUGLOG ? 'debug' : main::INFOLOG ? 'info' : 'warn';
 
 #$logLevel='verbose'; #to show more debug mesages
-$logLevel='debug';
+#$logLevel='debug';
 #$logLevel='info';
 #$logLevel='warn'; #to show less debug mesages
 
@@ -146,22 +165,14 @@ sub main{
 
 	Plugins::C3PO::Logger::verboseMessage ('C3PO.pl Started');
 
-
 	my $options=getOptions();
 	if (!defined $options) {Plugins::C3PO::Logger::dieMessage("Missing options");}
 	
-	$isDebug= $options->{debug};
-	Plugins::C3PO::Logger::infoMessage('debug? '.$isDebug ? 'Yes' : 'No');
-	
-	Plugins::C3PO::Logger::debugMessage('options '.Data::Dump::dump($options));
-	
-	#if (!defined $logFolder) {Plugins::C3PO::Logger::warnMessage("Missing log directory in options")}
-		
 	if (defined $options->{logFolder}){
 	
 		$logFolder=$options->{logFolder};
 
-		Plugins::C3PO::Logger::debugMessage ('found log foder in options: '.$logFolder);
+		Plugins::C3PO::Logger::verboseMessage ('found log foder in options: '.$logFolder);
 		
 		my $newLogfile= Plugins::C3PO::Logger::getLogFile($logFolder);
 		Plugins::C3PO::Logger::verboseMessage("Swithing log file to ".$newLogfile);
@@ -170,9 +181,18 @@ sub main{
 		Plugins::C3PO::Logger::verboseMessage("Now log file is $logfile");
 	
 	}
+	
+	$isDebug= $options->{debug};
+	if ($isDebug){
+		Plugins::C3PO::Logger::infoMessage('Running in debug mode');
+	}
+	Plugins::C3PO::Logger::debugMessage('options '.Data::Dump::dump($options));
+	
 	if (defined $options->{hello}) {
 
-		my $message="C-3PO says $options->{hello}! see $logfile for errors";
+		my $message="C-3PO says $options->{hello}! see $logfile for errors ".
+					"log level is $logLevel";
+					
 		print $message;
 
 		Plugins::C3PO::Logger::infoMessage($message);
@@ -239,6 +259,7 @@ sub executeCommand{
 
 	Plugins::C3PO::Logger::infoMessage(qq(Command is: $command));
 	Plugins::C3PO::Logger::verboseMessage($main::isDebug ? 'in debug' : 'production');
+	
 	if ($main::isDebug){
 	
 		return $command;

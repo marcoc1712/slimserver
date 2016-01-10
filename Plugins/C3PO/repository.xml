@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extensions>
+    <details>
+        <title lang="EN">C-3PO Transcoding Helper</title>
+    </details>
+    <plugins>
+        <plugin name="C3PO" version="0.6.1" minTarget="7.9.0" maxTarget="7.9+">
+            <title lang="EN">C-3PO Transcoding Helper</title>
+            <desc lang="EN">Automate conversion of file types and resampling</desc>
+            <creator>marcoc1712</creator>
+			<sha>fd7d1b1ca9a85b17584e486fbe9974da7572fdba</sha>
+            <url>http://www.mc2consulting.it/downloads/C-3PO-0.6-alpha-1.zip</url>
+        </plugin>
+    </plugins>
+</extensions>
