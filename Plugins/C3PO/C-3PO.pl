@@ -22,6 +22,7 @@
 # -c - client mac address (es. 00:04:20:12:b3:17) -> clientId
 # -p - preference file.
 # -l - log folder.
+# -x - server folder.
 # -i - input stream format (es. flc) -> inFormat
 # -o - output stream format (es. wav) -> outFormat
 # -t - stream time start offset (m:ss.cc es. 24:46.02) -> startTime
@@ -32,6 +33,7 @@
 # -r - imposed samplerate
 # -h - answer with an hello message, do nothing else.
 # -d - run in debug mode, don't send the real command.
+# -b - run as header restorer or dummy transcoder
 #
 # The input file is the first and only parameter (with no option) in line.
 #
@@ -42,8 +44,14 @@ package main;
 use strict;
 use warnings;
 
+my @inc0=();
+for my $i (@INC){addToArray($i,\@inc0);}
+
 use FindBin qw($Bin);
 use lib $Bin;
+
+my @inc1=();
+for my $i (@INC){addToArray($i,\@inc1);}
 
 use File::Spec::Functions qw(:ALL);
 use File::Basename;
@@ -87,18 +95,21 @@ if ($file eq 'C-3PO.exe'){
 
 my $lib = File::Spec->rel2abs(catdir($C3PODir, 'lib'));
 my $cpan= File::Spec->rel2abs(catdir($C3PODir,'CPAN'));
-my $util= File::Spec->rel2abs(catdir($C3PODir,'Util'));
+my $include= File::Spec->rel2abs(catdir($C3PODir,'include'));
+my $winAuto= File::Spec->rel2abs(catdir($C3PODir,'include','auto'));
 
-#print '$directories is : '.$lib."\n";
-#print '$directories is : '.$cpan."\n";
-#print '$directories is : '.$util."\n";
-
-my @i=($C3PODir,$lib,$cpan);
-
-unshift @INC, @i;
+my @a=($C3PODir,$lib,$cpan,$include,$winAuto);
+for my $i (@a){addToArray($i, \@INC);}
 
 require Utils::Config;
-unshift @INC, Utils::Config::expandINC($C3PODir);
+
+$a= Utils::Config::expandINC($C3PODir);
+for my $i (@a){addToArray($i, \@INC);}
+
+#unshift @INC, Utils::Config::expandINC($C3PODir);
+
+my @inc2=();
+for my $i (@INC){addToArray($i,\@inc2);}
 
 # let standard modules load.
 #
@@ -136,13 +147,21 @@ require Utils::Log;
 require Utils::File;
 require Utils::Config;
 
+#in Base
 require FileHandle;
-require Getopt::Long;
 require YAML::XS;
-require File::HomeDir;
 require Data::Dump;
+
+#in include
 require Audio::Scan;
 
+
+#In lib.
+require Module::Load;
+require File::HomeDir;
+require Getopt::Long;
+
+our $serverFolder;
 our $logFolder;
 our $logfile;
 our $isDebug;
@@ -181,6 +200,16 @@ sub main{
 		Plugins::C3PO::Logger::verboseMessage("Now log file is $logfile");
 	
 	}
+
+	Plugins::C3PO::Logger::infoMessage('BIN '.$Bin);
+	Plugins::C3PO::Logger::infoMessage('C-3PO '.$C3PODir);
+	Plugins::C3PO::Logger::infoMessage('inc0'.Data::Dump::dump(@inc0));
+	Plugins::C3PO::Logger::infoMessage('inc1'.Data::Dump::dump(@inc1));
+	Plugins::C3PO::Logger::infoMessage('inc2'.Data::Dump::dump(@inc2));
+	Plugins::C3PO::Logger::infoMessage('INC '.Data::Dump::dump(@INC));
+	Plugins::C3PO::Logger::infoMessage('DEBUGLOG '.main::DEBUGLOG);
+	Plugins::C3PO::Logger::infoMessage('INFOLOG '.main::INFOLOG);
+	Plugins::C3PO::Logger::infoMessage('loglevel '.$logLevel);
 	
 	$isDebug= $options->{debug};
 	if ($isDebug){
@@ -199,32 +228,18 @@ sub main{
 		Plugins::C3PO::Logger::debugMessage('Bin is: '.$Bin);
 		Plugins::C3PO::Logger::debugMessage('PluginDir is: '.$C3PODir);
 		Plugins::C3PO::Logger::verboseMessage('Inc is: '.Data::Dump::dump(@INC));
-		Plugins::C3PO::Logger::verboseMessage('Inc is: '.Data::Dump::dump(%INC));
 		exit 0;
 	}
 	
-	if (!defined $options->{clientId}) {Plugins::C3PO::Logger::dieMessage("Missing clientId in options")}
 	if (!defined $options->{prefFile}) {Plugins::C3PO::Logger::dieMessage("Missing preference file in options")}
-	if (!defined $options->{inCodec})  {Plugins::C3PO::Logger::dieMessage("Missing input codec in options")}
 	
 	my $prefFile=$options->{prefFile};
 	Plugins::C3PO::Logger::debugMessage ('Pref File: '.$prefFile);
-	
+
 	my $prefs=loadPreferences($prefFile);
 	if (!defined $prefs) {Plugins::C3PO::Logger::dieMessage("Invalid pref file in options")}
 	Plugins::C3PO::Logger::debugMessage ('Prefs: '.Data::Dump::dump($prefs));
-
-	my $clientId= $options->{clientId};
-	Plugins::C3PO::Logger::debugMessage ('clientId: '.$clientId);
-
-	my $client=Plugins::C3PO::Shared::buildClientString($clientId);
-	Plugins::C3PO::Logger::debugMessage ('client: '.$client);
 	
-	my $serverFolder=$prefs->{'serverFolder'};
-	if (!defined $serverFolder) {Plugins::C3PO::Logger::dieMessage("Missing ServerFolder")}
-	Plugins::C3PO::Logger::debugMessage ('server foder: '.$serverFolder);
-
-	#use prefs only if not already in options.
 	if (!defined $options->{logFolder}){
 		
 		my $logFolder=$prefs->{'logFolder'};
@@ -238,15 +253,89 @@ sub main{
 		Plugins::C3PO::Logger::verboseMessage("Now log file is $main::logfile");
 	}
 	
-	my $transcodeTable=Plugins::C3PO::Shared::buildTranscoderTable($client,$prefs,$options);
+	if (defined $options->{headerRestorer}){ 
+		
+		#running as header restorer
+		
+		my $infile = $options->{file};
+		my $buffer;
+		
+		if ($infile){
+			
+			Plugins::C3PO::Logger::infoMessage('HeaderRestorer - header file :'.$infile);
+			
+		} else{
+		
+			Plugins::C3PO::Logger::infoMessage('Dummy Transcoder (no header file)');
+		}
+		
+		if ($infile){
+
+			my $in = FileHandle->new();
+
+			if (!$in->open("< $infile")){
+
+				 Plugins::C3PO::Logger::errorMessage("HeaderRestorer: Not able to open the file for reading");
+			}
+
+			binmode ($in);
+
+			while (
+				sysread ($in, $buffer, 65536)	# read in (up to) 64k chunks, write
+				and syswrite STDOUT, $buffer	# exit if read or write fails
+			  ) {};
+			if ($!){
+				Plugins::C3PO::Logger::errorMessage(
+					"HeaderRestorer: Problem writing header from file:  $!");
+			}
+			close ($in);
+			unlink $infile;
+			if ($!){
+				Plugins::C3PO::Logger::errorMessage(
+					"HeaderRestorer: Unable to remove $infile: $!");
+			}
+		}
+		Plugins::C3PO::Logger::infoMessage(
+				"HeaderRestorer: start copy from STDIN");
+		while (
+			sysread (STDIN, $buffer, 65536)	# read in (up to) 64k chunks, write
+			and syswrite STDOUT, $buffer	# exit if read or write fails
+			) {
+				Plugins::C3PO::Logger::infoMessage(
+				"HeaderRestorer: copied 64Kb chunk");
+		}
+		if ($!){		
+
+			Plugins::C3PO::Logger::errorMessage(
+				"HeaderRestorer/Dummy Transcoder: Problem writing body from STDIN: $!");
+		}
+		flush STDOUT;
 	
-	Plugins::C3PO::Logger::verboseMessage('Transcoder table : '.Data::Dump::dump($transcodeTable));
-	Plugins::C3PO::Logger::verboseMessage('@INC : '.Data::Dump::dump(@INC));
+	} else{
+
+		#running as C-3PO.
+		Plugins::C3PO::Logger::infoMessage('Running as Transcoder');
+		
+		if (!defined $options->{clientId}) {Plugins::C3PO::Logger::dieMessage("Missing clientId in options")}
+		if (!defined $options->{inCodec})  {Plugins::C3PO::Logger::dieMessage("Missing input codec in options")}
+
+		my $clientId= $options->{clientId};
+		Plugins::C3PO::Logger::debugMessage ('clientId: '.$clientId);
+
+		my $client=Plugins::C3PO::Shared::buildClientString($clientId);
+		Plugins::C3PO::Logger::debugMessage ('client: '.$client);
+		
+		my $transcodeTable=Plugins::C3PO::Shared::buildTranscoderTable($client,$prefs,$options);
 	
-	$transcodeTable->{'inCodec'}=$options->{inCodec};
-	my $commandTable=Plugins::C3PO::Transcoder::buildCommand($transcodeTable);
-	
-	executeCommand($commandTable->{'command'});
+		Plugins::C3PO::Logger::verboseMessage('Transcoder table : '.Data::Dump::dump($transcodeTable));
+		Plugins::C3PO::Logger::verboseMessage('@INC : '.Data::Dump::dump(@INC));
+
+		$transcodeTable->{'inCodec'}=$options->{inCodec};
+		my $commandTable=Plugins::C3PO::Transcoder::buildCommand($transcodeTable);
+
+		executeCommand($commandTable->{'command'});
+		
+	}
 }
 # launch command and die, passing Output directly to LMS, so far the best.
 # but does not work in Windows with I capability (socketwrapper involved)
@@ -257,7 +346,7 @@ sub executeCommand{
 	#some hacking on quoting and escaping for differents Os...
 	$command= Plugins::C3PO::Shared::finalizeCommand($command);
 
-	Plugins::C3PO::Logger::infoMessage(qq(Command is: $command));
+	Plugins::C3PO::Logger::infoMessage(qq(executeCommand - Command is: $command));
 	Plugins::C3PO::Logger::verboseMessage($main::isDebug ? 'in debug' : 'production');
 	
 	if ($main::isDebug){
@@ -289,6 +378,7 @@ sub getOptions{
 	if ( @ARGV > 0 ) {
 
 		Getopt::Long::GetOptions(	
+			'b' => \$options->{headerRestorer},
 			'd' => \$options->{debug},
 			'h=s' => \$options->{hello},
 			'l=s' => \$options->{logFolder},
@@ -339,6 +429,23 @@ sub getAncestor{
 	@dirs= splice @dirs, 0, $lev*-1;
 
 	return File::Spec->catfile($volume, File::Spec->catdir( @dirs ), $file);
+}
+sub addToArray{
+	my $in=shift;
+	my $out=shift;
+	
+	my $found;
+
+	$found=0;
+	for my $o (@$out){
+		if ($o eq $in){
+			$found=1;
+			last;
+		}
+	}
+	if (!$found){
+		push @$out, $in;
+	}
 }
 1;
 

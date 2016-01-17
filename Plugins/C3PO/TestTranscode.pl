@@ -25,8 +25,16 @@ use lib $Bin;
 use File::Spec::Functions qw(:ALL);
 use File::Basename;
 
-use lib rel2abs(catdir($Bin, 'lib'));
-use lib rel2abs(catdir($Bin,'CPAN'));
+my $C3PODir=$Bin;
+my $lib = File::Spec->rel2abs(catdir($C3PODir, 'lib'));
+my $cpan= File::Spec->rel2abs(catdir($C3PODir,'CPAN'));
+#my $util= File::Spec->rel2abs(catdir($C3PODir,'Utils'));
+
+#print '$directories is : '.$lib."\n";
+#print '$directories is : '.$cpan."\n";
+#print '$directories is : '.$util."\n";
+
+my @i=($C3PODir,$lib,$cpan);
 
 unshift @INC, Utils::Config::expandINC($Bin);
 
@@ -50,20 +58,21 @@ use constant LOCALFILE    => 0;
 use constant NOMYSB       => 1;
 #
 #######################################################################
-use Logger;
-use Transcoder;
-use Shared;
-use OsHelper;
+require Logger;
+require Transcoder;
+require Shared;
+require OsHelper;
 
-use FfmpegHelper;
-use FlacHelper;
-use FaadHelper;
-use SoxHelper;
+require FfmpegHelper;
+require FlacHelper;
+require FaadHelper;
+require SoxHelper;
 
-use Utils::Log;
-use Utils::File;
+require Utils::Log;
+require Utils::File;
 use Utils::Config;
 
+require FileHandle;
 require Getopt::Long;
 require YAML::XS;
 require File::HomeDir;
