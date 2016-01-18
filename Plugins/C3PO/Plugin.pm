@@ -628,14 +628,14 @@ sub _testC3POEXE{
 		return 0;
 	}
 		
-	my $command= qq("$pathToC3PO_exe" -h hello -l "$logFolder");
+	my $command= qq("$pathToC3PO_exe" -h hello -l "$logFolder" -x "$serverFolder");
 	
-	if (! main::DEBUGLOG) {
+	if (! (main::DEBUGLOG && $log->is_debug)) {
 	
 		$command = $command." --nodebuglog";
 	}
 	
-	if (! main::INFOLOG){
+	if (! (main::INFOLOG && $log->is_info)){
 	
 		$command = $command." --noinfolog";
 	}
@@ -672,7 +672,7 @@ sub _testC3POPL{
 		return 0;
 	}
 
-	my $command= qq("$pathToPerl" "$pathToC3PO_pl" -h hello -l "$logFolder");
+	my $command= qq("$pathToPerl" "$pathToC3PO_pl" -h hello -l "$logFolder" -x "$serverFolder");
 	
 	if (! main::DEBUGLOG || ! $log->is_debug) {
 	
