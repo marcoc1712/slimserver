@@ -40,8 +40,6 @@ sub checkVersion {
 	
 	return unless $prefs->get('checkVersion');
 
-	$versionFile = catdir( scalar($os->dirsFor('updates')), 'server.version' );
-
 	my $installer = getUpdateInstaller() || '';
 	
 	# reset update download status in case our system is up to date
@@ -213,7 +211,7 @@ sub getUpdate {
 		if ( -e $file ) {
 			main::INFOLOG && $log->info("We already have the latest installer file: $file");
 			
-			setUpdateInstaller($file);
+			setUpdateInstaller($file, $params->{cb});
 			return;
 		}
 		
@@ -221,7 +219,7 @@ sub getUpdate {
 
 		setUpdateInstaller();
 		
-		$log->debug("Downloading...\n   URL:      $url\n   Save as:  $tmpFile\n   Filename: $file");
+		main::DEBUGLOG && $log->is_debug && $log->debug("Downloading...\n   URL:      $url\n   Save as:  $tmpFile\n   Filename: $file");
 
 		# Save to a tmp file so we can check SHA
 		my $download = Slim::Networking::SimpleAsyncHTTP->new(
@@ -246,7 +244,7 @@ sub downloadAsyncDone {
 	
 	my $file    = $http->params('file');
 	my $tmpFile = $http->params('saveAs');
-	my $params  = $http->params('params');
+	my $params  = $http->params('params') || {};
 	
 	my $path    = $params->{'path'};
 	
@@ -264,12 +262,12 @@ sub downloadAsyncDone {
 
 	cleanup($path);
 
-	$log->info("Successfully downloaded update installer file '$tmpFile'. Saving as $file");
+	main::INFOLOG && $log->is_info && $log->info("Successfully downloaded update installer file '$tmpFile'. Saving as $file");
 	unlink $file;
 	my $success = rename $tmpFile, $file;
 	
 	if (-e $file) {
-		setUpdateInstaller($file) ;
+		setUpdateInstaller($file, $params->{cb}) ;
 	}
 	elsif (!$success) {
 		$log->warn("Renaming '$tmpFile' to '$file' failed.");
@@ -277,16 +275,14 @@ sub downloadAsyncDone {
 	else {
 		$log->warn("There was an unknown error downloading/storing the update installer.");
 	}
-	
-	if ($params && ref($params->{cb}) eq 'CODE') {
-		$params->{cb}->($file);
-	}
 
 	cleanup($path, 'tmp');
 }
 
 sub setUpdateInstaller {
-	my $file = shift;
+	my ($file, $cb) = @_;
+	
+	$versionFile ||= getVersionFile();
 	
 	if ($file && open(UPDATEFLAG, ">$versionFile")) {
 		
@@ -294,6 +290,10 @@ sub setUpdateInstaller {
 		
 		print UPDATEFLAG $file;
 		close UPDATEFLAG;
+
+		if ($cb && ref($cb) eq 'CODE') {
+			$cb->($file);
+		}
 	}
 	
 	elsif ($file) {
@@ -307,15 +307,22 @@ sub setUpdateInstaller {
 	}
 }
 
+sub getVersionFile {
+	$versionFile ||= catdir( scalar($os->dirsFor('updates')), 'server.version' );
+	return $versionFile;
+}
+
 
 sub getUpdateInstaller {
 	
 	return unless $prefs->get('autoDownloadUpdate');
 	
-	main::DEBUGLOG && $log->debug("Reading update installer path from $versionFile");
+	$versionFile ||= getVersionFile();
+	
+	main::DEBUGLOG && $log->is_debug && $log->debug("Reading update installer path from $versionFile");
 	
 	open(UPDATEFLAG, $versionFile) || do {
-		$log->debug("No '$versionFile' available.");
+		main::DEBUGLOG && $log->is_debug && $log->debug("No '$versionFile' available.");
 		return '';	
 	};
 	
