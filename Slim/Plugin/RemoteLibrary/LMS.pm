@@ -54,6 +54,14 @@ my $cache = Slim::Utils::Cache->new;
 sub init {
 	my $class = shift;
 	
+	# get details about the manually added servers
+	$class->getServerDetails(1);
+	
+	# update server details whenever the list of manually added LMS fails
+	$prefs->setChange(sub {
+		$class->getServerDetails();
+	}, 'remoteLMS');
+	
 	Slim::Player::ProtocolHandlers->registerHandler(
 		lms => 'Slim::Plugin::RemoteLibrary::ProtocolHandler'
 	);
@@ -79,30 +87,45 @@ sub init {
 	);
 
 	# tell Slim::Menu::BrowseLibrary where to get information for remote libraries from
-	Slim::Menu::BrowseLibrary->registerRequestProxy(\&remoteRequest);
-	Slim::Menu::BrowseLibrary->registerStreamProxy(\&_proxiedStreamUrl);
-	Slim::Menu::BrowseLibrary->registerImageProxy(\&_proxiedImage);
-	Slim::Menu::BrowseLibrary->registerPrefGetter(\&_getPref);
-
+	Slim::Menu::BrowseLibrary->setRemoteLibraryHandler($class);
+	
 	Slim::Plugin::RemoteLibrary::Plugin->addRemoteLibraryProvider($class);
 }
 
 sub getLibraryList {
 	return unless $prefs->get('useLMS');
 
-	my $servers = Slim::Networking::Discovery::Server::getServerList();
-	my $items = [];
+	my %servers;
+	my $items;
 	
-	foreach ( sort keys %$servers ) {
+	# locally discovered servers
+	my $servers = Slim::Networking::Discovery::Server::getServerList();
+	foreach ( keys %$servers ) {
+		$servers{ Slim::Networking::Discovery::Server::getServerUUID($_) } = $_;
+	}
+	
+	my $otherServers = $prefs->get('remoteLMSDetails') || {};
+
+	# manually addes servers
+	foreach ( @{ $prefs->get('remoteLMS') || [] } ) {
+		my $details = $otherServers->{$_} || next;
+		$servers{$details->{uuid}} = $details->{name} || $_;
+	}
+
+	my $server_uuid = preferences('server')->get('server_uuid');
+	
+	while ( my ($uuid, $name) = each %servers ) {
 		
-		next if Slim::Networking::Discovery::Server::is_self($_);
+		# ignore servers with invalid UUID, or ourselves
+		next if !$uuid || $uuid eq $server_uuid || $uuid =~ /[^a-z\-\d]/i;
 		
-		my $uuid = Slim::Networking::Discovery::Server::getServerUUID($_);
+		main::DEBUGLOG && $log->is_debug && $log->debug("Using remote Logitech Media Server: $name");
+		
 		_getBrowsePrefs($uuid);
 		
 		# create menu item
 		push @$items, {
-			name => $_,
+			name => $name,
 			type => 'link',
 			url  => \&_getRemoteMenu,
 			image => 'plugins/RemoteLibrary/html/lms.png',
@@ -118,8 +141,8 @@ sub getLibraryList {
 sub _getRemoteMenu {
 	my ($client, $cb, $args, $pt) = @_;
 	
-	my $remote_library = $pt->{remote_library} || $client->pluginData('remote_library');
-	$client->pluginData( remote_library => $remote_library );
+	my $remote_library = $pt->{remote_library} || ($client && $client->pluginData('remote_library'));
+	$client->pluginData( remote_library => $remote_library ) if $client;
 
 	if ($passwordProtected{$remote_library}) {
 		# XXX - can we pre-populate the input field with the known password?
@@ -199,7 +222,7 @@ sub _extractBrowseMenu {
 			}
 		}
 		
-		$_->{icon} = _proxiedImage($_, $remote_library);
+		$_->{icon} = __PACKAGE__->proxiedImageUrl($_, $remote_library);
 		$_->{url}  = \&Slim::Menu::BrowseLibrary::_topLevel;
 		$_->{name} = $_->{text};
 		
@@ -234,7 +257,7 @@ sub _checkCredentials {
 	$prefs->set($remote_library, encode_base64(pack("u", "$username:$password"), ''));
 	
 	# Run a request against this server to test credentials
-	remoteRequest($remote_library, 
+	__PACKAGE__->remoteRequest($remote_library, 
 		[ '', ['serverstatus', 0, 1 ] ],
 		sub {
 			my $result = shift || {};
@@ -263,8 +286,8 @@ sub _checkCredentials {
 	);
 }
 
-sub _proxiedStreamUrl {
-	my ($item, $remote_library) = @_;
+sub proxiedStreamUrl {
+	my ($class, $item, $remote_library) = @_;
 	
 	my $id = $item->{id};
 	$id ||= $item->{commonParams}->{track_id} if $item->{commonParams};
@@ -280,8 +303,8 @@ sub _proxiedStreamUrl {
 	return $url;
 }
 
-sub _proxiedImage {
-	my ($item, $remote_library) = @_;
+sub proxiedImageUrl {
+	my ($class, $item, $remote_library) = @_;
 
 	my $image = $item->{'icon-id'} || $item->{icon} || $item->{image} || $item->{coverid};
 	
@@ -316,7 +339,7 @@ sub _getBrowsePrefs {
 	foreach my $pref ( 'noGenreFilter', 'noRoleFilter', 'useUnifiedArtistsList', 'composerInArtists', 'conductorInArtists', 'bandInArtists' ) {
 		if (!defined $cached->{$pref} && !$passwordProtected{$serverId}) {
 			push @prefsFetcher, sub {
-				remoteRequest($serverId, 
+				__PACKAGE__->remoteRequest($serverId, 
 					[ '', ['pref', $pref, '?' ] ],
 					sub {
 						my $result = shift || {};
@@ -338,8 +361,8 @@ sub _getBrowsePrefs {
 	}	
 }
 
-sub _getPref {
-	my ($pref, $remote_library) = @_;
+sub getPref {
+	my ($class, $pref, $remote_library) = @_;
 	
 	if ( $remote_library && (my $cached = $cache->get($remote_library . '_prefs')) ) {
 		return $cached->{$pref};
@@ -349,19 +372,32 @@ sub _getPref {
 sub baseUrl {
 	my ($class, $remote_library) = @_;
 
-	my $baseUrl = $remote_library =~ /^http/ ? $remote_library : Slim::Networking::Discovery::Server::getWebHostAddress($remote_library);
+	my $baseUrl;
+	
+	$baseUrl = $remote_library if $remote_library =~ /^http/;
+
+	if (!$baseUrl) {
+		my $serverDetails = $prefs->get('remoteLMSDetails');
+		($baseUrl) = grep {
+			$serverDetails->{$_} && lc($serverDetails->{$_}->{uuid}) eq lc($remote_library) 
+		} @{ $prefs->get('remoteLMS') || [] };
+	}
+
+	$baseUrl ||= Slim::Networking::Discovery::Server::getWebHostAddress($remote_library);
 
 	if ( my $creds = $prefs->get($remote_library) ) {
 		$creds = unpack(chr(ord("a") + 19 + print ""), decode_base64($creds));
 		$baseUrl =~ s/^(http:\/\/)/$1$creds\@/;
 	}
 	
+	$baseUrl .= '/' unless $baseUrl =~ m|/$|;
+	
 	return $baseUrl;
 }
 
 # Send a CLI command to a remote server
 sub remoteRequest {
-	my ($remote_library, $request, $cb, $ecb, $pt) = @_;
+	my ($class, $remote_library, $request, $cb, $ecb, $pt) = @_;
 
 	$ecb ||= $cb;
 	
@@ -401,7 +437,7 @@ sub remoteRequest {
 				$log->error( "$baseUrl is password protected? " . $http->error) unless $passwordProtected{$remote_library}++;
 			}
 			else {
-				$log->error( "Failed to get data from $baseUrl ($postdata): " . ($http->error || $http->mess || Data::Dump::dump($http)) );
+				$log->warn( "Failed to get data from $baseUrl ($postdata): " . ($http->error || $http->mess || Data::Dump::dump($http)) );
 			}
 
 			$ecb->(undef, $pt);
@@ -410,6 +446,51 @@ sub remoteRequest {
 			timeout => 60,
 		},
 	)->post( $baseUrl . 'jsonrpc.js', $postdata );
+}
+
+sub getServerDetails {
+	my ($class, $force) = @_;
+	
+	my $servers = $prefs->get('remoteLMS') || [];
+
+	my @detailsQueries = (
+		{ name => 'version', query => ['version', '?'], key => '_version' },
+		{ name => 'name', query => ['pref', 'libraryname', '?'], key => '_p2' },
+		{ name => 'uuid', query => ['pref', 'server_uuid', '?'], key => '_p2' },
+	);
+	
+	foreach my $server ( @$servers ) {
+		if (!$force) {
+			my $details = $prefs->get('remoteLMSDetails') || {};
+			next if $details->{$server};
+		}
+		
+		foreach ( @detailsQueries ) {
+			$class->remoteRequest($server, 
+				['', $_->{query}],
+				sub {
+					my ($results, $pt) = @_;
+
+					return unless $results && $pt && $pt->{server} && $pt->{name} && $pt->{key};
+					
+					my $server = $pt->{server};
+					
+					my $details = $prefs->get('remoteLMSDetails') || {};
+
+					$details->{$server} ||= {};
+					$details->{$server}->{$pt->{name}} = $results->{$pt->{key}};
+					
+					$prefs->set('remoteLMSDetails', $details);
+				},
+				# XXX - what to do in case of failure?
+				sub {},
+				{
+					%$_,
+					server => $server,
+				}
+			);
+		}
+	}
 }
 
 1;
