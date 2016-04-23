@@ -163,7 +163,7 @@ sub checkVersionCB {
 		}
 		
 		# if we got an update with download URL, display it in the web UI et al.
-		elsif ($version && $version =~ /a href=/i) {
+		elsif ($version && $version =~ /a href="downloads.slimdevices/i) {
 			$::newVersion = $version;
 		}
 	}
@@ -304,6 +304,8 @@ sub setUpdateInstaller {
 		if ($cb && ref($cb) eq 'CODE') {
 			$cb->($file);
 		}
+		
+		$::newVersion ||= string('SERVER_UPDATE_AVAILABLE_SHORT');
 	}
 	
 	elsif ($file) {
