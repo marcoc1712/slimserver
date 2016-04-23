@@ -532,7 +532,7 @@ sub init {
 	main::INFOLOG && $log->info("Server Buttons init...");
 	Slim::Buttons::Common::init();
 
-	if ($stdio || ($ENV{LMS_STDIO} && $REVISION eq 'TRUNK')) {
+	if ($stdio || ($ENV{LMS_STDIO} && $REVISION =~ /TRUNK|git-/)) {
 		main::INFOLOG && $log->info("Server Stdio init...");
 		Slim::Control::Stdio::init(\*STDIN, \*STDOUT);
 	}
@@ -596,9 +596,6 @@ sub init {
 	main::INFOLOG && $log->info("Server Jive init...");
 	Slim::Control::Jive->init();
 	
-	main::INFOLOG && $log->info("Remote Metadata init...");
-	Slim::Formats::RemoteMetadata->init();
-	
 	# Reinitialize logging, as plugins may have been added.
 	if (Slim::Utils::Log->needsReInit) {
 
@@ -630,10 +627,7 @@ sub init {
 
 	# pull in the memory usage module if requested.
 	if (main::INFOLOG && logger('server.memory')->is_info) {
-		
-		Slim::bootstrap::tryModuleLoad('Slim::Utils::MemoryUsage');
-
-		if ($@) {
+		if ( Slim::bootstrap::tryModuleLoad('Slim::Utils::MemoryUsage') ) {
 
 			logError("Couldn't load Slim::Utils::MemoryUsage: [$@]");
 

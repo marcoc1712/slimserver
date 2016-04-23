@@ -1,8 +1,6 @@
 package Slim::Web::Settings::Server::Software;
 
-# $Id: Software.pm 15258 2007-12-13 15:29:14Z mherger $
-
-# Logitech Media Server Copyright 2001-2011 Logitech.
+# Logitech Media Server Copyright 2001-2016 Logitech.
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License,
 # version 2.
@@ -22,7 +20,7 @@ sub page {
 }
 
 sub prefs {
-	my @prefs = qw(checkVersion);
+	my @prefs = qw(checkVersion checkVersionInterval);
 	
 	if (Slim::Utils::OSDetect->getOS()->canAutoUpdate()) {
 		push @prefs, 'autoDownloadUpdate';
@@ -32,9 +30,33 @@ sub prefs {
 }
 
 sub handler {
-	my ($class, $client, $paramRef) = @_;
+	my ($class, $client, $paramRef, $callback, @args) = @_;
 	
-	$paramRef->{canAutoUpdate} = Slim::Utils::OSDetect->getOS()->canAutoUpdate();
+	my $os = Slim::Utils::OSDetect->getOS();
+	$paramRef->{canAutoUpdate} = $os->canAutoUpdate();
+	$paramRef->{runningFromSource} = $os->runningFromSource();
+
+	if ($::newVersion) {
+		$paramRef->{'warning'} ||= $::newVersion;
+	}
+	
+	if (delete $paramRef->{checkForUpdateNow}) {
+		require Slim::Utils::Update;
+		Slim::Utils::Update::checkVersion(sub {
+			my $info = shift;
+
+			if ($info =~ /^http.*(\d+\.\d+\.\d+)/) {
+				$info = sprintf('<a href="%supdateinfo.html" target="browser">%s</a>', $paramRef->{webroot}, Slim::Utils::Strings::string('SERVER_UPDATE_AVAILABLE_SHORT'));
+			}
+			elsif (!$info) {
+				$info = Slim::Utils::Strings::string('CONTROLPANEL_NO_UPDATE_AVAILABLE')
+			}
+			
+			$paramRef->{'warning'} = $info;
+			$callback->( $client, $paramRef, $class->SUPER::handler($client, $paramRef), @args );
+		});
+		return;
+	}
 
 	return $class->SUPER::handler($client, $paramRef);
 }

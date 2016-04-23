@@ -271,9 +271,10 @@ sub _addInfo {
 	$params->{'repos'}    = \@repos;
 	$params->{'auto'}     = $prefs->get('auto');
 	$params->{'rand'}     = $rand;
-		
-	my $needsRestart = Slim::Utils::PluginManager->needsRestart || Slim::Utils::PluginDownloader->downloading;
-	
+
+	# don't offer the restart before the plugin download has succeeded.
+	my $needsRestart = Slim::Utils::PluginManager->needsRestart; # || Slim::Utils::PluginDownloader->downloading;
+
 	$params->{'warning'} = $needsRestart ? Slim::Utils::Strings::string("PLUGIN_EXTENSIONS_RESTART_MSG") : '';
 
 	Slim::Utils::PluginManager->message($needsRestart);
