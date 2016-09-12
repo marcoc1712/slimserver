@@ -316,6 +316,47 @@ sub initPlugin {
 	return $initialized;
 }
 
+sub postinitPlugin {
+	my $class = shift;
+	
+	# if user has the Don't Stop The Music plugin enabled, register ourselves
+	if ( Slim::Utils::PluginManager->isEnabled('Slim::Plugin::DontStopTheMusic::Plugin') ) {
+		require Slim::Plugin::DontStopTheMusic::Plugin;
+		Slim::Plugin::DontStopTheMusic::Plugin->registerHandler('MUSICMAGIC_MIX', sub {
+			my ($client, $cb) = @_;
+		
+			my $seedTracks = Slim::Plugin::DontStopTheMusic::Plugin->getMixableProperties($client, 5);
+			
+			my $tracks = [];
+		
+			# don't seed from radio stations - only do if we're playing from some track based source
+			if ($seedTracks && ref $seedTracks && scalar @$seedTracks) {
+				foreach (@$seedTracks) {
+					my ($trackObj) = Slim::Schema->find('Track', $seedTracks->[0]->{id});
+				
+					my $mix = getMix($client, $trackObj->path, 'album') if $trackObj;
+					
+					main::idleStreams();
+					
+					if ($mix && scalar @$mix) {
+						push @$tracks, @$mix;
+					}
+				}
+			}
+			
+			$tracks = Slim::Plugin::DontStopTheMusic::Plugin->deDupe($tracks);
+			
+			my $maxMixSize = $prefs->client($client)->get('mix_size') || $prefs->get('mix_size') || 12;
+			if ( scalar @$tracks > $maxMixSize ) {
+				Slim::Player::Playlist::fischer_yates_shuffle($tracks);
+				$tracks = [ splice(@$tracks, 0, $maxMixSize) ];
+			}
+		
+			$cb->($client, $tracks);
+		});
+	}
+}
+
 sub defaultMap {
 	#Slim::Buttons::Common::addMode('musicmagic_mix', \%mixFunctions);
 
@@ -1218,6 +1259,7 @@ sub _prepare_mix {
 
 				# For the moment, skip straight to InstantMix mode. (See VarietyCombo)
 				$mix = getMix($client, $obj->path, 'track');
+				warn Data::Dump::dump($mix);
 			}
 
 			$params->{'src_mix'} = Slim::Music::Info::standardTitle(undef, $obj);
