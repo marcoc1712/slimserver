@@ -30,7 +30,7 @@ sub initPlugin {
 			INSERT OR IGNORE INTO library_track (library, track) 
 				SELECT '%s', tracks.id 
 				  FROM tracks 
-				 WHERE url LIKE 'file:///E:/Classica/%'
+				 WHERE url LIKE 'file:///F:/Classica/%'
 		}
 	},{
 		id => 'mc2Jazz',
@@ -40,7 +40,7 @@ sub initPlugin {
 			INSERT OR IGNORE INTO library_track (library, track) 
 				SELECT '%s', tracks.id 
 				  FROM tracks 
-				 WHERE url LIKE 'file:///F:/Jazz/%' 
+				 WHERE url LIKE 'file:///E:/Jazz/%' 
 		}
 	},{
 		id => 'mc2Rock',
@@ -50,7 +50,7 @@ sub initPlugin {
 			INSERT OR IGNORE INTO library_track (library, track) 
 				SELECT '%s', tracks.id 
 				  FROM tracks 
-				 WHERE url LIKE 'file:///F:/Rock/%'
+				 WHERE url LIKE 'file:///E:/Rock/%'
 		}
 	},{
 		id => 'mc2Blues',
@@ -60,7 +60,7 @@ sub initPlugin {
 			INSERT OR IGNORE INTO library_track (library, track) 
 				SELECT '%s', tracks.id 
 				  FROM tracks 
-				 WHERE url LIKE 'file:///F:/Blues/%'
+				 WHERE url LIKE 'file:///E:/Blues/%'
 		}
 	},{
 		id => 'mc2Audiophile',
@@ -70,7 +70,7 @@ sub initPlugin {
 			INSERT OR IGNORE INTO library_track (library, track) 
 				SELECT '%s', tracks.id 
 				  FROM tracks 
-				 WHERE url LIKE 'file:///F:/Audiophile/%'
+				 WHERE url LIKE 'file:///E:/Audiophile/%'
 		}
 	},{
 		id => 'mc2Disco',
@@ -80,7 +80,7 @@ sub initPlugin {
 			INSERT OR IGNORE INTO library_track (library, track) 
 				SELECT '%s', tracks.id 
 				  FROM tracks 
-				 WHERE url LIKE 'file:///F:/Disco/%'
+				 WHERE url LIKE 'file:///E:/Disco/%'
 		}
 	},{
 		id => 'mc2Lounge',
@@ -90,7 +90,7 @@ sub initPlugin {
 			INSERT OR IGNORE INTO library_track (library, track) 
 				SELECT '%s', tracks.id 
 				  FROM tracks 
-				 WHERE url LIKE 'file:///F:/Lounge/%'
+				 WHERE url LIKE 'file:///E:/Lounge/%'
 		}
 	},{
 		id => 'mc2Latina',
@@ -100,7 +100,7 @@ sub initPlugin {
 			INSERT OR IGNORE INTO library_track (library, track) 
 				SELECT '%s', tracks.id 
 				  FROM tracks 
-				 WHERE url LIKE 'file:///F:/Latina/%'
+				 WHERE url LIKE 'file:///E:/Latina/%'
 		}
 	},{
 		id => 'mc2Other',
@@ -116,14 +116,14 @@ sub initPlugin {
 				INSERT OR IGNORE INTO library_track (library, track)
 					SELECT '$id', tracks.id
 					FROM tracks 
-					WHERE url NOT LIKE 'file:///F:/Latina/%'
-                                          AND url NOT LIKE 'file:///F:/Lounge/%'
-                                          AND url NOT LIKE 'file:///F:/Disco/%'
-                                          AND url NOT LIKE 'file:///F:/Audiophile/%'
-                                          AND url NOT LIKE 'file:///F:/Blues/%'
-                                          AND url NOT LIKE 'file:///F:/Rock/%'
-                                          AND url NOT LIKE 'file:///F:/Jazz/%'
-                                          AND url NOT LIKE 'file:///E:/Classica/%'
+					WHERE url NOT LIKE 'file:///E:/Latina/%'
+                                          AND url NOT LIKE 'file:///E:/Lounge/%'
+                                          AND url NOT LIKE 'file:///E:/Disco/%'
+                                          AND url NOT LIKE 'file:///E:/Audiophile/%'
+                                          AND url NOT LIKE 'file:///E:/Blues/%'
+                                          AND url NOT LIKE 'file:///E:/Rock/%'
+                                          AND url NOT LIKE 'file:///E:/Jazz/%'
+                                          AND url NOT LIKE 'file:///F:/Classica/%'
 			} );
 		}
 	} ) {
