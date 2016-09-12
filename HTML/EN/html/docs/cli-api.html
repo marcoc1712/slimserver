@@ -702,7 +702,10 @@ http://&lt;server&gt;:&lt;port&gt;/music/current/cover.jpg?player=&lt;playerid&g
 		<strong><code><a href="#exit">exit</a></code></strong>
 	</li>
 	<li>
-		<strong><code><a href="#shutdown">shutdown</a></code></strong>
+		<strong><code><a href="#stopserver">stopserver</a></code></strong>
+	</li>
+	<li>
+		<strong><code><a href="#restartserver">restartserver</a></code></strong>
 	</li>
 </ul>
 
@@ -1160,28 +1163,52 @@ http://&lt;server&gt;:&lt;port&gt;/music/current/cover.jpg?player=&lt;playerid&g
 </blockquote>
 
 <br>
-<p id="shutdown">
+<p id="stopserver">
 	<strong>
 		<code>
-			shutdown
+			stopserver
 		</code>
 	</strong>
 </p>
 <p>
-	The &quot;shutdown&quot; command shuts down the server. The CLI connection
-	is terminated. Note that, obviously, there is no symmetrical command to 
-	restart the server.
+	The &quot;stopserver&quot; command shuts down the server.
 </p>
 <p>
 	Example:
 </p>
 <blockquote> 
 	<p>
-		Request: &quot;shutdown&lt;LF&gt;&quot;
+		Request: &quot;stopserver&lt;LF&gt;&quot;
 		<br>
-		Response: &quot;shutdown&lt;LF&gt;&quot;
+		Response: &quot;stopserver&lt;LF&gt;&quot;
 		<br>
 		(Connection terminated)
+	</p>
+</blockquote>
+
+<br>
+<p id="restartserver">
+	<strong>
+		<code>
+			restartserver
+		</code>
+	</strong>
+</p>
+<p>
+	The &quot;restartserver&quot; command restarts the server.
+	Please note that restarting the server using this command
+	is not available on all platforms.
+</p>
+<p>
+	Example:
+</p>
+<blockquote> 
+	<p>
+		Request: &quot;restartserver&lt;LF&gt;&quot;
+		<br>
+		Response: &quot;restartserver&lt;LF&gt;&quot;
+		<br>
+		(Connection terminates and server is being restarted)
 	</p>
 </blockquote>
 
@@ -5027,7 +5054,7 @@ http://&lt;server&gt;:&lt;port&gt;/music/current/cover.jpg?player=&lt;playerid&g
 			artwork_url
 		</td>
 		<td>
-			A full URL to remote artwork.  Only available for certain plugins such as Pandora and Rhapsody.
+			A full URL to remote artwork.  Only available for certain online music services.
 		</td>
 	</tr>
 	<tr>
@@ -5049,7 +5076,7 @@ http://&lt;server&gt;:&lt;port&gt;/music/current/cover.jpg?player=&lt;playerid&g
 			info_link
 		</td>
 		<td>
-			A custom link to use for trackinfo. Only available for certain plugins such as Pandora.
+			A custom link to use for trackinfo. Only available for certain online music services.
 		</td>
 	</tr>
 	<tr>
@@ -6226,21 +6253,65 @@ http://&lt;server&gt;:&lt;port&gt;/music/current/cover.jpg?player=&lt;playerid&g
 		Response: &quot;04:20:00:12:23:45 playlist play 
 			/music/abba/01_Voulez_Vous.mp3&lt;LF&gt;&quot;
 	</p>
+	<p>
+		Request: &quot;04:20:00:12:23:45 playlist play 
+			http://someserver/02_Sledgehammer.flac
+			Peter%20Gabriel%20-%20Sledgehammer&lt;LF&gt;&quot;
+		<br>
+		Response: &quot;04:20:00:12:23:45 playlist play 
+			http://someserver/02_Sledgehammer.flac
+			Peter%20Gabriel%20-%20Sledgehammer&lt;LF&gt;&quot;
+	</p>
 </blockquote>
 
-<br><p id="playlist add"><strong><code>&lt;playerid&gt; playlist add &lt;item&gt;</code></strong></p>
-<p>The &quot;playlist add&quot; command adds the specified song URL, playlist or directory contents to the end of the current playlist. 
-Songs currently playing or already on the playlist are not affected.</p>
-<p>Examples:</p>
+<br>
+<p id="playlist add">
+	<strong>
+		<code>
+			&lt;playerid&gt;
+			playlist
+			add
+			&lt;item&gt;
+			&lt;title&gt;
+		</code>
+	</strong>
+</p>
+<p>
+	The &quot;playlist add&quot; command adds the specified song URL, playlist
+	or directory contents to the end of the current playlist. Songs currently 
+	playing or already on the playlist are not affected. An optional title
+	value may be passed to set a title.  This can be useful for remote URLs.
+</p>
+<p>
+	Examples:
+</p>
 <blockquote>
 	<p>Request: &quot;04:20:00:12:23:45 playlist add /music/abba/01_Voulez_Vous.mp3&lt;LF&gt;&quot;<br>Response: &quot;04:20:00:12:23:45 playlist add /music/abba/01_Voulez_Vous.mp3&lt;LF&gt;&quot;</p>
 	<p>Request: &quot;04:20:00:12:23:45 playlist add /playlists/abba.m3u&lt;LF&gt;&quot;<br>Response: &quot;04:20:00:12:23:45 playlist add /playlists/abba.m3u&lt;LF&gt;&quot;</p>
 </blockquote>
 
-<br><p id="playlist insert"><strong><code>&lt;playerid&gt; playlist insert &lt;item&gt;</code></strong></p>
-<p>The &quot;playlist insert&quot; command inserts the specified song URL, playlist or directory contents to be played immediately after the current song in the current playlist. 
-Any songs currently playing or already on the playlist are not affected.</p>
-<p>Examples:</p>
+<br>
+<p id="playlist insert">
+	<strong>
+		<code>
+			&lt;playerid&gt; 
+			playlist 
+			insert 
+			&lt;item&gt;
+			&lt;title&gt;
+		</code>
+	</strong>
+</p>
+<p>
+	The &quot;playlist insert&quot; command inserts the specified song URL, playlist 
+	or directory contents to be played immediately after the current song in the 
+	current playlist. Any songs currently playing or already on the playlist are 
+	not affected. An optional title	value may be passed to set a title.  This can be 
+	useful for remote URLs.
+</p>
+<p>
+	Examples:
+</p>
 <blockquote>
 	<p>Request: &quot;04:20:00:12:23:45 playlist insert /music/abba/01_Voulez_Vous.mp3&lt;LF&gt;&quot;
 	<br>Response: &quot;04:20:00:12:23:45 playlist insert /music/abba/01_Voulez_Vous.mp3&lt;LF&gt;&quot;</p>
@@ -8541,7 +8612,7 @@ can be set/queried using the <a href="#playerpref">playerpref command</a>.</p>
 		<strong><code><a href="#radios">apps</a></code></strong>
 	</li>
 	<li>
-		<strong><a href="#XMLBrowser">Live Music Archive, Live365, MP3tunes, Pandora, Podcasts, RadioTime, Rhapsody, Shoutcast, Staff Picks, RSS</a></strong>
+		<strong><a href="#XMLBrowser">Live Music Archive, Live365, MP3tunes, Pandora, Podcasts, RadioTime, Napster, Shoutcast, Staff Picks, RSS</a></strong>
 	</li>
 	<li>
 		<strong><a href="#Favorites">Favorites</a></strong>
@@ -8689,7 +8760,7 @@ can be set/queried using the <a href="#playerpref">playerpref command</a>.</p>
 
 <br>
 <h3 id="XMLBrowser">
-	Live Music Archive, Live365, MP3tunes, Pandora, Podcasts, RadioTime, Rhapsody, Shoutcast, Staff Picks, RSS
+	Live Music Archive, Live365, MP3tunes, Pandora, Podcasts, RadioTime, Napster, Shoutcast, Staff Picks, RSS
 </h3>
 <p>
 	<strong>
@@ -9922,6 +9993,9 @@ can be set/queried using the <a href="#playerpref">playerpref command</a>.</p>
 	<li>
 		<strong><code><a href="#playlisttracks">playlisttracks</a></code></strong>
 	</li>
+	<li>
+		<strong><code><a href="#shutdown">shutdown</a></code></strong>
+	</li>
 </ul>
 
 <br>
@@ -9959,5 +10033,20 @@ can be set/queried using the <a href="#playerpref">playerpref command</a>.</p>
 	&quot;<a href="#playlists tracks">playlists tracks</a>&quot; query.
 </p>
 
+<br>
+<p id="shutdown">
+	<strong>
+		<code>
+			shutdown
+		</code>
+	</strong>
+</p>
+<p>
+	The &quot;shutdown&quot; command shuts down the server. The CLI connection
+	is terminated. Please note that the &quot;shutdown&quot; command is only
+	available through a direct CLI socket connection, but not over JSON/RPC or 
+	cometd. It has been replaced with the &quot;<a href="#stopserver">stopserver</a>&quot;
+	command. 
+</p>
 
 [% PROCESS helpfooter.html %]
