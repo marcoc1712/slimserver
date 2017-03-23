@@ -31,6 +31,19 @@ sub initDetails {
 	return shift->{osDetails};
 }
 
+sub getMACAddress {
+	my $class = shift;
+	
+	if (!main::SCANNER && !defined $class->{osDetails}->{mac}) {
+		require Slim::Utils::Network;
+		
+		# fall back to empty string to prevent repeated attempts (if needed)
+		$class->{osDetails}->{mac} = Slim::Utils::Network::serverMACAddress() || '';
+	}
+
+	return $class->{osDetails}->{mac};
+}
+
 sub details {
 	return shift->{osDetails};
 }

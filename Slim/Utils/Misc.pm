@@ -413,7 +413,7 @@ sub crackURL {
 	my ($user, $pass, $host, $port, $path) = ($1, $2, $3, $4, $5);
 
 	$path ||= '/';
-	$port ||= 80;
+	$port ||= ((Slim::Networking::Async::HTTP->hasSSL() && $string =~ /^https/) ? 443 : 80);
 
 	if ( main::DEBUGLOG && $ospathslog->is_debug ) {
 		$ospathslog->debug("Cracked: $string with [$host],[$port],[$path]");
@@ -1115,7 +1115,7 @@ sub parseRevision {
 	
 	# if we're running from a git clone, report the last commit ID and timestamp
 	# "git -C ..." is only available in recent git version, more recent than what CentOS provides...
-	if ( $revision eq 'TRUNK' && `cd $Bin && git show -s --format=%h\\|%ci 2> /dev/null` =~ /^([0-9a-f]+)\|(\d{4}-\d\d-\d\d.*)/i ) {
+	if ( !main::ISWINDOWS && $revision eq 'TRUNK' && `cd $Bin && git show -s --format=%h\\|%ci 2> /dev/null` =~ /^([0-9a-f]+)\|(\d{4}-\d\d-\d\d.*)/i ) {
 		$revision = 'git-' . $1;
 		$builddate = $2;
 	}

@@ -1,4 +1,14 @@
-<h2><a name="v7.9.0" id="v7.9.0"></a>Version 7.9.0</h2>
+<h2><a name="v7.9.1" id="v7.9.1"></a>Version 7.9.1</h2>
+<ul>
+	<li>Bug Fixes:</li>
+	<ul>
+		<li></li>
+	</ul>
+	<br />
+</ul>
+
+
+<h2><a name="v7.9.0" id="v7.9.0"></a>Version 7.9.0 - 2017-03-07</h2>
 <ul>
 	<li>New Features:</li>
 	<ul>
@@ -35,7 +45,7 @@
 		<li>Scanner behaviour improvements:
 			<ul>
 				<li>Allow browsing your music folder while the scanner is running.</li> 
-				<li>Don't stop the music when running a full wipe & rescan.</li>
+				<li>Don't stop the music when running a full wipe &amp; rescan.</li>
 				<li>Add an option to disable automatic rescans on certain preference changes.</li>
 				<li>Increased scanning performance.</li>
 			</ul>
@@ -45,6 +55,7 @@
 		<li>Add support for DSD/DSF files on some platforms.</li>
 		<li>Add new way to read player specific transcoding settings from helper files (eg. for room correction). Thanks LMS0815!</li>
 		<li>Add update auto-download and/or notification for Linux distributions</li>
+		<li>Allow streaming of https sources by proxying them through LMS (if possible - requires IO::Socket::SSL to be installed on platforms other than Windows)</li>
 	</ul>
 	<br />
 
@@ -55,6 +66,7 @@
 		<li><a href="http://bugs.slimdevices.com/show_bug.cgi?id=2333">#2333</a> - Play music outside the music folder without storing it in the database.</li>
 		<li><a href="http://bugs.slimdevices.com/show_bug.cgi?id=4105">#4105</a> - Don't clear the current playlist when a scan is triggered.</li>
 		<li><a href="http://bugs.slimdevices.com/show_bug.cgi?id=5108">#5108</a> - Track artist roles become artist roles when COMPILATION=0.</li>
+		<li><a href="http://bugs.slimdevices.com/show_bug.cgi?id=5507">#5507</a> - Need ability to rescan music library from SqueezePlay based user interfaces.</li>
 		<li><a href="http://bugs.slimdevices.com/show_bug.cgi?id=5715">#5715</a> - Advanced search doesn't limit results, can freeze the server.</li>
 		<li><a href="http://bugs.slimdevices.com/show_bug.cgi?id=7491">#7491</a> - Startup parameters are missing when server is run as a Windows service</li>
 		<li><a href="http://bugs.slimdevices.com/show_bug.cgi?id=8113">#8113</a> - UPnP servers do not appear on controller.</li>
@@ -77,6 +89,7 @@
 		<li><a href="http://bugs.slimdevices.com/show_bug.cgi?id=18112">#18112</a> - Tracks with double DATE tags get the wrong year assigned by the scanner.</li>
 		<li>Fix support for multi-disc sets in cue files - thanks msrthreeplates!</li>
 		<li>Fix the band "The The". Don't strip articles from search terms.</li>
+		<li>Improve parsing of Atom podcast feeds</li>
 	</ul>
 	<br />
 
@@ -97,7 +110,7 @@
 		<li>The "mediafolder" query for music files optionally returns coverid (if available). Use the new 'c' tag.</li>
 		<li>Updated player icons in settings pages, now gracefully falling back to generic squeezeplay symbol if unknown
 		    player is connected. Thanks LMS0815!</li>
-		<li>Add helper application binaries for ARM hard float systems</li>
+		<li>Add helper application binaries for i86pc-solaris (thanks chincheta0815!) and ARM hard float systems</li>
 		<li>Add --nomysqueezebox startup parameter to disable all interaction with mysqueezebox.com</li>
 		<li>Move UPnP client code to Remote Library plugin. Remove now unnecessary --noupnp startup parameter.</li>
 		<li>Try to automatically recover from database corruption</li>
@@ -201,12 +214,13 @@
 		<li>Limit the number of items to be added in RandomPlay. Large numbers would cause database errors.</li>
 		<li>Remove defunct Last.fm, SiriusXM and RadioIO plugins.</li>
 		<li>Rename Rhapsody to Napster.</li>
+		<li>Allow streaming of https sources by proxying them through LMS (if possible - requires IO::Socket::SSL to be installed on platforms other than Windows)</li>
 	</ul>
 	<br />
 	
 	<li>Platform Support:</li>
 	<ul>
-		<li>Improve support for latest Mac OSX 10.11 El Capitan and Windows 10.</li>
+		<li>Improve support for Mac OSX 10.11 and later, and Windows 10.</li>
 	</ul>
 	<br />
 	
@@ -271,6 +285,7 @@
 		<li>Folders can't be played in Browse Music Folder mode if there are sub-folders and the Classic skin is being used</li>
 		<li>Players without digital out (Boom, Radio) could have ended up with the volume fixed to 100% and no way to change it.</li>
 		<li>Title format "CT" is now "CONTENT_TYPE". Create an alias to make "CT" available again.</li>
+		<li>Don't crash SQL queries if we lack a valid locale.</li>
 	</ul>
 	<br />
 </ul>

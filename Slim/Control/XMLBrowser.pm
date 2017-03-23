@@ -1010,8 +1010,8 @@ sub _cliQuery_done {
 					
 					my $id = $baseId . $itemIndex;
 					
-					my $name;
-					if ($name = $item->{name}) {
+					my $name = $item->{name};
+					if (defined $name && $name ne '') {
 						if (defined $item->{'label'}) {
 							$name = $request->string($item->{'label'}) . $request->string('COLON') . ' ' .  $name;
 						} elsif (!$search && ($item->{'hasMetadata'} || '') eq 'track') {
@@ -1028,6 +1028,7 @@ sub _cliQuery_done {
 					# keep track of station icons
 					if ( 
 						$isPlayable 
+						&& $item->{url} && !ref $item->{url}
 						&& $item->{url} =~ /^http/ 
 						&& $item->{url} !~ m|\.com/api/\w+/v1/opml| 
 						&& (my $cover = ($item->{image} || $item->{cover})) 
@@ -1042,7 +1043,7 @@ sub _cliQuery_done {
 						$hash{'type'}   = $item->{'type'}  if defined $item->{'type'};
 										# search|text|textarea|audio|playlist|link|opml|replace|redirect|radio
 										# radio is a radio-button selection item, not an internet-radio station 
-						my $nameOrTitle = $name || $item->{title} || '';
+						my $nameOrTitle = getTitle($name, $item);
 						my $touchToPlay = defined(touchToPlay($item)) + 0;
 						
 						# if showBriefly is 1, send the name as a showBriefly
@@ -1717,7 +1718,7 @@ sub hasAudio {
 	elsif ( $item->{'type'} && $item->{'type'} =~ /^(?:audio|playlist)$/ ) {
 		return $item->{'playlist'} || $item->{'url'} || scalar @{ $item->{outline} || [] };
 	}
-	elsif ( $item->{'enclosure'} && ( $item->{'enclosure'}->{'type'} =~ /audio/ ) ) {
+	elsif ( $item->{'enclosure'} && $item->{'enclosure'}->{'type'} && ( $item->{'enclosure'}->{'type'} =~ /audio/ ) ) {
 		return $item->{'enclosure'}->{'url'};
 	}
 	else {
@@ -1949,6 +1950,18 @@ sub _defeatDestructiveTouchToPlay {
 	
 	return 1;
 }
+
+# a name can be '0' (zero) - don't blank it
+sub getTitle {
+	my ($name, $item) = @_;
+
+	my $nameOrTitle = $name;
+	$nameOrTitle    = $item->{title} if !defined $nameOrTitle || $nameOrTitle eq '';
+	$nameOrTitle    = '' if !defined $nameOrTitle;
+	
+	return $nameOrTitle;
+}
+
 
 1;
 
