@@ -1,7 +1,7 @@
 setlocal
-set ipaddr=192.168.1.103
-set server=G:\\Sviluppo\\slimserver\\slimserver.pl
-set squeezedir=C:\\Documents and Settings\\All Users\\Dati applicazioni\\SqueezeboxTest
+set ipaddr=192.168.1.115
+set server=F:\\Sviluppo\\slimserver\\slimserver.pl
+set squeezedir="C:\\ProgramData\\Squeezebox"
 set prefsdir=%squeezedir%\\prefs
 set cachedir=%squeezedir%\\cache
 set logdir=%squeezedir%\\logs

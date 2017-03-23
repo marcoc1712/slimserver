@@ -1,0 +1,34 @@
+[% PROCESS settings/header.html %]
+	[% WRAPPER setting title="PLUGIN_RECORDER" desc="PLUGIN_RECORDER_DESC" %]
+		[% "PLUGIN_RECORDER_DESC" | string %]
+	[% END %]
+	[% WRAPPER setting title="PLUGIN_RECORDER_MAC" desc="PLUGIN_RECORDER_MAC_DESC" %]
+		<input type="text" class="stdedit" name="pref_mac" id="mac" value="[% prefs.mac | html %]" size="50" maxlength="255">
+	[% END %]
+	[% WRAPPER setting title="PLUGIN_RECORDER_CODEC" desc="PLUGIN_RECORDER_CODEC_DESC" %]
+		<input type="text" class="stdedit" name="pref_codec" id="codec" value="[% prefs.codec | html %]" size="50" maxlength="255">
+	[% END %]
+	[% WRAPPER setting title="PLUGIN_RECORDER_DIRECTORY" desc="PLUGIN_RECORDER_DIRECTORY_DESC" %]
+		<input type="text" class="stdedit" name="pref_directory" id="directory" value="[% prefs.directory | html %]" size="50" maxlength="255">
+	[% END %]
+	[% WRAPPER setting title="PLUGIN_RECORDER_PREFIX" desc="PLUGIN_RECORDER_PREFIX_DESC" %]
+		<input type="text" class="stdedit" name="pref_prefix" id="prefix" value="[% prefs.prefix | html %]" size="50" maxlength="10">
+	[% END %]
+	[% WRAPPER setting title="PLUGIN_RECORDER_SUFFIX" desc="PLUGIN_RECORDER_SUFFIX_DESC" %]
+		<input type="text" class="stdedit" name="pref_suffix" id="suffix" value="[% prefs.suffix | html %]" size="50" maxlength="4">
+	[% END %]
+	[% WRAPPER setting title="PLUGIN_RECORDER_LOGFILE" desc="PLUGIN_RECORDER_LOGFILE_DESC" %]
+		<input type="text" class="stdedit" name="pref_logfile" id="logfile" value="[% prefs.logfile | html %]" size="50" maxlength="255">
+	[% END %]
+	[% WRAPPER setting title="PLUGIN_RECORDER_ELEMENT_SIZE" desc="PLUGIN_RECORDER_ELEMENT_SIZE_DESC" %]
+		<input type="text" class="stdedit" name="pref_elementSize" id="elementSize" value="[% prefs.elementSize | html %]" size="50" maxlength="5">
+	[% END %]
+	[% WRAPPER setting title="PLUGIN_RECORDER_ELEMENT_COUNT" desc="PLUGIN_RECORDER_ELEMENT_SIZE_COUNT_DESC" %]
+		<input type="text" class="stdedit" name="pref_elementCount" id="elementCount" value="[% prefs.elementCount | html %]" size="50" maxlength="5">
+	[% END %]
+
+	[% WRAPPER setting title="PLUGIN_RECORDER_DELAY" desc="PLUGIN_RECORDER_DELAY_DESC" %]
+		<input type="text" class="stdedit sliderInput_0_1000" name="pref_delay" id="delay" value="[% prefs.delay %]" size="5">
+	[% END %]
+	
+[% PROCESS settings/footer.html %]
