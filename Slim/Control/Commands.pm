@@ -1054,9 +1054,9 @@ sub playlistJumpCommand {
 
 	# if we're jumping +1/-1 in the index let squeezeplay know this showBriefly is to be styled accordingly
 	my $jiveIconStyle = undef;
-	if ($index eq '-1') {
+	if ($index && $index eq '-1') {
 		$jiveIconStyle = 'rew';
-	} elsif ($index eq '+1')  {
+	} elsif ($index && $index eq '+1')  {
 		$jiveIconStyle = 'fwd';
 	}
 	$showStatus->($jiveIconStyle);
@@ -2769,11 +2769,13 @@ sub setSNCredentialsCommand { if (!main::NOMYSB) {
 				$request->setStatusDone();
 			},
 			ecb      => sub {
+				my (undef, $error) = @_;
 				$request->addResult('validated', 0);
-				$request->addResult('warning', $request->cstring('SETUP_SN_INVALID_LOGIN'));
+				$request->addResult('warning', $request->cstring('SETUP_SN_INVALID_LOGIN') . ($error ? " ($error)" : ''));
 	
 				$request->setStatusDone();
 			},
+			interactive => 1,	# tell login() to attempt without respecting local rate limiting
 		);
 	}
 	

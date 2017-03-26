@@ -286,7 +286,7 @@ sub handleFeed {
 			$superFeed->{offset} ||= 0;
 			main::DEBUGLOG && $log->is_debug && $log->debug("Considering $i=$in ($crumbText) from ", $stash->{'index'}, ' offset=', $superFeed->{'offset'});
 			
-			my $crumbName = $subFeed->{'name'} || $subFeed->{'title'};
+			my $crumbName = Slim::Control::XMLBrowser::getTitle($subFeed->{name}, $subFeed);
 			
 			# Add search query to crumb list
 			my $searchQuery;
@@ -321,6 +321,7 @@ sub handleFeed {
 			if ( 
 				   $subFeed->{'play'} 
 				&& $depth == $levels
+				&& $stash->{'action'}
 				&& $stash->{'action'} =~ /^(?:play|add|insert)$/
 			) {
 				$subFeed->{'type'} = 'audio';
@@ -331,6 +332,7 @@ sub handleFeed {
 			if ( 
 			       $subFeed->{'playlist'}
 				&& $depth == $levels
+				&& $stash->{'action'}
 				&& $stash->{'action'} =~ /^(?:playall|addall|insert|remove)$/
 			) {
 				$subFeed->{'type'} = 'playlist';
@@ -487,7 +489,7 @@ sub handleFeed {
 					my $pt = $subFeed->{'passthrough'} || [undef];
 
 					my $search;
-					if ($searchQuery && $subFeed->{type} && $subFeed->{type} eq 'search') {
+					if (defined $searchQuery && $searchQuery ne '' && $subFeed->{type} && $subFeed->{type} eq 'search') {
 						$search = $searchQuery;
 					}
 					
@@ -501,7 +503,7 @@ sub handleFeed {
 
 					if ($depth == $levels) {
 						$args{'index'} = $index;
-						$args{'quantity'} = $stash->{'itemsPerPage'} || ($stash->{action} =~ /^(?:play|add)all$/i && $prefs->get('maxPlaylistLength')) || $prefs->get('itemsPerPage');
+						$args{'quantity'} = $stash->{'itemsPerPage'} || ($stash->{action} && $stash->{action} =~ /^(?:play|add)all$/i && $prefs->get('maxPlaylistLength')) || $prefs->get('itemsPerPage');
 					} elsif ($depth < $levels) {
 						$args{'index'} = $index[$depth];
 						$args{'quantity'} = 1;
@@ -552,7 +554,7 @@ sub handleFeed {
 		}
 		$itemIndex .= '.';
 		
-		$stash->{'pagetitle'} = $subFeed->{'name'} || $subFeed->{'title'};
+		$stash->{'pagetitle'} = Slim::Control::XMLBrowser::getTitle($subFeed->{'name'}, $subFeed);
 		$stash->{'index'}     = $itemIndex;
 		$stash->{'icon'}      = $subFeed->{'icon'};
 		$stash->{'playUrl'}   = $subFeed->{'play'} 
@@ -654,7 +656,7 @@ sub handleFeed {
 		# XXX: Why is $stash->{streaminfo}->{item} added on here, it seems to be undef?
 		for my $item ( @{ $stash->{'items'} }, $streamItem ) {
 			my $url;
-			if ( $item->{'type'} eq 'audio' && $item->{'url'} ) {
+			if ( $item->{'type'} && $item->{'type'} eq 'audio' && $item->{'url'} ) {
 				$url = $item->{'url'};
 			}
 			elsif ( $item->{'enclosure'} && $item->{'enclosure'}->{'url'} ) {
@@ -760,8 +762,11 @@ sub handleFeed {
 		
 		my $itemCount = $feed->{'total'} || scalar @{ $stash->{'items'} };
 		
-		my $clientId = ( $client ) ? $client->id : undef;
-		my $otherParams = '&index=' . $crumb[-1]->{index} . '&player=' . $clientId;
+		my $clientId = ( $client ) ? $client->id : '';
+		my $crumbIndex = $crumb[-1]->{index};
+		$crumbIndex = '' if !defined $crumbIndex;
+
+		my $otherParams = '&index=' . $crumbIndex . '&player=' . $clientId;
 		if ( $stash->{'query'} ) {
 			$otherParams = '&query=' . $stash->{'query'} . $otherParams;
 		}
@@ -801,7 +806,7 @@ sub handleFeed {
 		}
 		
 		my $item_index = $start;
-		my $format = $stash->{ajaxSearch} || $stash->{type} eq 'search'
+		my $format = $stash->{ajaxSearch} || ($stash->{type} || '') eq 'search'
 			? 'TRACKNUM. TITLE - ALBUM - ARTIST'
 			: $prefs->get('titleFormat')->[ $prefs->get('titleFormatWeb') ];
 
@@ -822,8 +827,8 @@ sub handleFeed {
 			}
 			
 			# keep track of station icons
-			if ( 
-				( $_->{play} || $_->{playlist} || ($_->{type} && ($_->{type} eq 'audio' || $_->{type} eq 'playlist')) )
+			if ( $_->{url} && !ref $_->{url}
+				&& ( $_->{play} || $_->{playlist} || ($_->{type} && ($_->{type} eq 'audio' || $_->{type} eq 'playlist')) )
 				&& $_->{url} =~ /^http/ 
 				&& $_->{url} !~ m|\.com/api/\w+/v1/opml| 
 				&& ( my $cover = $_->{image} || $_->{cover} )
@@ -937,7 +942,7 @@ sub handleFeed {
 
 			if ($details->{'unfold'}) {
 				# unfold nested groups of additional items
-				my $new_index;
+				my $new_index = 0;
 				foreach my $group (@{ $details->{'unfold'} }) {
 					
 					splice @{ $stash->{'items'} }, ($group->{'start'} + $new_index), 1, @{ $group->{'items'} };
@@ -948,7 +953,7 @@ sub handleFeed {
 
 			$feed->{'favorites_url'} ||= $stash->{'playUrl'};
 
-			if ($feed->{'hasMetadata'} eq 'album' && $feed->{'albumInfo'}) {
+			if ($feed->{'hasMetadata'} && $feed->{'hasMetadata'} eq 'album' && $feed->{'albumInfo'}) {
 
 				my $morelink = _makeWebLink({ actions => $feed->{'albumInfo'} }, $feed, 'info', 
 											sprintf('%s (%s)', string('INFORMATION'), ($feed->{'album'} || '')));
@@ -1076,7 +1081,8 @@ sub handleError {
 	
 	my $template = 'xmlbrowser.html';
 	
-	my $title = ( uc($params->{title}) eq $params->{title} ) ? Slim::Utils::Strings::getString($params->{title}) : $params->{title};
+	$params->{title} ||= '';
+	my $title = ( $params->{title} && uc($params->{title}) eq $params->{title} ) ? Slim::Utils::Strings::getString($params->{title}) : $params->{title};
 	
 	$stash->{'pagetitle'} = $title;
 	$stash->{'pageicon'}  = $params->{pageicon};
@@ -1245,7 +1251,7 @@ sub webLink {
 	push @verbs, 'orderBy:' . $args->{'orderBy'} if $args->{'orderBy'};
 
 	my $renderCacheKey;
-	if ( !main::NOBROWSECACHE && $cacheables{ $args->{path} } && $args->{url_query} !~ /\baction=/ && $args->{url_query} !~ /\bindex=\d+\.\d+\.\d+/ && !Slim::Music::Import->stillScanning() ) {
+	if ( !main::NOBROWSECACHE && $cacheables{ $args->{path} } && !($args->{url_query} && $args->{url_query} =~ /\baction=/) && !($args->{url_query} && $args->{url_query} =~ /\bindex=\d+\.\d+\.\d+/) && !Slim::Music::Import->stillScanning() ) {
 		
 		# let cache expire between server restarts
 		$cacheTimestamp ||= time();

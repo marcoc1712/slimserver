@@ -633,7 +633,9 @@ sub _registerBaseNodes {
 			feed         => \&_bmf,
 			icon         => 'html/images/musicfolder.png',
 			homeMenuText => 'BROWSE_MUSIC_FOLDER',
-			condition    => sub {return isEnabledNode(@_) && scalar @{ Slim::Utils::Misc::getAudioDirs() };},
+			condition    => sub {
+				return isEnabledNode(@_) && (scalar @{ Slim::Utils::Misc::getAudioDirs() } || scalar @{ Slim::Utils::Misc::getInactiveMediaDirs() });
+			},
 			id           => 'myMusicMusicFolder',
 			weight       => 70,
 			cache        => 0,		# don't cache BMF modes, as it should act on the latest disk content!
@@ -822,7 +824,7 @@ sub _generic {
 	# remote_library might be part of the @searchTags. But it's to be consumed by
 	# BrowseLibrary, rather than by the CLI.
 	if (!$args->{remote_library}) {
-		($args->{remote_library}) = map { /remote_library:(.*)/ && $1 } grep /remote_library/, @$queryTags;
+		($args->{remote_library}) = map { /remote_library:(.*)/ && $1 } grep { $_ && /remote_library/ } @$queryTags;
 	}
 	
 	# library_id:-1 is supposed to clear/override the global library_id
@@ -1974,7 +1976,7 @@ sub _bmf {
 	my $remote_library = $args->{'remote_library'} ||= $pt->{'remote_library'};
 	my @searchTags = $pt->{'searchTags'} ? @{$pt->{'searchTags'}} : ();
 	
-	_generic($client, $callback, $args, 'musicfolder', ['tags:cdus', @searchTags],
+	_generic($client, $callback, $args, 'musicfolder', ['tags:cdus' . ($remote_library ? 'o' : ''), @searchTags],
 		sub {
 			my $results = shift;
 			my $gotsubfolder = 0;
