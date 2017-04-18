@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<extension>
+	<id>91d8fb10-dummy-11e3-ac10-0800200c9a66</id>
+	<name>PLUGIN_DUMMY</name>
+	<module>Plugins::Dummy::Plugin</module>
+	<importmodule>Plugins::Dummy::Plugin</importmodule>
+	<version>1.0</version>
+	<description>PLUGIN_DUMMY_DESC</description>
+	<creator>marcoc1712</creator>
+	<defaultState>enabled</defaultState>
+	<homepageURL>http://www.marcoc1712.it</homepageURL>
+	<optionsURL>plugins/dummy/settings/basic.html</optionsURL>
+	<targetApplication>
+		<id>Logitech Media Server</id>
+		<minVersion>7.9.0</minVersion>
+        <maxVersion>*</maxVersion>
+	</targetApplication>
+</extension>

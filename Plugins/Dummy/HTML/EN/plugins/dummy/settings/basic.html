@@ -1,0 +1,44 @@
+[% PROCESS settings/header.html %]
+
+[% WRAPPER setting title="PLUGIN_DUMMY" desc="PLUGIN_DUMMY_DESC" %]
+    [% "PLUGIN_DUMMY_DESC" | string %]
+[% END %]
+[% WRAPPER setting title="PLUGIN_DUMMY_TEXT" desc="" %]
+    <input type="text" class="stdedit" name="pref_text" id="text" value="[% prefs.text | html %]" size="50" maxlength="255">
+[% END %]
+[% WRAPPER setting title="PLUGIN_DUMMY_SLIDER" desc="" %]
+    <input type="text" class="stdedit sliderInput_0_10" name="pref_slider" id="slider" 
+        value="[% prefs.slider %]" size="10" >
+[% END %]
+[% WRAPPER setting title="PLUGIN_DUMMY_CHECKBOX" desc="" %]
+    <input name="pref_checkbox" type="checkbox"  [% IF prefs.checkbox %] checked [% END %]>
+[% END %]
+
+[% WRAPPER setting title="PLUGIN_DUMMY_SELECT" desc="" %]
+<select class="stdedit" name="pref_selec" id="select" >
+
+        <option [% IF prefs.select == "A" %]selected="selected" [% END %]value="A">
+            [% 'PLUGIN_DUMMY_SELECT_A' | string %]
+        </option>
+        <option [% IF prefs.select == "B" %]selected="selected" [% END %]value="B">
+            [% 'PLUGIN_DUMMY_SELECT_B' | string %]
+        </option>
+        <option [% IF prefs.select == "C" %]selected="selected" [% END %]value="C">
+            [% 'PLUGIN_DUMMY_SELECT_C' | string %]
+        </option>
+
+    </select>
+[% END %]
+[% WRAPPER setting title="PLUGIN_DUMMY_HASH" desc="" %]
+    [% FOREACH flag IN prefs.flags %]
+  
+        <input type="checkbox" name="pref_flags[% flag.key %]" 
+               id="flags[% flag.key %]" value="1" 
+               [% flag.value ? "checked" : "" %]>
+        </input>
+        <label>[% flag.key %]</label>
+        
+    [% END %]
+[% END %]
+        
+[% PROCESS settings/footer.html %]
