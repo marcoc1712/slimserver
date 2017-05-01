@@ -74,7 +74,7 @@ sub initPlugin {
 			mac					=> "",
 			codec				=> "flc",
 			directory			=> "",
-			prefix				=> "",
+			prefix				=> "rec_",
 			suffix				=> ".flac",
 			logfile				=> "",
 			elementSize			=> "1",
