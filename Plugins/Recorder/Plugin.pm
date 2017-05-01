@@ -140,7 +140,7 @@ sub newSong{
         my $metadata = Plugins::Recorder::Metadata->new($client);
         my $current = $metadata->getFile();
         
-        if (main::INFOLOG && $log->is_info) {
+        if (main::DEBUGLOG && $log->is_debug) {
             
             my $player      = $metadata->getPlayer(); 
             my $timeString  = $metadata->getTime(); 
@@ -150,21 +150,21 @@ sub newSong{
             my $track       = $metadata->getTrackNo();  
             my $year        = $metadata->getYear() ? $metadata->getYear() : '';  
         
-            $log->info("player: $player\n");
-            $log->info("time:   $timeString\n");
-            $log->info("track:  $track\n");
-            $log->info("title:  $title\n");
-            $log->info("album:  $album\n");
-            $log->info("artist: $artist\n");
-            $log->info("year:   $year\n");
-        }
+            $log->debug("player: $player\n");
+            $log->debug("time:   $timeString\n");
+            $log->debug("track:  $track\n");
+            $log->debug("title:  $title\n");
+            $log->debug("album:  $album\n");
+            $log->debug("artist: $artist\n");
+            $log->debug("year:   $year\n");
+    }
         
         my $base = $preferences->get('directory');
         my $dir  = _createDirectory($base, $metadata->getArtist(),$metadata->getAlbum());
         
-        if ($dir && main::INFOLOG && $log->is_info) {
+        if ($dir && main::DEBUGLOG && $log->is_debug) {
                  
-                 $log->info("created $dir");
+                 $log->debug("created $dir");
         }
         
         # move previous files to album directory.
@@ -501,7 +501,7 @@ sub _move{
     
     my $metadata = Plugins::Recorder::Metadata->new($client, $dat);
    
-    if (main::INFOLOG && $log->is_info) {
+    if (main::DEBUGLOG && $log->is_debug) {
             
             my $player      = $metadata->getPlayer(); 
             my $timeString  = $metadata->getTime(); 
@@ -511,13 +511,13 @@ sub _move{
             my $track       = $metadata->getTrackNo();  
             my $year        = $metadata->getYear() ? $metadata->getYear() : '';  
         
-            $log->info("player: $player\n");
-            $log->info("time:   $timeString\n");
-            $log->info("track:  $track\n");
-            $log->info("title:  $title\n");
-            $log->info("album:  $album\n");
-            $log->info("artist: $artist\n");
-            $log->info("year:   $year\n");
+            $log->debug("player: $player\n");
+            $log->debug("time:   $timeString\n");
+            $log->debug("track:  $track\n");
+            $log->debug("title:  $title\n");
+            $log->debug("album:  $album\n");
+            $log->debug("artist: $artist\n");
+            $log->debug("year:   $year\n");
     }
    
     if (!$metadata->getAlbum() || !$metadata->getArtist()|| !$metadata->getTitle() || !$metadata->getTrackNo()){
