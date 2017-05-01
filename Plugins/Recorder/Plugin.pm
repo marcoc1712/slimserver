@@ -1,12 +1,6 @@
 #!/usr/bin/perl
 # $Id$
 #
-# Handles server side file type conversion and resampling.
-# Replace custom-convert.conf.
-#
-# To be used mainly with Squeezelite-R2 
-# (https://github.com/marcoc1712/squeezelite/releases)
-#
 # Logitech Media Server Copyright 2001-2011 Logitech.
 # This Plugin Copyright 2015 Marco Curti (marcoc1712 at gmail dot com)
 #
@@ -26,12 +20,21 @@ package Plugins::Recorder::Plugin;
 use strict;
 use warnings;
 
+use Time::Local;
+use File::Spec;
+use File::Path;
+use File::Basename;
+use File::Copy;
+use POSIX qw(strftime);
+
 use Data::Dump qw(dump pp);
 
 use base qw(Slim::Plugin::Base);
 
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
+
+use Plugins::Recorder::Metadata;
 
 if ( main::WEBUI ) {
 	require Plugins::Recorder::Settings;
@@ -92,10 +95,23 @@ sub initPlugin {
 		\&clientReconnectCallback, 
 		[['client'], ['reconnect']],
 	);
+    
+    # Subscribe to new song event
+	Slim::Control::Request::subscribe(
+		\&newSong, 
+		[['playlist'], ['newsong']],
+	);
+    # Subscribe to stop event
+	Slim::Control::Request::subscribe(
+		\&stop, 
+		[['playlist'], ['stop']],
+	);
 }
 sub shutdownPlugin {
 	Slim::Control::Request::unsubscribe( \&newClientCallback );
 	Slim::Control::Request::unsubscribe( \&clientReconnectCallback );
+    Slim::Control::Request::unsubscribe( \&newSong );
+    Slim::Control::Request::unsubscribe( \&stop );
 }
 
 sub newClientCallback {
@@ -110,6 +126,73 @@ sub clientReconnectCallback {
 	my $client  = $request->client() || return;
 	
 	return _clientCalback($client,"reconnect");
+}
+
+sub newSong{
+    my $request = shift;
+    my $client  = $request->client() || return 0;
+
+    if ($preferences->get('mac') && ($preferences->get('mac') eq  $client->macaddress())) {
+        
+        my $id = $request->clientid();
+        main::INFOLOG && $log->info("newSong request received from client ".$id);
+        
+        my $metadata = Plugins::Recorder::Metadata->new($client);
+        my $current = $metadata->getFile();
+        
+        if (main::INFOLOG && $log->is_info) {
+            
+            my $player      = $metadata->getPlayer(); 
+            my $timeString  = $metadata->getTime(); 
+            my $title       = $metadata->getTitle();  
+            my $artist      = $metadata->getArtist();  
+            my $album       = $metadata->getAlbum();  
+            my $track       = $metadata->getTrackNo();  
+            my $year        = $metadata->getYear() ? $metadata->getYear() : '';  
+        
+            $log->info("player: $player\n");
+            $log->info("time:   $timeString\n");
+            $log->info("track:  $track\n");
+            $log->info("title:  $title\n");
+            $log->info("album:  $album\n");
+            $log->info("artist: $artist\n");
+            $log->info("year:   $year\n");
+        }
+        
+        my $base = $preferences->get('directory');
+        my $dir  = _createDirectory($base, $metadata->getArtist(),$metadata->getAlbum());
+        
+        if ($dir && main::INFOLOG && $log->is_info) {
+                 
+                 $log->info("created $dir");
+        }
+        
+        # move previous files to album directory.
+        $dir       = $preferences->get('directory');
+        my $prefix = $preferences->get('prefix');
+        my $suffix = $preferences->get('suffix');
+        
+        _match($client, $dir, $prefix, $suffix, $current);
+    }
+    return 1;
+}
+sub stop{
+    my $request = shift;
+    my $client  = $request->client() || return 0;
+    
+    if ($preferences->get('mac') && ($preferences->get('mac') eq  $client->macaddress())) {
+        
+        my $id = $request->clientid();
+        main::INFOLOG && $log->info("stop request received from client ".$id);
+       
+       # move last file to directory.
+        my $dir    = $preferences->get('directory');
+        my $prefix = $preferences->get('prefix');
+        my $suffix = $preferences->get('suffix');
+        
+       _match($client, $dir, $prefix,$suffix, undef);
+    }
+    return 1;
 }
 
 sub settingsChanged{
@@ -144,7 +227,7 @@ sub settingsChanged{
 	}
 }
 ################################################################################
-
+#
 ################################################################################
 sub _clientCalback{
 	my $client = shift;
@@ -275,7 +358,6 @@ sub _enableProfile{
 	$serverPreferences->writeAll();
 	$serverPreferences->savenow();
 }
-
 sub _setupCommand{
 
 	my $macaddress = $preferences->get('mac');
@@ -322,5 +404,215 @@ sub _setupCommand{
 	$Slim::Player::TranscodingHelper::commandTable{ $profile } = $command;
 	$Slim::Player::TranscodingHelper::capabilities{ $profile } = $capabilities;
 	
+}
+sub _createDirectory{
+    my $base = shift;
+    my $artist = shift;
+    my $album = shift;
+
+    if (!$base) {
+        $log->error("missing directory");
+        return 0;
+    }
+    
+    if (! -d $base){
+        $log->error("$base is not a directory");
+        return 0; 
+    }
+    if (!$artist){
+        $log->error("missing artist");
+        return 0
+    }
+    if (!$album){
+        $log->error("missing $album");
+        return 0
+    }
+    my ($ar, $al);
+    
+    $ar = _filterFileName($artist);
+    $al = _filterFileName($album);
+    
+    my $path = File::Spec->catdir( $base, $ar, $al );  
+    
+    File::Path::make_path( $path, {error => \my $err} );
+    
+    if (@$err) {
+        for my $diag (@$err) {
+          my ($file, $message) = %$diag;
+          if ($file eq '') {
+               $log->error ("general error: $message");
+          } else {
+              $log->error ("problem cretaing $file: $message")
+          }
+      }
+      return 0;
+    }
+    return $path;
+}
+
+sub _match{
+    my $client      = shift;
+    my $dir         = shift;
+    my $prefix      = shift;
+    my $suffix      = shift;
+    my $current_dat = shift;
+    
+    
+    my @files_dat = glob( $dir . '*.dat');
+    my @files = glob( $dir . '*'.$suffix);
+
+    my $prefixLen= length($prefix);
+    my $found=0;
+
+    foreach my $dat (sort @files_dat) {
+
+        $dat = File::Spec->canonpath( $dat );
+        if ($current_dat && $current_dat eq $dat) {next}
+        
+        my $datName = File::Basename::basename($dat);
+        my $dat_str = substr($datName,$prefixLen,15);
+        my $dat_time= _getTime($dat_str);
+
+        foreach my $file (sort @files) {
+
+            my $name = File::Basename::basename($file);
+            my $str = substr($name,$prefixLen,15);
+            my $time= _getTime($str);
+
+            if ($time le $dat_time){
+                $found = $file;
+
+            } else {last;}
+        }
+        if ($found) {
+
+            _move($client, $found, $dat, $suffix);
+        }
+    }
+}
+sub _move{
+    my $client  = shift;
+    my $old     = shift;
+    my $dat     = shift;
+    my $suffix  = shift;
+    
+    my $oldName = File::Basename::basename($old);
+    my $base    = File::Basename::dirname($old);
+    
+    my $metadata = Plugins::Recorder::Metadata->new($client, $dat);
+   
+    if (main::INFOLOG && $log->is_info) {
+            
+            my $player      = $metadata->getPlayer(); 
+            my $timeString  = $metadata->getTime(); 
+            my $title       = $metadata->getTitle();  
+            my $artist      = $metadata->getArtist();  
+            my $album       = $metadata->getAlbum();  
+            my $track       = $metadata->getTrackNo();  
+            my $year        = $metadata->getYear() ? $metadata->getYear() : '';  
+        
+            $log->info("player: $player\n");
+            $log->info("time:   $timeString\n");
+            $log->info("track:  $track\n");
+            $log->info("title:  $title\n");
+            $log->info("album:  $album\n");
+            $log->info("artist: $artist\n");
+            $log->info("year:   $year\n");
+    }
+   
+    if (!$metadata->getAlbum() || !$metadata->getArtist()|| !$metadata->getTitle() || !$metadata->getTrackNo()){
+    
+        $log->warn ("invalid metadata");
+        return 0;
+    }
+    
+    my $artist = _filterFileName($metadata->getArtist());
+    my $album = _filterFileName($metadata->getAlbum());
+    my $dir = File::Spec->catdir( $base, $artist, $album );
+       
+    if (! -d $dir) {
+    
+        $log->warn ("invalid directory: $dir");
+        return 0;
+    }
+    
+    my $title = _filterFileName($metadata->getTitle());
+    
+    my $track;
+    if (length($metadata->getTrackNo())== 1 ){$track = '000'.$metadata->getTrackNo();}
+    elsif (length($metadata->getTrackNo())== 2 ){$track = '00'.$metadata->getTrackNo();}
+    elsif (length($metadata->getTrackNo())== 2 ){$track = '0'.$metadata->getTrackNo();}
+    
+    my $filename = $track."-".$title.$suffix;
+    
+    if (length($filename)+ length($dir)>255) {$filename = $track.$oldName.$suffix;}
+    if (length($filename)+ length($dir)>255) {$filename = $track.$suffix;}
+    if (length($filename)+ length($dir)>255) {
+    
+    $log->warn ("resulting pathname too long");
+        return 0;
+    }
+
+    if (_moveFile($old, $dir, $filename)){
+    
+        my $datName = File::Basename::basename($dat);
+        
+        _moveFile($dat, $dir, $datName);
+        return 1;
+    }
+    return 0;
+}
+sub _moveFile{
+    my $old = shift;
+    my $dir = shift;
+    my $filename = shift;
+    
+    my $new = File::Spec->catfile($dir, $filename);
+    
+    if (!-e $old){
+        $log->warn ( "file $old does not exists, can't rename");
+        return 0; 
+    }
+
+    if (-e $new){
+        $log->warn ( "file $new already exists, can't rename");
+        return 0; 
+    }
+    if (!-w $dir){
+        $log->warn ( "can't write to $dir, can't rename");
+        return 0; 
+    }
+
+    my $ret= move ($old, $new);
+    if (!$ret && $!){
+
+        $log->warn($!);
+
+    }
+    return $ret;
+}
+
+sub _filterFileName{
+    my $in = shift;
+
+    my $out;
+    ($out = $in)=~ s/[^A-Za-z0-9-_\s]/_/g;
+    
+    return $out;
+}
+sub _getTime {
+    my $str = shift;
+    #my $str = '20070717_132101';
+    
+    if (! $str) {return 0;}
+    
+    my @t   = $str =~ m!(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})!;
+    $t[1]--;
+    my $time = timelocal @t[5,4,3,2,1,0];
+    # verify...
+    #print scalar localtime $timestamp."\n";
+    
+    return $time;
+    
 }
 1;

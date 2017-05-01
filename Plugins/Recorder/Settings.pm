@@ -1,7 +1,5 @@
 #!/usr/bin/perl
-#
-# This program is part of the C-3PO Plugin. 
-# See Plugin.pm for credits, license terms and others.
+# $Id$
 #
 # Logitech Media Server Copyright 2001-2011 Logitech.
 # This Plugin Copyright 2015 Marco Curti (marcoc1712 at gmail dot com)
@@ -15,7 +13,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-#########################################################################
+################################################################################
 
 package Plugins::Recorder::Settings;
 
@@ -23,8 +21,6 @@ use strict;
 use warnings;
 
 use base qw(Slim::Web::Settings);
-
-use Digest::MD5 qw(md5_hex);
 
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
