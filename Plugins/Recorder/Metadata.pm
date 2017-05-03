@@ -19,6 +19,7 @@ package Plugins::Recorder::Metadata;
 
 use strict;
 use warnings;
+use utf8; 
 
 use Data::Dump qw(dump);
 use Time::Local;
@@ -115,6 +116,23 @@ sub getFile{
     
     return $self->{_file};
 }
+
+sub getComment{
+    my $self = shift;
+    
+    return $self->{_comment};
+}
+sub getGenre{
+    my $self = shift;
+    
+    return $self->{_genre};
+}
+sub getCover{
+    my $self = shift;
+    
+    return $self->{_cover};
+}
+
 ################################################################################
 #
 ################################################################################
@@ -136,7 +154,7 @@ sub _init{
 
         if ( $handler && $handler->can('getMetadataFor') ) {
             $meta = $handler->getMetadataFor( $client, $self->{_song}->url );
-            
+
             if ( $meta->{title} ) {
                 $self->{_title} = Slim::Music::Info::getCurrentTitle( $client, $self->{_song}->url, 0, $meta );
             }
@@ -150,15 +168,21 @@ sub _init{
     
     if ( $self->{_song} && ! $self->{_isRemote}) {
  
-        $self->{_album}  = Slim::Music::Info::displayText($client, $self->{_song}, 'ALBUM');
-        $self->{_artist} = Slim::Music::Info::displayText($client, $self->{_song}, 'ARTIST');
-        $self->{_year}   = Slim::Music::Info::displayText($client, $self->{_song}, 'YEAR');
+        $self->{_album}     = Slim::Music::Info::displayText($client, $self->{_song}, 'ALBUM');
+        $self->{_artist}    = Slim::Music::Info::displayText($client, $self->{_song}, 'ARTIST');
+        $self->{_year}      = Slim::Music::Info::displayText($client, $self->{_song}, 'YEAR');
+        $self->{_cover}     = Slim::Music::Info::displayText($client, $self->{_song}, 'COVER');
+        $self->{_genre}     = Slim::Music::Info::displayText($client, $self->{_song}, 'GENRE');
+        $self->{_comment}   = Slim::Music::Info::displayText($client, $self->{_song}, 'COMMENT');
     
     } elsif (  $self->{_song} && $meta) {
 
-        $self->{_album}  = Slim::Music::Info::displayText($client, $self->{_song}, 'ALBUM', $meta);
-        $self->{_artist} = Slim::Music::Info::displayText($client, $self->{_song}, 'ARTIST', $meta);
-        $self->{_year}   = Slim::Music::Info::displayText($client, $self->{_song}, 'YEAR', $meta);
+        $self->{_album}     = Slim::Music::Info::displayText($client, $self->{_song}, 'ALBUM', $meta);
+        $self->{_artist}    = Slim::Music::Info::displayText($client, $self->{_song}, 'ARTIST', $meta);
+        $self->{_year}      = Slim::Music::Info::displayText($client, $self->{_song}, 'YEAR', $meta);
+        $self->{_cover}     = Slim::Music::Info::displayText($client, $self->{_song}, 'COVER', $meta);
+        $self->{_genre}     = Slim::Music::Info::displayText($client, $self->{_song}, 'GENRE', $meta);
+        $self->{_comment}   = Slim::Music::Info::displayText($client, $self->{_song}, 'COMMENT', $meta);
     } 
     
     return 1;
@@ -177,11 +201,14 @@ sub _load{
         return 0;
     }
 
-    $self->{_title}  = $meta->{title};
-    $self->{_album}  = $meta->{album};
-    $self->{_artist} = $meta->{artist};
-    $self->{_year}   = $meta->{year};
-    $self->{_track}  = $meta->{track};
+    $self->{_title}     = $meta->{title};
+    $self->{_album}     = $meta->{album};
+    $self->{_artist}    = $meta->{artist};
+    $self->{_year}      = $meta->{year};
+    $self->{_track}     = $meta->{track};
+    $self->{_cover}     = $meta->{cover};
+    $self->{_genre}     = $meta->{genre};
+    $self->{_comment}   = $meta->{comment};
     
     return 1;
 }
@@ -192,11 +219,15 @@ sub _write {
     
     $meta->{player}      = $self->{_player};
     $meta->{'time'}      = $self->{_time};
+    
     $meta->{title}       = $self->{_title};
     $meta->{album}       = $self->{_album};
     $meta->{artist}      = $self->{_artist};
     $meta->{year}        = $self->{_year};
     $meta->{track}       = $self->{_track};
+    $meta->{cover}       = $self->{_cover};
+    $meta->{genre}       = $self->{_genre};
+    $meta->{comment}     = $self->{_comment};
     
     my $datastore= Plugins::Recorder::DataStore->new($self->{_file}, $meta);
     if (!$datastore->write($meta)){

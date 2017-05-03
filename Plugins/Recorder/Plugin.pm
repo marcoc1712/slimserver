@@ -19,6 +19,7 @@ package Plugins::Recorder::Plugin;
 
 use strict;
 use warnings;
+use utf8; 
 
 use Time::Local;
 use File::Spec;
@@ -34,7 +35,11 @@ use base qw(Slim::Plugin::Base);
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
 
+use Audio::FLAC::Header;
+
 use Plugins::Recorder::Metadata;
+
+use constant ISWINDOWS    => ( $^O =~ /^m?s?win/i ) ? 1 : 0;
 
 if ( main::WEBUI ) {
 	require Plugins::Recorder::Settings;
@@ -148,17 +153,24 @@ sub newSong{
             my $artist      = $metadata->getArtist();  
             my $album       = $metadata->getAlbum();  
             my $track       = $metadata->getTrackNo();  
+            my $cover       = $metadata->getCover();  
             my $year        = $metadata->getYear() ? $metadata->getYear() : '';  
+            my $genre       = $metadata->getGenre() ? $metadata->getGenre() : '';  
+            my $comment     = $metadata->getComment() ? $metadata->getComment() : '';  
         
-            $log->debug("player: $player\n");
-            $log->debug("time:   $timeString\n");
-            $log->debug("track:  $track\n");
-            $log->debug("title:  $title\n");
-            $log->debug("album:  $album\n");
-            $log->debug("artist: $artist\n");
-            $log->debug("year:   $year\n");
-    }
+            $log->debug("player:  $player\n");
+            $log->debug("time:    $timeString\n");
+            $log->debug("track:   $track\n");
+            $log->debug("title:   $title\n");
+            $log->debug("album:   $album\n");
+            $log->debug("artist:  $artist\n");
+            $log->debug("cover:   $cover\n");
+            $log->debug("year:    $year\n");
+            $log->debug("genre:   $year\n");
+            $log->debug("comment: $year\n");
+        }
         
+        #create album directory.
         my $base = $preferences->get('directory');
         my $dir  = _createDirectory($base, $metadata->getArtist(),$metadata->getAlbum());
         
@@ -167,12 +179,29 @@ sub newSong{
                  $log->debug("created $dir");
         }
         
+        #get coverart
+        my $coverURL = $metadata->getCover();
+        my $coverFile = File::Spec->catfile($dir, 'cover.jpg');
+        $coverFile = File::Spec->canonpath($coverFile);
+
+        if (! -e $coverFile && $coverURL){
+            use File::Fetch;
+            my $ff = File::Fetch->new(uri => $coverURL);
+            my $downloaded = $ff->fetch( to => $dir ) or die $ff->error;
+            my $ret=  File::Copy::move ($downloaded, $coverFile);
+            if (!$ret && $!){
+                $log->warn($!);
+            }
+            if ( -e $coverFile  && main::DEBUGLOG && $log->is_debug){
+                $log->debug ($coverFile." created");
+            }
+        }
+
         # move previous files to album directory.
-        $dir       = $preferences->get('directory');
         my $prefix = $preferences->get('prefix');
         my $suffix = $preferences->get('suffix');
         
-        _match($client, $dir, $prefix, $suffix, $current);
+        _match($client, $base, $prefix, $suffix, $current );
     }
     return 1;
 }
@@ -258,7 +287,14 @@ sub _clientCalback{
 				$log->debug("transcodeTable: ".dump($conv));
 		}
 	} 
-	
+    
+    # move last file to directory.
+    my $dir    = $preferences->get('directory');
+    my $prefix = $preferences->get('prefix');
+    my $suffix = $preferences->get('suffix');
+
+   _match($client, $dir, $prefix,$suffix, undef);
+   
 	return 1;
 }
 
@@ -427,27 +463,47 @@ sub _createDirectory{
         $log->error("missing $album");
         return 0
     }
-    my ($ar, $al);
     
-    $ar = _filterFileName($artist);
-    $al = _filterFileName($album);
+    my $ar = _filterFileName($artist);
+    my $al = _filterFileName($album);
     
-    my $path = File::Spec->catdir( $base, $ar, $al );  
+    if (ISWINDOWS){
     
-    File::Path::make_path( $path, {error => \my $err} );
+        
+        my $path = File::Spec->catdir( $base, $ar ); 
+        my $err = Win32::CreateDirectory($path);
+
+        $path = File::Spec->catdir( $path, $al );  
+        $err = Win32::CreateDirectory($path);
+
+        my $ansi = Win32::GetANSIPathName($path);
+       
+        if (! -d $ansi){
+
+            $log->error ("$ansi - non creata");
+            return undef;
+        }
+        return $ansi;
     
-    if (@$err) {
-        for my $diag (@$err) {
-          my ($file, $message) = %$diag;
-          if ($file eq '') {
-               $log->error ("general error: $message");
-          } else {
-              $log->error ("problem cretaing $file: $message")
+    } else { 
+
+        my $path = File::Spec->catdir( $base, $ar, $al );  
+
+        File::Path::make_path( $path, {error => \my $err} );
+
+        if (@$err) {
+            for my $diag (@$err) {
+              my ($file, $message) = %$diag;
+              if ($file eq '') {
+                  $log->error  ("general error: $message");
+              } else {
+                  $log->error ("problem cretaing $file: $message")
+              }
           }
-      }
-      return 0;
+          return undef;
+        }
+        return $path;
     }
-    return $path;
 }
 
 sub _match{
@@ -495,7 +551,7 @@ sub _move{
     my $old     = shift;
     my $dat     = shift;
     my $suffix  = shift;
-    
+
     my $oldName = File::Basename::basename($old);
     my $base    = File::Basename::dirname($old);
     
@@ -509,32 +565,56 @@ sub _move{
             my $artist      = $metadata->getArtist();  
             my $album       = $metadata->getAlbum();  
             my $track       = $metadata->getTrackNo();  
+            my $cover       = $metadata->getCover();  
             my $year        = $metadata->getYear() ? $metadata->getYear() : '';  
+            my $genre       = $metadata->getGenre() ? $metadata->getGenre() : '';  
+            my $comment     = $metadata->getComment() ? $metadata->getComment() : '';  
         
-            $log->debug("player: $player\n");
-            $log->debug("time:   $timeString\n");
-            $log->debug("track:  $track\n");
-            $log->debug("title:  $title\n");
-            $log->debug("album:  $album\n");
-            $log->debug("artist: $artist\n");
-            $log->debug("year:   $year\n");
-    }
-   
+            $log->debug("player:  $player\n");
+            $log->debug("time:    $timeString\n");
+            $log->debug("track:   $track\n");
+            $log->debug("title:   $title\n");
+            $log->debug("album:   $album\n");
+            $log->debug("artist:  $artist\n");
+            $log->debug("cover:   $cover\n");
+            $log->debug("year:    $year\n");
+            $log->debug("genre:   $year\n");
+            $log->debug("comment: $year\n");
+        }
+    
+
     if (!$metadata->getAlbum() || !$metadata->getArtist()|| !$metadata->getTitle() || !$metadata->getTrackNo()){
     
         $log->warn ("invalid metadata");
-        return 0;
+        return undef;
     }
     
     my $artist = _filterFileName($metadata->getArtist());
     my $album = _filterFileName($metadata->getAlbum());
-    my $dir = File::Spec->catdir( $base, $artist, $album );
-       
-    if (! -d $dir) {
+    my $path = File::Spec->catdir( $base, $artist, $album );
+    my $dir;
     
-        $log->warn ("invalid directory: $dir");
-        return 0;
+    if (ISWINDOWS){
+        
+        my $ansi = Win32::GetANSIPathName($path);
+       
+        if (! -d $ansi){
+
+            $log->warn ("$ansi - does not exists");
+            return undef;
+        }
+        $dir =  $ansi;
+        
+    } elsif (! -d $path) {
+    
+        $log->warn ("invalid directory: $path");
+        return undef;
+        
+    } else {
+        $dir = $path;
     }
+    
+    _tag($old, $metadata);
     
     my $title = _filterFileName($metadata->getTitle());
     
@@ -562,18 +642,65 @@ sub _move{
     }
     return 0;
 }
+sub _tag{
+    my $file     = shift;
+    my $metadata = shift;
+   
+    my $codec = $preferences->get('codec');
+    
+    if ($codec && $codec eq "flc"){
+        
+        my $flac = Audio::FLAC::Header->new($file);
+        
+        #encode to current locale     
+        my $title       = Slim::Utils::Unicode::utf8encode($metadata->getTitle()? $metadata->getTitle() : '');  
+        my $artist      = Slim::Utils::Unicode::utf8encode($metadata->getArtist()? $metadata->getArtist() : '');  
+        my $album       = Slim::Utils::Unicode::utf8encode($metadata->getAlbum()? $metadata->getAlbum() : '');  
+        my $track       = $metadata->getTrackNo();  
+        
+        my $year        = $metadata->getYear() ? $metadata->getYear() : undef;  
+        my $genre       = $metadata->getGenre()? Slim::Utils::Unicode::utf8encode($metadata->getGenre()) : undef;  
+        my $comment     = $metadata->getComment() ? Slim::Utils::Unicode::utf8encode($metadata->getComment()) : undef;
+        
+        my $tags = $flac->tags();
+
+        $flac->tags()->{TITLE}          = $title;
+        $flac->tags()->{ARTIST}         = $artist;
+        $flac->tags()->{ALBUM}          = $album;  
+        $flac->tags()->{TRACKNUMBER}    = $track;  
+       
+        if ($year){$flac->tags()->{DATE} = $year;}
+        if ($genre){$flac->tags()->{GENRE} = $genre;} 
+        if ($comment){$flac->tags()->{COMMENT} = $comment;}
+        
+        $flac->write()
+    
+    } else {
+        
+        $log->warn ("tagging $codec files is not supported yet");
+        return 0;
+    }
+    return 1;
+    
+}
 sub _moveFile{
     my $old = shift;
     my $dir = shift;
     my $filename = shift;
     
     my $new = File::Spec->catfile($dir, $filename);
-    
+    if (ISWINDOWS){
+        
+        $new = Win32::GetANSIPathName($new);
+    }
     if (!-e $old){
         $log->warn ( "file $old does not exists, can't rename");
         return 0; 
     }
-
+    if (!-d $dir){
+        $log->warn ( "target $dir does not exists, can't rename");
+        return 0; 
+    }
     if (-e $new){
         $log->warn ( "file $new already exists, can't rename");
         return 0; 
@@ -589,14 +716,16 @@ sub _moveFile{
         $log->warn($!);
 
     }
+    
     return $ret;
 }
 
 sub _filterFileName{
     my $in = shift;
-
+    
     my $out;
-    ($out = $in)=~ s/[^A-Za-z0-9-_\s]/_/g;
+    # filtering names to be valid also in windows, you never know...
+    ($out = $in)=~ s/[\"*:<>?\/\\\|]/_/g; #"
     
     return $out;
 }
