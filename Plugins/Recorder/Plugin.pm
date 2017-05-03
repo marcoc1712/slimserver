@@ -468,8 +468,7 @@ sub _createDirectory{
     my $al = _filterFileName($album);
     
     if (ISWINDOWS){
-    
-        
+
         my $path = File::Spec->catdir( $base, $ar ); 
         my $err = Win32::CreateDirectory($path);
 
