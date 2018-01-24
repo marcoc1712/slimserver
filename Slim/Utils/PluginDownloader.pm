@@ -192,7 +192,8 @@ sub _downloadDone {
 		if ($digest ne $sha1->hexdigest) {
 			
 			$log->warn("digest does not match $file - $name will not be installed");
-
+            $log->warn("digest: $digest, file sha1: $sha1->hexdigest");
+            
 			unlink $file;
 			
 		} else {

@@ -49,6 +49,13 @@ sub getTag {
 	$tags->{ENDIAN}       = 0;
 	$tags->{DLNA_PROFILE} = $info->{dlna_profile} || undef;
 	
+    warn ("file: ".$file);
+
+    for my $tag (keys %$tags){
+
+        warn qq($tag - $tags->{$tag});
+    }
+
 	# Map ID3 tags if file has them
 	if ( $info->{id3_version} ) {
 		$tags->{TAGVERSION} = $info->{id3_version};

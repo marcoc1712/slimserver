@@ -106,7 +106,12 @@ sub _createHTTPRequest {
 	
 	my $params = $self->_params;
 	my $client = $params->{params}->{client};
-		
+    
+    #Data::Dump::dump("SympleAsyncHTTP _createHTTPRequest");
+    #Data::Dump::dump("type:", $type);
+    #Data::Dump::dump("url:", $url);
+	#Data::Dump::dump("params:", $params);
+    
 	main::DEBUGLOG && $log->debug("${type}ing $url");
 	
 	# Check for cached response
@@ -200,7 +205,11 @@ sub _createHTTPRequest {
 		return;
 	}
 =cut
-	
+    #Data::Dump::dump("SympleAsyncHTTP _createHTTPRequest");
+    #Data::Dump::dump("request:", $request);
+	#Data::Dump::dump("params:", $params);
+    #Data::Dump::dump("timeout:", $timeout);
+    
 	my $http = Slim::Networking::Async::HTTP->new;
 	$http->send_request( {
 		request     => $request,
@@ -218,6 +227,8 @@ sub onError {
 	
 	my $uri = $http->request->uri;
 	
+    #Data::Dump::dump("ON ERROR", "uri ".$uri, "Error ".$error);
+    
 	# If we have a cached copy of this request, we can use it
 	if ( $self->cachedResponse ) {
 
@@ -246,6 +257,8 @@ sub onBody {
 	my $req = $http->request;
 	my $res = $http->response;
 	
+    #Data::Dump::dump("ON BODY", "url ".$self->url, "Status ".$res->status_line);
+    
 	if ( main::DEBUGLOG && $log->is_debug ) {
 		$log->debug(sprintf("status for %s is %s", $self->url, $res->status_line ));
 	}

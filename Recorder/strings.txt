@@ -1,0 +1,60 @@
+PLUGIN_RECORDER
+	EN	Recorder
+
+PLUGIN_RECORDER_DESC
+	EN	Enable recording of the stream being played.
+
+PLUGIN_RECORDER_CODEC
+	EN	File type 
+	
+PLUGIN_RECORDER_CODEC_DESC
+	EN	File type to record
+
+PLUGIN_RECORDER_MAC
+	EN	mac address 
+	
+PLUGIN_RECORDER_MAC_DESC
+	EN	mac address of the player to record (should be disabled in C-3PO).
+	
+PLUGIN_RECORDER_DIRECTORY
+	EN	Directory 
+	
+PLUGIN_RECORDER_DIRECTORY_DESC
+	EN	Directory where to store recorded tracks (Beware: the path separator is "/" and is mandatory at the end: i.e. F:/recorder/).
+	
+PLUGIN_RECORDER_PREFIX
+	EN	Prefix
+	
+PLUGIN_RECORDER_PREFIX_DESC
+	EN	Prefix to the timestamp in filename
+	
+PLUGIN_RECORDER_SUFFIX
+	EN	Suffix
+	
+PLUGIN_RECORDER_SUFFIX_DESC
+	EN	Filename suffix (Beware: the separator dot is mandatory: i.e. .flac)
+	
+PLUGIN_RECORDER_LOGFILE
+	EN	Logfile
+	
+PLUGIN_RECORDER_LOGFILE_DESC
+	EN	Logfile pathname. (Beware: the path separator is "/", i.e. F:/recorder/recorder.log)
+
+PLUGIN_RECORDER_ELEMENT_SIZE
+	EN	Element size (bytes)
+	
+PLUGIN_RECORDER_ELEMENT_SIZE_DESC
+	EN	Size in bytes of each element. Default 1.
+	
+PLUGIN_RECORDER_ELEMENT_COUNT
+	EN	Elements per block 
+	
+PLUGIN_RECORDER_ELEMENT_SIZE_COUNT_DESC
+	EN	Number of elements (each of elemnt size) moved at once. Default 1024
+	
+PLUGIN_RECORDER_DELAY
+	EN	Delay (msec)
+	
+PLUGIN_RECORDER_DELAY_DESC
+	EN	Delay in milliseconds before each read/write cycle. Default 0.
+	

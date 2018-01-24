@@ -116,7 +116,7 @@ Returns the current system locale.
 
 On Windows, this is the current code page.
 
-On OS X, it's always utf-8.
+On OS X, it's always utf-8.#'
 
 On *nix, this is LC_CTYPE. 
 
@@ -183,7 +183,7 @@ sub utf8decode_guess {
 
 =head2 utf8decode_locale( $string )
 
-Decode the current string to UTF-8, using the current locale as the string's encoding.
+Decode the current string to UTF-8, using the current locale as the string's encoding.#'
 
 This is a no-op if the string is already encoded as UTF-8
 

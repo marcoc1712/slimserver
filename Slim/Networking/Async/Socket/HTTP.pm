@@ -57,6 +57,8 @@ sub peerport {
 # Copy of Net::HTTP::NB's sysread method, so we can handle ICY responses
 sub sysread {
     my $self = $_[0];
+    
+    #Data::Dump::dump("SOCKET HTTP - sysread ",$_[1], $_[2], $_[3]);
 
     if (${*$self}{'httpnb_read_count'}++) {
 		${*$self}{'http_buf'} = ${*$self}{'httpnb_save'};

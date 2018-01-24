@@ -68,6 +68,8 @@ sub open {
 	}
 
 	main::INFOLOG && $log->is_info && $log->info("Opening connection to $url: [$server on port $port with path $path with timeout $timeout]");
+    
+    Data::Dump::dump("REMOTE STREAM - open ", $class );
 
 	my $sock = $class->SUPER::new(
 		LocalAddr => $main::localStreamAddr,
@@ -219,6 +221,8 @@ sub content {
 
 	my $content = '';
 	my $bytesread = $self->sysread($content, $length);
+    
+    Data::Dump::dump("REMOTE STREAM - content(sysread) length ",$length);
 
 	while ((defined($bytesread) && ($bytesread != 0)) || (!defined($bytesread) && $! == EWOULDBLOCK )) {
 
@@ -239,6 +243,8 @@ sub syswrite {
 	my $data = $_[1];
 
 	my $length = length $data;
+    
+    Data::Dump::dump("REMOTE STREAM - syswrite length ",$length );
 
 	while (length $data > 0) {
 

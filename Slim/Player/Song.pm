@@ -224,6 +224,8 @@ sub _getNextPlaylistTrack {
 sub getNextSong {
 	my ($self, $successCb, $failCb) = @_;
 
+    Data::Dump::dump("SONG - getNextSong");
+    
 	my $handler = $self->currentTrackHandler();
 	
 	main::INFOLOG && $log->info($self->currentTrack()->url);
@@ -334,6 +336,7 @@ sub getNextSong {
 	
 	else {
 		# the simple case
+        Data::Dump::dump("SONG  getNextSong -  the simple case");
 		&$successCb();
 	}
 
@@ -348,6 +351,8 @@ my %streamFormatMap = (
 sub open {
 	my ($self, $seekdata) = @_;
 	
+    Data::Dump::dump("SONG - open");
+    
 	my $handler = $self->currentTrackHandler();
 	my $client  = $self->master();
 	my $track   = $self->currentTrack();
@@ -459,7 +464,9 @@ sub open {
 
 		if ($transcoder->{'streamMode'} eq 'I' || $handlerWillTranscode) {
 			main::INFOLOG && $log->info("Opening stream (no direct streaming) using $handler [$url]");
-		
+            
+            Data::Dump::dump("SONG open - handler ", $handler);
+            
 			$sock = $handler->new({
 				url        => $url, # it is just easier if we always include the URL here
 				client     => $client,
@@ -606,7 +613,7 @@ sub open {
 		$client->remoteStreamStartTime(Time::HiRes::time());
 		$client->pauseTime(0);
 	}
-
+    Data::Dump::dump("SONG open - sock->opened() ", $sock->opened());
 	my $streamController;
 	
 	######################
@@ -654,7 +661,10 @@ sub open {
 	$self->setStatus(STATUS_STREAMING);
 	
 	$client->metaTitle(undef);
-	
+    
+	#my ($package, $filename, $line) = caller;
+    #Data::Dump::dump("SONG open - caller: ", $package, $filename, $line);
+    
 	return $streamController;
 }
 

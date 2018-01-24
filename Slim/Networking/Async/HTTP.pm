@@ -417,6 +417,8 @@ sub _http_read_body {
 	Slim::Utils::Timers::killTimers( $socket, \&_http_socket_error );
 	Slim::Utils::Timers::killTimers( $socket, \&_http_read_timeout );
 	
+    #Data::Dump::dump("Async HTTP - _http_read_body");
+    
 	my $result = $socket->read_entity_body( my $buf, BUFSIZE );
 
 	if ( $result ) {

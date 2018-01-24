@@ -18,7 +18,7 @@ my $_liveCount = 0;
 
 sub new {
 	my ($class, $song, $streamHandler) = @_;
-
+    
 	my $self = {
 		song => $song,
 		streamHandler => $streamHandler,
@@ -31,7 +31,8 @@ sub new {
 	if (main::DEBUGLOG && $log->is_debug) {
 		$log->debug("live=$_liveCount");	
 	}
-	
+    Data::Dump::dump("sSONG STREAM CONTROLLER - new (handler)",$handler);
+        
 	return $self;
 }
 

@@ -1,5 +1,5 @@
 setlocal
-set ipaddr=192.168.1.115
+set ipaddr=192.168.1.110
 set server=F:\\Sviluppo\\slimserver\\slimserver.pl
 set squeezedir="C:\\ProgramData\\Squeezebox"
 set prefsdir=%squeezedir%\\prefs
