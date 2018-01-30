@@ -46,7 +46,9 @@ sub init {
 
 		logger('')->logdie("FATAL: Discovery init: Cannot set port nonblocking");
 	};
-
+    
+    Data::Dump::dump("UDP - init, addRead");
+    
 	Slim::Networking::Select::addRead($udpsock, \&readUDP);
 
 	Slim::Networking::Discovery::Server::init() if Slim::Utils::OSDetect::details->{osName} !~ /Windows 2000/i;

@@ -271,7 +271,9 @@ sub read_body {
 
 	$self->socket->set( passthrough => [ $self, $args ] );
 	
-	Slim::Networking::Select::addError( $self->socket, \&_http_socket_error );
+    Data::Dump::dump("Slim::Networking::Async::HTTP - read_body, addRead", fileno($self->socket));
+	
+    Slim::Networking::Select::addError( $self->socket, \&_http_socket_error );
 	Slim::Networking::Select::addRead( $self->socket, \&_http_read_body );
 }
 
@@ -428,6 +430,8 @@ sub _http_read {
 		my $timeout = $self->timeout || $prefs->get('remotestreamtimeout');
 		Slim::Utils::Timers::setTimer( $self->socket, Time::HiRes::time() + $timeout, \&_http_socket_error, $self, $args );
 		
+        Data::Dump::dump("HTTP - init, _http_read", fileno($self->socket));
+        
 		Slim::Networking::Select::addError( $self->socket, \&_http_socket_error );
 		Slim::Networking::Select::addRead( $self->socket, \&_http_read_body );
 		

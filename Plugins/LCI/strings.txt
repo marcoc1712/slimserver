@@ -1,0 +1,45 @@
+PLUGIN_LCI
+	EN	LCI
+	
+PLUGIN_LCI_DESC
+	EN	Play audio from LCI videos.  WARNING: this plugin will use more network bandwidth than other streaming services as the entire video is being streamed even though only the audio is played.	
+	
+PLUGIN_LCI_RECENTLYPLAYED
+	EN	Recently Played
+
+PLUGIN_LCI_BADURL
+	EN	Bad URL
+
+PLUGIN_LCI_WEBLINK
+	EN	Watch Video
+
+PLUGIN_LCI_PLAYLINK
+	EN	Play Video
+
+PLUGIN_LCI_BANNER
+	EN	WARNING
+
+PLUGIN_LCI_BANNER_TEXT
+	EN	Please note that this plugin streams the entire LCI video file to playback the audio stream.  This will use use significantly more network bandwidth than audio only streaming.  Please consider this if your internet connection has a usage charge.
+
+PLUGIN_LCI_CACHE
+	EN	Cache options
+	
+PLUGIN_LCI_DISABLECACHE
+	EN	Disable
+
+PLUGIN_LCI_CACHE_DESC
+	EN	Disable cache of pages 
+	
+PLUGIN_LCI_ICONS
+	EN	Icons options
+	
+PLUGIN_LCI_ENABLEICONS
+	EN	Load icons
+
+PLUGIN_LCI_ICONS_DESC
+	EN	Some images can be large and take time to download, especially when using mysb.com. Either disable icons or go
+	EN	to Settings, Advanced, Performance and change Artwork resizing to use local LogitechMediaServer
+
+	
+	

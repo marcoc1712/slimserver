@@ -34,7 +34,9 @@ my $prefs = preferences('server');
 sub new {
 	my $class = shift;
 	my $args  = shift;
-
+    
+    Data::Dump::dump("Slim::Player::Protocols::HTTP new", );
+    
 	if (!$args->{'song'}) {
 
 		logWarning("No song passed!");
@@ -44,7 +46,7 @@ sub new {
 	}
 
 	my $self = $class->open($args);
-
+    
 	if (defined($self)) {
 		${*$self}{'client'}  = $args->{'client'};
 		${*$self}{'url'}     = $args->{'url'};
@@ -290,7 +292,16 @@ sub canDirectStream {
 sub sysread {
 	my $self = $_[0];
 	my $chunkSize = $_[2];
-
+    
+    Data::Dump::dump("Slim::Player::Protocols::HTTP - sysread", $chunkSize);
+    
+    #my ($package, $filename, $line) = caller;
+    #Data::Dump::dump("HTTP - Sysread - caller", $package, $filename, $line);
+    
+    #Slim::Player::Source _readNextChunk
+   
+    #Data::Dump::dump("HTTP - Sysread, buffer, chunksize, offset",  $_[1], $chunkSize, length($_[1] || ''));
+    
 	my $metaInterval = ${*$self}{'metaInterval'};
 	my $metaPointer  = ${*$self}{'metaPointer'};
 
@@ -301,9 +312,13 @@ sub sysread {
 		# This is very verbose...
 		#$log->debug("Reduced chunksize to $chunkSize for metadata");
 	}
-
+    
+    #Data::Dump::dump (ref(CORE::sysread));
+    
 	my $readLength = CORE::sysread($self, $_[1], $chunkSize, length($_[1] || ''));
-
+    
+    #Could not log here, what's happen?
+    
 	if ($metaInterval && $readLength) {
 
 		$metaPointer += $readLength;

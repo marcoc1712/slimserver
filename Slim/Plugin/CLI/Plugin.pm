@@ -172,7 +172,9 @@ sub cli_socket_open {
 		) or $log->logdie("Can't setup the listening port $listenerport: $!");
 	
 		$cli_socket_port = $listenerport;
-	
+        
+        Data::Dump::dump("Slim::Plugin::CLI::Plugin - cli_socket_open, addRead");
+        
 		Slim::Networking::Select::addRead($cli_socket, \&cli_socket_accept);
 
 		main::INFOLOG && $log->info("Now accepting connections on port $listenerport");
@@ -251,7 +253,9 @@ sub cli_socket_accept {
 			$cli_socket->close;
 		}
 		elsif (!($prefsServer->get('filterHosts')) || (Slim::Utils::Network::isAllowedHost($tmpaddr))) {
-
+            
+            Data::Dump::dump("Slim::Plugin::CLI::Plugin - cli_socket_accept, addRead");
+             
 			Slim::Networking::Select::addRead($client_socket, \&client_socket_read);
 			Slim::Networking::Select::addError($client_socket, \&client_socket_close);
 			

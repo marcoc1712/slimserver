@@ -86,7 +86,10 @@ sub initPlugin {
 
 	defined(Slim::Utils::Network::blocking($xpl_socket,0)) || die "Cannot set port nonblocking";
 	die "Could not create socket: $!\n" unless $xpl_socket;
-	Slim::Networking::Select::addRead($xpl_socket, \&readxpl);
+	
+    Data::Dump::dump("Slim::Plugin::xPL::Plugin - initPlugin, addRead");
+    
+    Slim::Networking::Select::addRead($xpl_socket, \&readxpl);
 	sendxplhbeat();
 	
 	Slim::Control::Request::subscribe(\&xplExecuteCallback);

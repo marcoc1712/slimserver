@@ -76,6 +76,8 @@ MX: $mx
 	# save arguments in socket
 	$sock->set( args => $args );
 	
+    Data::Dump::dump("Slim::Plugin::RemoteLibrary::UPnP::ControlPoint - search, addRead");
+    
 	# This socket will continue to live and receive events as
 	# long as the server is running
 	Slim::Networking::Select::addRead( $sock, \&_readResult );

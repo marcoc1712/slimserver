@@ -1015,7 +1015,12 @@ sub rebuffer {
 	my ($client) = @_;
 	my $threshold = 80 * 1024; # 5 seconds of 128k
 	my $outputThreshold = 5 * 44100 * 2 * 4; # 5 seconds, 2 channels, 32bits/sample
-
+    
+    # Tested lines.
+    #my $threshold = 4 * 1024 * 1024; # same value as in Squeezebox play
+	#my $outputThreshold = $client->bufferSize(); # same value as in Squeezebox play
+    
+    
 	my $song = $client->playingSong() || return;
 	my $url = $song->currentTrack()->url;
 
@@ -1025,7 +1030,8 @@ sub rebuffer {
 	my $cover = $remoteMeta->{cover} || $remoteMeta->{icon} || '/music/' . $song->currentTrack()->coverid . '/cover.jpg';
 	
 	if ( my $bitrate = $song->streambitrate() ) {
-		$threshold = 5 * ( int($bitrate / 8) );
+		# disable  this line.
+        $threshold = 5 * ( int($bitrate / 8) );
 	}
 	
 	# We could calculate a more-accurate outputThreshold, but it really is not worth it
@@ -1037,19 +1043,21 @@ sub rebuffer {
 	# We restart playback based on the decode buffer, 
 	# as the output buffer is not updated in pause mode.
 	my $fullness = $client->bufferFullness();
-	
+    
+	Data::Dump::dump("PLAYER - rebuffer: ", $client->bufferSize(), $fullness, $threshold, $client->outputBufferFullness(), $outputThreshold);
+
 	main::INFOLOG && $log->info( "Rebuffering: $fullness / $threshold" );
 	
-	$client->bufferReady(0);
-	
-	$client->bufferStarted( Time::HiRes::time() ); # track when we started rebuffering
-	Slim::Utils::Timers::killTimers( $client, \&_buffering );
-	Slim::Utils::Timers::setTimer(
-		$client,
-		Time::HiRes::time() + 0.125,
-		\&_buffering,
-		{song => $song, threshold => $threshold, outputThreshold => $outputThreshold, title => $title, cover => $cover}
-	);
+    $client->bufferReady(0);
+
+    $client->bufferStarted( Time::HiRes::time() ); # track when we started rebuffering
+    Slim::Utils::Timers::killTimers( $client, \&_buffering );
+    Slim::Utils::Timers::setTimer(
+        $client,
+        Time::HiRes::time() + 0.125,
+        \&_buffering,
+        {song => $song, threshold => $threshold, outputThreshold => $outputThreshold, title => $title, cover => $cover}
+    );
 }
 
 sub buffering {
@@ -1076,7 +1084,7 @@ sub buffering {
 
 sub _buffering {
 	my ( $client, $args ) = @_;
-	
+
 	my $log = logger('player.source');
 	
 	my $song = $args->{song};
@@ -1137,6 +1145,8 @@ sub _buffering {
 	my $fullness = $client->bufferFullness();
 	my $outputFullness = $client->outputBufferFullness();
 	
+    Data::Dump::dump("PLAYER - _buffering: ", $fullness, $threshold, $outputFullness, $outputThreshold);
+
 	main::INFOLOG &&                                        $log->info("Buffering... $fullness / $threshold");
 	main::INFOLOG && $outputThreshold && $outputFullness && $log->info("  +output... $outputFullness / $outputThreshold");
 	

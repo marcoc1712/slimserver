@@ -1,0 +1,54 @@
+PLUGIN_BBCIPLAYER
+	EN	BBC iPlayer
+
+PLUGIN_BBCIPLAYER_DESC
+	EN	Listen to BBC iPlayer Live and Listen Again Radio streams.  Supports the highest quality streams available from the BBC for your location.  Users outside the UK are now able to receive restricted bitrate versions of all of the content available to UK users.  This includes listen again recordings of the last 7 days of BBC National, Regional and Local Radio from the UK.
+
+PLUGIN_BBCIPLAYER_PREFORDER_LIVE
+	EN	Live Stream Preference
+
+PLUGIN_BBCIPLAYER_PREFORDER_LIVE_DESC
+	EN	Select the order of preference of formats to try for each BBCiPlayer live stream.  The plugin will try all formats starting from the left most format until it finds one which plays.
+
+PLUGIN_BBCIPLAYER_PREFORDER_AOD
+	EN	On Demand Stream Preference
+
+PLUGIN_BBCIPLAYER_PREFORDER_AOD_DESC
+	EN	Select the order of preference of formats to try for each BBCiPlayer on demand stream.  The plugin will try all formats starting from the left most format until it finds one which plays.
+
+PLUGIN_BBCIPLAYER_TRANSCODE
+	EN	Allow Transcoding
+
+PLUGIN_BBCIPLAYER_TRANSCODE_DESC
+	EN	Include stream formats which require transcoding by the server.  Deselect this for low powered servers if you prefer to always use a stream format which can be natively played by the player.
+
+PLUGIN_BBCIPLAYER_RADIOVIS_TXT
+	EN	Show Live Text
+
+PLUGIN_BBCIPLAYER_RADIOVIS_TXT_DESC
+	EN	Show Live Text information for live BBC radio stations which support this.
+
+PLUGIN_BBCIPLAYER_RADIOVIS_SLIDE
+	EN	Show Slide Show
+
+PLUGIN_BBCIPLAYER_RADIOVIS_SLIDE_DESC
+	EN	Show Slide Show for live BBC radio stations which support this.
+
+PLUGIN_BBCIPLAYER_LIVETXT_CLASSIC_LINE
+	EN	Live Text - Squeezebox Classic
+
+PLUGIN_BBCIPLAYER_LIVETXT_CLASSIC_LINE_DESC
+	EN	Select which line of the display to show live text (Squeezebox Classic, Boom, Transporter).
+
+PLUGIN_BBCIPLAYER_LIVETXT_TOP
+	EN	Top Line
+
+PLUGIN_BBCIPLAYER_LIVETXT_BOTTOM
+	EN	Bottom Line
+
+PLUGIN_BBCIPLAYER_APP
+	EN	Show in My Apps
+
+PLUGIN_BBCIPLAYER_APP_DESC
+	EN	When set the plugin will appear in the My Apps menu rather than Internet Radio menu.  Note that you will need to restart the server after changing this setting.
+

@@ -49,6 +49,18 @@ $callback will be notified when the socket is readable.
 =cut
 
 sub addRead {
+    
+    my ( $fh, $cb, $idle ) = @_;
+   
+    if (defined($fh)){
+        #Data::Dump::dump("SELECT - addRead - ", fileno($fh));
+    }    
+
+    # my ($package, $filename, $line) = caller;
+    # Data::Dump::dump("SELECT - addRead - caller", $package, $filename, $line);
+    # Slim::Web::HTTP - acceptHTTP (recursive, called from _add)
+    # F:/Sviluppo/slimserver/Slim/Player/Source.pm   _readNextChunk (EWOULDBLOCK)
+    
 	_add( EV::READ() => @_ );
 }
 
@@ -71,6 +83,12 @@ $callback will be notified when the socket is writable..
 =cut
 
 sub addWrite {
+    
+    #my ($package, $filename, $line) = caller;
+    #Data::Dump::dump("SELECT - addRWrite - caller", $package, $filename, $line);
+    
+    # "F:/Sviluppo/slimserver/Slim/Web/HTTP.pm", 2404 (1915)
+    
 	_add( EV::WRITE() => @_ );
 }
 
@@ -89,6 +107,12 @@ sub removeError {}
 
 sub _add {
 	my ( $mode, $fh, $cb, $idle ) = @_;
+    
+    # my ($package, $filename, $line) = caller;
+    # Data::Dump::dump("WEB::HTTP - sendStreamingResponse - caller", $package, $filename, $line);
+    # Callers are addWrite and addRead.
+    
+    # Data::Dump::dump("SELECT - _add - cb", $mode, $fh, $cb, $idle);
 	
 	if(main::DEBUGLOG && $log->is_debug) {
 		$log->debug(

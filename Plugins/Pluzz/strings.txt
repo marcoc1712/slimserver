@@ -1,0 +1,50 @@
+PLUGIN_PLUZZ
+	EN	Pluzz
+	
+PLUGIN_PLUZZ_DESC
+	EN	Play audio from Pluzz videos.  WARNING: this plugin will use more network bandwidth than other streaming services as the entire video is being streamed even though only the audio is played.	
+	
+PLUGIN_PLUZZ_RECENTLYPLAYED
+	EN	Recently Played
+
+PLUGIN_PLUZZ_BADURL
+	EN	Bad URL
+
+PLUGIN_PLUZZ_WEBLINK
+	EN	Watch Video
+
+PLUGIN_PLUZZ_PLAYLINK
+	EN	Play Video
+
+PLUGIN_PLUZZ_BANNER
+	EN	WARNING
+
+PLUGIN_PLUZZ_BANNER_TEXT
+	EN	Please note that this plugin streams the entire Pluzz video file to playback the audio stream.  This will use use significantly more network bandwidth than audio only streaming.  Please consider this if your internet connection has a usage charge.
+
+PLUGIN_PLUZZ_SOCKS
+	EN	Socks proxy configuration
+
+PLUGIN_PLUZZ_SOCKS_DESC
+	EN	Use a socks proxy server (avoid geolock)
+
+PLUGIN_PLUZZ_USESOCKS
+	EN	Activate
+
+PLUGIN_PLUZZ_SOCKSSERVER
+	EN	Server
+	
+PLUGIN_PLUZZ_SOCKSPORT
+	EN	Port
+
+PLUGIN_PLUZZ_CACHE
+	EN	Cache options
+	
+PLUGIN_PLUZZ_DISABLECACHE
+	EN	Disable
+
+PLUGIN_PLUZZ_CACHE_DESC
+	EN	Disable cache of pages (useful when changing from proxy / no proxy)
+
+	
+	

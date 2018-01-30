@@ -133,7 +133,9 @@ sub init {
 	) || die "Can't listen on port $listenerport for Slim protocol: $!";
 
 	defined(Slim::Utils::Network::blocking($slimproto_socket,0)) || die "Cannot set port nonblocking";
-
+    
+    Data::Dump::dump("SLIMPROTO - init, addRead");
+    
 	Slim::Networking::Select::addRead($slimproto_socket, \&slimproto_accept);
 	
 	# Bug 2707, This timer checks for players that have gone away due to a power loss and disconnects them
@@ -184,7 +186,8 @@ sub slimproto_accept {
 	}
 
 	$ipport{$clientsock} = join(':', $tmpaddr, $clientsock->peerport);
-
+    Data::Dump::dump("SLIMPROTO - slimproto_accept, addRead", fileno($clientsock));
+    
 	Slim::Networking::Select::addRead($clientsock, \&client_readable, 1); # processed during idleStreams
 	Slim::Networking::Select::addError($clientsock, \&slimproto_close);
 

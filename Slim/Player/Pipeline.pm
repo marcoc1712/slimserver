@@ -121,12 +121,18 @@ sub new {
 
 		${*$listenReader}{'pipeline'} = $self;
 		${*$self}{'pipeline_listen_reader'} = $listenReader;
+        
+        Data::Dump::dump("PIPELINE - new, addRead (1)",fileno($listenReader));
+        
 		Slim::Networking::Select::addRead($listenReader, \&acceptReader);
 		Slim::Networking::Select::addError($listenReader, \&selectError);
 
 		if ($listenWriter) {
 			${*$listenWriter}{'pipeline'} = $self;
 			${*$self}{'pipeline_listen_writer'} = $listenWriter;	
+            
+            Data::Dump::dump("PIPELINE - new, addRead (2)", fileno($listenWriter));
+            
 			Slim::Networking::Select::addRead($listenWriter, \&acceptWriter);
 			Slim::Networking::Select::addError($listenWriter, \&selectError);
 		}
@@ -252,6 +258,7 @@ sub selectError {
 
 sub sysread {
 	my $self = $_[0];
+    my $out = $_[1];
 	my $chunksize = $_[2];
 	my $readlen;
 
@@ -270,37 +277,48 @@ sub sysread {
 		$! = EWOULDBLOCK;
 		return undef;
 	}
-
-	# First try to stuff the pipe
+    
+    # First try to stuff the pipe
 	STUFF_PIPE:	while (defined($source)) {
 
 		my $pendingBytes = ${*$self}{'pipeline_pending_bytes'};
 		my $pendingSize  = ${*$self}{'pipeline_pending_size'};
-
-		if (!$pendingSize) {
+        
+        if ($pendingSize){
+            Data::Dump::dump("PIPELINE - handle pending )");
+		
+        } else  {
 
 			main::DEBUGLOG && $log->debug("Pipeline doesn't have pending bytes - trying to get some from source");
-
-			my $socketReadlen = $source->sysread($pendingBytes, $chunksize);
+            Data::Dump::dump("PIPELINE - read form source )",  $chunksize);
+			
+            my $socketReadlen = $source->sysread($pendingBytes, $chunksize);
+            
+            #it hangs.
+            #Data::Dump::dump("PIPELINE - read form source )", $socketReadlen, $chunksize);
+            
 
 			if (!$socketReadlen) {
 				if (defined $socketReadlen) {
 					# EOF
 					main::INFOLOG && $log->info("EOF on source stream");
+                    Data::Dump::dump("PIPELINE - EOF on source stream");
 					undef $source;
 					delete ${*$self}{'pipeline_source'};
 					$writer->close();
 					last STUFF_PIPE;
 				} elsif ($! == EWOULDBLOCK) {
+                    Data::Dump::dump("PIPELINE - EWOULDBLOCK");
 					last STUFF_PIPE;		
 				} else {
+                    Data::Dump::dump("PIPELINE - ERROR");
 					return undef; # reflect error to caller
 				}
 			}
 
 			$pendingSize = $socketReadlen;
 		}
-
+        Data::Dump::dump("PIPELINE - Attempting to write to pipeline writer )",$pendingSize);
 		main::DEBUGLOG && $log->debug("Attempting to write to pipeline writer");
 
 		my $writelen = $writer->syswrite($pendingBytes, $pendingSize);
@@ -308,6 +326,7 @@ sub sysread {
 		if ($writelen) {
 
 			main::DEBUGLOG && $log->debug("Wrote $writelen bytes to pipeline writer");
+            Data::Dump::dump("PIPELINE - Wrote to writer )", $writelen);
 
 			if ($writelen != $pendingSize) {
 				${*$self}{'pipeline_pending_bytes'} = substr($pendingBytes, $writelen);
@@ -331,7 +350,12 @@ sub sysread {
 		}
 
 	}
-	
+    # It hangs...
+    #my $swlen = $source->sysread($_[1], $chunksize);
+	#Data::Dump::dump("PIPELINE - write a chunk of data to output )",$swlen, $chunksize);
+	#return $swlen;
+    
+	Data::Dump::dump("PIPELINE - write to output )");
 	return $reader->sysread($_[1], $chunksize);
 }
 

@@ -1,0 +1,25 @@
+﻿0.7.1
+ - Add "settings" link in plugin page
+ 
+0.7.0
+ - Better extract of title using /-(.*)-/
+ 
+0.6.0
+ - Recently played put at the beginning of channel list
+ 
+0.5.1
+ - code cleaning
+ 
+0.5.0
+ - track duration set at the right place
+ 
+0.3.0
+ - auto detect samplerate in ADTS (used when converting to PCM)
+ 
+0.2.0
+ - search timeout is 3600 instead of 900
+ - default sampling rate 48000
+ - do not parse MPEG buffer if empty
+ 
+0.1.0
+ - first version

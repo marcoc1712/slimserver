@@ -45,7 +45,7 @@ sub init {
 		$log->error("Unable to open UPnP GENA server socket: $!");
 		return;
 	}
-	
+	Data::Dump::dump("EVENTS- init, addRead");
 	Slim::Networking::Select::addRead( $SERVER, \&accept );
 	
 	main::DEBUGLOG && $log->debug( 'GENA listening on port ' . $SERVER->sockport );
@@ -72,6 +72,9 @@ sub accept {
 	if ( $httpClient->connected() ) {
 		Slim::Utils::Network::blocking( $httpClient, 0 );
 		$httpClient->timeout(10);
+        
+        Data::Dump::dump("EVENTS- accept, addRead");
+        
 		Slim::Networking::Select::addRead( $httpClient, \&request );
 	}
 }

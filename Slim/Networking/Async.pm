@@ -213,6 +213,8 @@ sub write_async {
 	}
 
 	$self->socket->set( passthrough => [ $self, $args ] );
+    
+    Data::Dump::dump("ASYNC - write_async, addRead", fileno($self->socket));
 
 	Slim::Networking::Select::addError( $self->socket, \&_async_error );
 	Slim::Networking::Select::addRead( $self->socket, \&_async_read );

@@ -1,0 +1,72 @@
+[% PROCESS settings/header.html %]
+
+[% IF show_app %]
+	[% WRAPPER setting title="PLUGIN_BBCIPLAYER_APP" desc="PLUGIN_BBCIPLAYER_APP_DESC" %]
+
+		<div class="prefDesc">[% "ENABLE" | string %]
+			<input name="pref_is_app" type="checkbox" [% IF prefs.pref_is_app %] checked [% END %]>
+		</div>
+
+	[% END %]
+[% END %]
+
+	[% WRAPPER setting title="PLUGIN_BBCIPLAYER_PREFORDER_LIVE" desc="PLUGIN_BBCIPLAYER_PREFORDER_LIVE_DESC" %]
+
+		<div>
+			<select class="stdedit" name="pref_prefOrder_live" id="prefOrder_live">
+			  [% FOREACH option = opts %]
+			  <option value=[% option.opt %] [% IF prefs.pref_prefOrder_live == option.opt; "selected"; END %]>[% option.disp %]</option>
+			  [% END %]
+			</select>
+		</div>
+
+	[% END %]
+
+	[% WRAPPER setting title="PLUGIN_BBCIPLAYER_PREFORDER_AOD" desc="PLUGIN_BBCIPLAYER_PREFORDER_AOD_DESC" %]
+
+		<div>
+			<select class="stdedit" name="pref_prefOrder_aod" id="prefOrder_aod">
+			  [% FOREACH option = opts %]
+			  <option value=[% option.opt %] [% IF prefs.pref_prefOrder_aod == option.opt; "selected"; END %]>[% option.disp %]</option>
+			  [% END %]
+			</select>
+		</div>
+
+	[% END %]
+
+	[% WRAPPER setting title="PLUGIN_BBCIPLAYER_TRANSCODE" desc="PLUGIN_BBCIPLAYER_TRANSCODE_DESC" %]
+
+		<div class="prefDesc">[% "ENABLE" | string %]
+			<input name="pref_transcode" type="checkbox" [% IF prefs.pref_transcode %] checked [% END %]>
+		</div>
+
+	[% END %]
+
+	[% WRAPPER setting title="PLUGIN_BBCIPLAYER_RADIOVIS_TXT" desc="PLUGIN_BBCIPLAYER_RADIOVIS_TXT_DESC" %]
+
+		<div class="prefDesc">[% "ENABLE" | string %]
+			<input name="pref_radiovis_txt" type="checkbox" [% IF prefs.pref_radiovis_txt %] checked [% END %]>
+		</div>
+
+	[% END %]
+
+	[% WRAPPER setting title="PLUGIN_BBCIPLAYER_RADIOVIS_SLIDE" desc="PLUGIN_BBCIPLAYER_RADIOVIS_SLIDE_DESC" %]
+
+		<div class="prefDesc">[% "ENABLE" | string %]
+			<input name="pref_radiovis_slide" type="checkbox" [% IF prefs.pref_radiovis_slide %] checked [% END %]>
+		</div>
+
+	[% END %]
+
+	[% WRAPPER setting title="PLUGIN_BBCIPLAYER_LIVETXT_CLASSIC_LINE" desc="PLUGIN_BBCIPLAYER_LIVETXT_CLASSIC_LINE_DESC" %]
+
+		<div>
+			<select class="stdedit" name="pref_livetxt_classic_line" id="livetxt_classic_line">
+				<option value="0" [% IF prefs.pref_livetxt_classic_line == "0"; "selected"; END %]>[% "PLUGIN_BBCIPLAYER_LIVETXT_TOP" | string %]</option>
+				<option value="1" [% IF prefs.pref_livetxt_classic_line == "1"; "selected"; END %]>[% "PLUGIN_BBCIPLAYER_LIVETXT_BOTTOM" | string %]</option>
+			</select>
+		</div>
+
+	[% END %]
+
+[% PROCESS settings/footer.html %]

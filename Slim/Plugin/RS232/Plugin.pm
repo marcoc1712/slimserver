@@ -167,6 +167,9 @@ sub relayAnswerNext {
 	my $client = shift;
 	
 	# Add us to the select loop so we get notified
+    
+    Data::Dump::dump("Slim::Plugin::RS232::Plugin - relayAnswerNext, addRead");
+    
 	Slim::Networking::Select::addRead( $gSocket{$client}, \&relayAnswer);
 }
 

@@ -1271,6 +1271,12 @@ sub playPoint {
 }
 
 sub nextChunk {
+    
+    #my ($package, $filename, $line) = caller;
+    #Data::Dump::dump("CLIENT - nextChunk - caller", $package, $filename, $line);
+    
+    # caller is F:/Sviluppo/slimserver/Slim/Web/HTTP.pm sendStreamingResponse
+    
 	return Slim::Player::Source::nextChunk(@_);
 }
 

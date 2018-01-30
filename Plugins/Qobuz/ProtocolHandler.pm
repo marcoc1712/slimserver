@@ -10,6 +10,13 @@ use Slim::Utils::Log;
 use Slim::Utils::Misc;
 use Slim::Utils::Prefs;
 
+use List::Util qw(min max first);
+use Slim::Utils::Errno;
+
+use constant MIN_OUT => 256*1024;    # delay before playback starts.
+use constant MAX_OUT => 4*1024*1024; # safety limit, the out should always be empty.
+use constant DATA_CHUNK => 1024*1024; #size of range in the http get request.
+
 use Plugins::Qobuz::API;
 
 my $log   = logger('plugin.qobuz');
@@ -18,13 +25,14 @@ my $prefs = preferences('plugin.qobuz');
 sub new {
 	my $class  = shift;
 	my $args   = shift;
-
+    
+    my $song      = $args->{'song'};
+    
 	my $client    = $args->{client};
-	my $song      = $args->{song};
 	my $streamUrl = $song->streamUrl() || return;
-	
-	main::DEBUGLOG && $log->is_debug && $log->debug( 'Remote streaming Qobuz track: ' . $streamUrl );
 
+	main::DEBUGLOG && $log->is_debug && $log->debug( 'Remote streaming Qobuz track: ' . $streamUrl );
+    
 	my $mime = $song->pluginData('mime');
 
 	my $sock = $class->SUPER::new( {
@@ -33,13 +41,135 @@ sub new {
 		client  => $client,
 #		bitrate => $mime =~ /flac/i ? 750_000 : 320_000,
 	} ) || return;
-
-	${*$sock}{contentType} = $mime;
     
-    use Class::ISA;
-    Data::Dump::dump("QOBUZ PROTOCOL HANDLER  - new (returning socket)", Class::ISA::super_path($class));
-	
+	${*$sock}{contentType} = $mime;
+   
+    if (defined($sock)) {
+		${*$sock}{'vars'} = {                   # variables which hold state for this instance:
+			'inBuf'       => '',                # buffer of received data
+			'outBuf'      => '',                # buffer of processed audio
+			'offset'      => 0,                 # offset for next HTTP request
+			'streaming'   => 1,                 # flag for streaming, changes to 0 when all data received
+			'fetching'    => 0,                 # waiting for HTTP data
+		};
+	}
+    
     return $sock;
+}
+
+sub vars {
+	return ${*{$_[0]}}{'vars'};
+}
+
+sub sysread {
+	my $self = $_[0];
+    #my $chunk = $_[1];
+	my $chunkSize = $_[2];
+
+	my $metaInterval = ${*$self}{'metaInterval'};
+	my $metaPointer  = ${*$self}{'metaPointer'};
+    
+    #Data::Dump::dump("Plugins::Qobuz::ProtocolHandler - sysread: ", $metaInterval, $metaPointer, $chunkSize);
+    
+	if ($metaInterval && ($metaPointer + $chunkSize) > $metaInterval) {
+
+		$chunkSize = $metaInterval - $metaPointer;
+
+		# This is very verbose...
+		#$log->debug("Reduced chunksize to $chunkSize for metadata");
+        Data::Dump::dump("Reduced chunksize for metadata", $chunkSize);
+        
+        my $readLength = CORE::sysread($self, $_[1], $chunkSize, length($_[1] || '' ))
+
+    } 
+    
+    #Data::Dump::dump("sysread: ", $_[1], $chunkSize, length($_[1]));
+	#my $readLength = CORE::sysread($self, $_[1], $chunkSize, length($_[1] || '' ));
+    
+    my $readLength = _sysread($self, $_[1], $chunkSize);
+   
+	if ($metaInterval && $readLength) {
+
+		$metaPointer += $readLength;
+		${*$self}{'metaPointer'} = $metaPointer;
+
+		# handle instream metadata for shoutcast/icecast
+		if ($metaPointer == $metaInterval) {
+
+			$self->readMetaData();
+
+			${*$self}{'metaPointer'} = 0;
+
+		} elsif ($metaPointer > $metaInterval) {
+
+			main::DEBUGLOG && $log->debug("The shoutcast metadata overshot the interval.");
+		}	
+	}
+
+	return $readLength;
+}
+
+sub _sysread(){
+    use bytes;
+    
+    my $self = $_[0];
+    #my $chunk  = $_[1];
+	#my $chunkSize = $_[2];
+    
+    my $v = $self->vars;
+    my $url = ${*$self}{'url'};
+
+    # need more data
+	if ( length $v->{'outBuf'} < MAX_OUT && !$v->{'fetching'} && $v->{'streaming'} ) {
+		my $range = "bytes=$v->{offset}-" . ($v->{offset} + DATA_CHUNK - 1);
+		
+		$v->{offset} += DATA_CHUNK;
+		$v->{'fetching'} = 1;
+        
+        Data::Dump::dump("* Going to fetch:  ", $url, $range, length($v->{'inBuf'} || ''), $v->{'fetching'},$v->{'streaming'});
+						
+		Slim::Networking::SimpleAsyncHTTP->new(
+			sub {
+				$v->{'inBuf'} .= $_[0]->content;
+				$v->{'fetching'} = 0;
+				$v->{'streaming'} = 0 if length($_[0]->content) < DATA_CHUNK;
+				main::DEBUGLOG && $log->is_debug && $log->debug("got chunk length: ", length $_[0]->content, " from ", $v->{offset} - DATA_CHUNK, " for $url");
+                Data::Dump::dump("* Got chunk length: ", length $_[0]->content, $v->{offset} - DATA_CHUNK, length $v->{'inBuf'});
+            },
+			
+			sub { 
+				$log->warn("error fetching $url");
+				$v->{'inBuf'} = '';
+				$v->{'fetching'} = 0;
+                Data::Dump::dump("error fetching $url");
+			}, 
+			
+		)->get($url, 'Range' => $range );
+		
+	}	
+    if (length $v->{'inBuf'} >= MIN_OUT || !$v->{'streaming'}){
+        
+        Data::Dump::dump("Going to feed OUT BUF:  ", length $v->{'inBuf'}, MIN_OUT);
+        
+        $v->{'outBuf'} = $v->{'outBuf'}.$v->{'inBuf'};
+        $v->{'inBuf'}='';
+    }
+    
+    my $bytes = min(length $v->{'outBuf'}, MIN_OUT);
+
+    if ($bytes) {
+        Data::Dump::dump("Going to return OUT BUF:  ",$bytes, length $v->{'outBuf'}, MIN_OUT);
+		$_[1] = $_[1].substr($v->{'outBuf'}, 0, $bytes);
+		$v->{'outBuf'} = substr($v->{'outBuf'}, $bytes);
+		return $bytes;
+	} elsif ( $v->{streaming} ) {
+		$! = EINTR;
+		return undef;
+	} else {
+        Data::Dump::dump("EOF");
+        return 0; #EOF.
+    }
+    
 }
 
 sub canSeek { 0 }

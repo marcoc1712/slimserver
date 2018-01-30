@@ -465,7 +465,7 @@ sub open {
 		if ($transcoder->{'streamMode'} eq 'I' || $handlerWillTranscode) {
 			main::INFOLOG && $log->info("Opening stream (no direct streaming) using $handler [$url]");
             
-            Data::Dump::dump("SONG open - handler ", $handler);
+            Data::Dump::dump("SONG open - streamMode I, handler, handlerWillTranscode", $handler, $handlerWillTranscode);
             
 			$sock = $handler->new({
 				url        => $url, # it is just easier if we always include the URL here
@@ -473,7 +473,8 @@ sub open {
 				song       => $self,
 				transcoder => $transcoder,
 			});
-		
+            Data::Dump::dump("SONG open - streamMode I, socket no:", fileno($sock));
+            
 			if (!$sock) {
 				logWarning("stream failed to open [$url].");
 				$self->setStatus(STATUS_FAILED);
@@ -563,14 +564,20 @@ sub open {
 				}
 	
 				main::INFOLOG && $log->info('Tokenized command: ', Slim::Utils::Unicode::utf8decode_locale($command));
-	
+                
+                Data::Dump::dump("TRANSCODING HELPER - open  main::TRANSCODING ");
+                
 				my $pipeline;
 				
 				# Bug 10451: only use Pipeline when really necessary 
 				# and indicate if local or remote source
+                
 				if ($usepipe) { 
+                    Data::Dump::dump("TRANSCODING HELPER - open  main::TRANSCODING - use pipeline");
 					$pipeline = Slim::Player::Pipeline->new($sock, $command, !$handler->isRemote);
 				} else {
+                    
+                    Data::Dump::dump("TRANSCODING HELPER - open  main::TRANSCODING - use filehandle");
 					# Bug: 4318
 					# On windows ensure a child window is not opened if $command includes transcode processes
 					if (main::ISWINDOWS) {
@@ -613,11 +620,12 @@ sub open {
 		$client->remoteStreamStartTime(Time::HiRes::time());
 		$client->pauseTime(0);
 	}
-    Data::Dump::dump("SONG open - sock->opened() ", $sock->opened());
+    Data::Dump::dump("SONG open - socket, opened", fileno($sock) , $sock->opened());
 	my $streamController;
 	
 	######################
 	# make sure the filehandle was actually set
+
 	if ($sock || $self->directstream()) {
 
 		if ($sock && $sock->opened()) {
@@ -664,6 +672,8 @@ sub open {
     
 	#my ($package, $filename, $line) = caller;
     #Data::Dump::dump("SONG open - caller: ", $package, $filename, $line);
+    
+    #(caller is  Streaming controller::: _Stream)
     
 	return $streamController;
 }

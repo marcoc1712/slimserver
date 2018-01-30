@@ -40,7 +40,8 @@ sub init {
 	}
 
 	main::INFOLOG && $log->info("Adding \$stdin to select loop");
-
+    
+    Data::Dump::dump("STDIO - init, addRead");
 	Slim::Networking::Select::addRead($stdin, \&processRequest);
 
 	$stdin->autoflush(1);

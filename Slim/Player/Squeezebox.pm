@@ -137,31 +137,59 @@ sub play {
 	
 	my $controller = $params->{'controller'};
 	my $handler = $controller->songProtocolHandler();
-
+    
+    Data::Dump::dump("SQUEEZEBOX - play");
+    Data::Dump::dump("SQUEEZEBOX - is remote?", $handler->isRemote());
+    
 	# Calculate the correct buffer threshold for remote URLs
 	if ( $handler->isRemote() ) {
 		my $bufferSecs = $prefs->get('bufferSecs') || 3;
-			
+        
+        Data::Dump::dump("SQUEEZEBOX - play pref bufferSecs", $prefs->get('bufferSecs'));
+        Data::Dump::dump("SQUEEZEBOX - bufferSecs", $bufferSecs);
+        
 		# begin playback once we have this much data in the decode buffer (in KB)
 		$params->{bufferThreshold} = 20;
-		
+
+        Data::Dump::dump("SQUEEZEBOX - play buffer Threshold", $params->{bufferThreshold});
+        Data::Dump::dump("SQUEEZEBOX - play handler", $handler);
+		Data::Dump::dump("SQUEEZEBOX - play handler canThreshold", $handler->can('bufferThreshold'));
+        
+        my $bitrate = $controller->song()->streambitrate();
+        
 		# Reduce threshold if protocol handler wants to
 		if ( $handler->can('bufferThreshold') ) {
 			$params->{bufferThreshold} = $handler->bufferThreshold( $client, $params->{url} );
-		}
+
+            Data::Dump::dump("SQUEEZEBOX - resulting buffer Threshold", $params->{bufferThreshold});
 
 		# If we know the bitrate of the stream, we instead buffer a certain number of seconds of audio
-		elsif ( my $bitrate = $controller->song()->streambitrate() ) {
-			
+		} elsif ( $bitrate ) {
+            
 			$params->{bufferThreshold} = ( int($bitrate / 8) * $bufferSecs ) / 1000;
-			
+               
+			Data::Dump::dump("SQUEEZEBOX - bitrate", $bitrate);
+            Data::Dump::dump("SQUEEZEBOX - calculated on bitrate buffer Threshold", $params->{bufferThreshold});
+            
 			# Max threshold is 255
 			$params->{bufferThreshold} = 255 if $params->{bufferThreshold} > 255;
-		}
-		
-		$client->buffering($params->{bufferThreshold} * 1024, $bufferSecs * 44100 * 2 * 4);
-	}
 
+            Data::Dump::dump("SQUEEZEBOX - resulting buffer Threshold", $params->{bufferThreshold});
+		}
+        
+		Data::Dump::dump("SQUEEZEBOX - client standard buffering:", $params->{bufferThreshold} * 1024, $bufferSecs * 44100 * 2 * 4);
+        Data::Dump::dump("SQUEEZEBOX - client real buffering:", 4 * 1024 * 1024, 32 * 1024 * 1024);
+		
+        # tested line, use all the buffer and wait as long as necessary before start playback.
+        #$client->buffering(4 * 1024 * 1024, $client->bufferSize());
+        
+        $client->buffering($params->{bufferThreshold} * 1024, $bufferSecs * 44100 * 2 * 4);
+        
+	}
+    
+    #Data::Dump::dump("SQUEEZEBOX - play,  client ISA:",  ref $client);
+    # Squeezeplay
+    
 	$client->bufferReady(0);
 	
 	my $ret = $client->stream_s($params);
@@ -544,6 +572,7 @@ sub stream_s {
 			($params->{'paused'} ? ' paused' : ''), ($format || 'undef'), ($params->{'url'} || 'undef')
 		));
 	}
+    Data::Dump::dump("SQUEEZEBOX stream_s - ", $params->{'paused'} ? ' paused' : '', $format || 'undef', $params->{'url'} || 'undef' );
 	
 	$client->streamStartTimestamp(undef);
 
@@ -772,7 +801,9 @@ sub stream_s {
 		$autostart += 2; # will be 2 for direct streaming with no autostart, or 3 for direct with autostart
 
 	} elsif (my $proxy = $params->{'proxyStream'}) {
-
+        
+        Data::Dump::dump("SQUEEZEBOX - Stream_s, proxyStream");
+        
 		$request_string = ' ';	# need at least a byte to keep ip3k happy
 		my ($pserver, $pport) = split (/:/, $proxy);
 		$server_port = $pport;
@@ -981,7 +1012,9 @@ sub stream_s {
 			$formatbyte, $flags, $autostart, $bufferThreshold, $outputThreshold, $pcmsamplesize, $pcmsamplerate, $pcmendian, $pcmchannels,
 		));
 	}
-	
+    
+	Data::Dump::dump("SQUEEZEBOX - stream_s, Starting decoder");
+    
 	my $frame = pack 'aaaaaaaCCCaCCCNnN', (
 		's',	# command
 		$autostart,

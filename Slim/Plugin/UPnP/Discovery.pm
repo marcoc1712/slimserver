@@ -123,6 +123,9 @@ sub init {
 	);
 	
 	if ( $listensock ) {
+        
+        Data::Dump::dump("Slim::Plugin::UPnP::Discovery - init, addRead");
+        
 		$listensock->mcast_add( SSDP_HOST, '0.0.0.0' );
 		Slim::Networking::Select::addRead( $listensock, \&_read );
 		$SOCKS{'0.0.0.0'} = $listensock;

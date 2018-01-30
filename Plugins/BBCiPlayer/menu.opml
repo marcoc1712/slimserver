@@ -1,0 +1,337 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="1.0">
+  <head title="BBC iPlayer">
+    <expansionState></expansionState>
+  </head>
+  <body>
+	<outline text="Listen Live" icon="plugins/BBCiPlayer/html/images/bbciplayer.png">
+
+		<outline text="BBC Radio 1" type="audio"  icon="http://www.bbc.co.uk/radio/imda/logos/radio1_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_one.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio1_logomobile1-1.png&amp;radiovis=fm/ce1/c201/09880" />
+
+		<outline text="BBC Radio 1 Xtra" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio1x_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_1xtra.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio1x_logomobile1-1.png&amp;radiovis=dab/ce1/ce15/c22a/0" />
+
+		<outline text="BBC Radio 2" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio2_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_two.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio2_logomobile1-1.png&amp;radiovis=fm/ce1/c202/08880" />
+
+		<outline text="BBC Radio 3" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio3_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_three.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio3_logomobile1-1.png&amp;radiovis=fm/ce1/c203/09100" />
+				 
+		<outline text="BBC Radio 4" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio4_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_fourfm.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio4_logomobile1-1.png&amp;radiovis=fm/ce1/c204/09320" />
+
+		<outline text="BBC Radio 4 LW" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio4_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_fourlw.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio4_logomobile1-1.png" />
+
+		<outline text="BBC Radio 4 Extra" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio4x_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_four_extra.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio4x_logomobile1-1.png&amp;radiovis=dab/ce1/ce15/c22c/0" />
+
+		<outline text="BBC Radio 5 Live" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio5l_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_five_live.m3u8&amp;aac=http://www.bbc.co.uk/radio/listen/live/r5l_aaclca.pls&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio5l_logomobile1-1.png&amp;radiovis=dab/ce1/ce15/c225/0" />
+
+		<outline text="BBC Radio 5 Sports" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio5lspx_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_five_live_sports_extra.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio5lspx_logomobile1-1.png&amp;radiovis=dab/ce1/ce15/c228/0" />
+
+		<outline text="BBC Radio 6 Music" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio6_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_6music.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio6_logomobile1-1.png&amp;radiovis=dab/ce1/ce15/c22b/0" />
+
+		<outline text="BBC Asian Network" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radioan_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_asian_network.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radioan_logomobile1-1.png&amp;radiovis=dab/ce1/ce15/c236/0" />
+
+		<outline text="BBC World Service" type="audio"
+				 URL="iplayer://live?hls=http://bbcwsen-lh.akamaihd.net/i/WSEIEUK_1@189911/master.m3u8&amp;radiovis=dab/ce1/ce15/c238/0" />
+
+		<outline text="BBC Radio Scotland" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_scotland_fm.m3u8" />
+
+		<outline text="BBC Radio nan Gaidheal" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_nan_gaidheal.m3u8" />
+
+		<outline text="BBC Radio Ulster" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_ulster.m3u8" />
+
+		<outline text="BBC Radio Foyle" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_foyle.m3u8" />
+
+		<outline text="BBC Radio Wales" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_wales_fm.m3u8" />
+
+		<outline text="BBC Radio Cymru" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_cymru.m3u8" />
+
+		<outline text="BBC Local Radio" >
+
+			<outline text="BBC Berkshire" type="audio" 
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_berkshire.m3u8" />
+			<outline text="BBC Bristol" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_bristol.m3u8" />
+			<outline text="BBC Cambridgeshire" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_cambridge.m3u8" />
+			<outline text="BBC Cornwall" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_cornwall.m3u8" />
+			<outline text="BBC Coventry &amp; Warwickshire" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_coventry_warwickshire.m3u8" />
+			<outline text="BBC Cumbria" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_cumbria.m3u8" />
+			<outline text="BBC Derby" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_derby.m3u8" />
+			<outline text="BBC Devon" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_devon.m3u8" />
+			<outline text="BBC Essex" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_essex.m3u8" />
+			<outline text="BBC Gloucestershire" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_gloucestershire.m3u8" />
+			<outline text="BBC Guernsey" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_guernsey.m3u8" />
+			<outline text="BBC Hereford &amp; Worcester" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_hereford_worcester.m3u8" />
+			<outline text="BBC Humberside" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_humberside.m3u8" />
+			<outline text="BBC Jersey" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_jersey.m3u8" />
+			<outline text="BBC Kent" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_kent.m3u8" />
+			<outline text="BBC Lancashire" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_lancashire.m3u8" />
+			<outline text="BBC Leeds" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_leeds.m3u8" />
+			<outline text="BBC Leicester" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_leicester.m3u8" />
+			<outline text="BBC Lincolnshire" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_lincolnshire.m3u8" />
+			<outline text="BBC London" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_london.m3u8" />
+			<outline text="BBC Manchester" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_manchester.m3u8" />
+			<outline text="BBC Merseyside" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_merseyside.m3u8" />
+			<outline text="BBC Newcastle" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_newcastle.m3u8" />
+			<outline text="BBC Norfolk" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_norfolk.m3u8" />
+			<outline text="BBC Northampton" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_northampton.m3u8" />
+			<outline text="BBC Nottingham" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_nottingham.m3u8" />
+			<outline text="BBC Oxford" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_oxford.m3u8" />
+			<outline text="BBC Sheffield" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_sheffield.m3u8" />
+			<outline text="BBC Shropshire" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_shropshire.m3u8" />
+			<outline text="BBC Solent" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_solent.m3u8" />
+			<outline text="BBC Somerset" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_somerset_sound.m3u8" />
+			<outline text="BBC Stoke" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_stoke.m3u8" />
+			<outline text="BBC Suffolk" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_suffolk.m3u8" />
+			<outline text="BBC Surrey" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_surrey.m3u8" />
+			<outline text="BBC Sussex" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_sussex.m3u8" />
+			<outline text="BBC Tees" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_tees.m3u8" />
+			<outline text="BBC Three Counties" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_three_counties_radio.m3u8" />
+			<outline text="BBC Wiltshire" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_wiltshire.m3u8" />
+			<outline text="BBC WM" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_wm.m3u8" />
+			<outline text="BBC York" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/uk/sbr_high/ak/bbc_radio_york.m3u8" />
+		</outline>
+
+	</outline>
+
+	<outline text="Listen Live (Non UK)" icon="plugins/BBCiPlayer/html/images/bbciplayer.png">
+
+		<outline text="BBC Radio 1" type="audio"  icon="http://www.bbc.co.uk/radio/imda/logos/radio1_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_one.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio1_logomobile1-1.png&amp;radiovis=fm/ce1/c201/09880" />
+
+		<outline text="BBC Radio 1 Xtra" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio1x_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_1xtra.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio1x_logomobile1-1.png&amp;radiovis=dab/ce1/ce15/c22a/0" />
+
+		<outline text="BBC Radio 2" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio2_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_two.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio2_logomobile1-1.png&amp;radiovis=fm/ce1/c202/08880" />
+
+		<outline text="BBC Radio 3" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio3_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_three.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio3_logomobile1-1.png&amp;radiovis=fm/ce1/c203/09100" />
+				 
+		<outline text="BBC Radio 4" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio4_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_fourfm.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio4_logomobile1-1.png&amp;radiovis=fm/ce1/c204/09320" />
+
+		<outline text="BBC Radio 4 LW" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio4_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_fourlw.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio4_logomobile1-1.png" />
+
+		<outline text="BBC Radio 4 Extra" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio4x_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_four_extra.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio4x_logomobile1-1.png&amp;radiovis=dab/ce1/ce15/c22c/0" />
+
+		<outline text="BBC Radio 5 Live" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio5l_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_five_live.m3u8&amp;aac=http://www.bbc.co.uk/radio/listen/live/r5l_aaclca.pls&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio5l_logomobile1-1.png&amp;radiovis=dab/ce1/ce15/c225/0" />
+
+		<outline text="BBC Radio 5 Sports" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio5lspx_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_five_live_sports_extra.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio5lspx_logomobile1-1.png&amp;radiovis=dab/ce1/ce15/c228/0" />
+
+		<outline text="BBC Radio 6 Music" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radio6_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_6music.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radio6_logomobile1-1.png&amp;radiovis=dab/ce1/ce15/c22b/0" />
+
+		<outline text="BBC Asian Network" type="audio" icon="http://www.bbc.co.uk/radio/imda/logos/radioan_logomobile1-1.png"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_asian_network.m3u8&amp;icon=http://www.bbc.co.uk/radio/imda/logos/radioan_logomobile1-1.png&amp;radiovis=dab/ce1/ce15/c236/0" />
+
+		<outline text="BBC World Service" type="audio"
+				 URL="iplayer://live?hls=http://bbcwsen-lh.akamaihd.net/i/WSEIEUK_1@189911/master.m3u8&amp;radiovis=dab/ce1/ce15/c238/0" />
+
+		<outline text="BBC Radio Scotland" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_scotland_fm.m3u8" />
+
+		<outline text="BBC Radio nan Gaidheal" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_nan_gaidheal.m3u8" />
+
+		<outline text="BBC Radio Ulster" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_ulster.m3u8" />
+
+		<outline text="BBC Radio Foyle" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_foyle.m3u8" />
+
+		<outline text="BBC Radio Wales" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_wales_fm.m3u8" />
+
+		<outline text="BBC Radio Cymru" type="audio"
+				 URL="iplayer://live?hls=http://a.files.bbci.co.uk/media/live/manifesto/audio/simulcast/hls/nonuk/sbr_low/ak/bbc_radio_cymru.m3u8" />
+
+	</outline>
+
+	<outline text="BBC Radio 1" URL="http://www.bbc.co.uk/radio/aod/availability/radio1.xml"
+			 icon="http://www.bbc.co.uk/radio/imda/logos/radio1_logomobile1-1.png"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC Radio 1 Xtra" URL="http://www.bbc.co.uk/radio/aod/availability/1xtra.xml"
+			 icon="http://www.bbc.co.uk/radio/imda/logos/radio1x_logomobile1-1.png"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC Radio 2" URL="http://www.bbc.co.uk/radio/aod/availability/radio2.xml"
+			 icon="http://www.bbc.co.uk/radio/imda/logos/radio2_logomobile1-1.png"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC Radio 3" URL="http://www.bbc.co.uk/radio/aod/availability/radio3.xml"
+			 icon="http://www.bbc.co.uk/radio/imda/logos/radio3_logomobile1-1.png"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC Radio 4 FM" URL="http://www.bbc.co.uk/radio/aod/availability/radio4.xml"
+			 icon="http://www.bbc.co.uk/radio/imda/logos/radio4_logomobile1-1.png"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse&amp;filter:service=fm" />
+	<outline text="BBC Radio 4 LW" URL="http://WWW.bbc.co.uk/radio/aod/availability/radio4.xml"
+			 icon="http://www.bbc.co.uk/radio/imda/logos/radio4_logomobile1-1.png"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse&amp;filter:service=lw" />
+	<outline text="BBC Radio 4 Extra" URL="http://www.bbc.co.uk/radio/aod/availability/radio4extra.xml"
+			 icon="http://www.bbc.co.uk/radio/imda/logos/radio4x_logomobile1-1.png"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC Radio 5 Live" URL="http://www.bbc.co.uk/radio/aod/availability/fivelive.xml"
+			 icon="http://www.bbc.co.uk/radio/imda/logos/radio5l_logomobile1-1.png"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC Radio 5 Sports" URL="http://www.bbc.co.uk/radio/aod/availability/sportsextra.xml"
+			 icon="http://www.bbc.co.uk/radio/imda/logos/radio5lspx_logomobile1-1.png"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC 6 Music" URL="http://www.bbc.co.uk/radio/aod/availability/6music.xml"
+			 icon="http://www.bbc.co.uk/radio/imda/logos/radio6_logomobile1-1.png"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC Asian Network" URL="http://www.bbc.co.uk/radio/aod/availability/asiannetwork.xml"
+			 icon="http://www.bbc.co.uk/radio/imda/logos/radioan_logomobile1-1.png"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC World Service" URL="http://www.bbc.co.uk/radio/aod/availability/worldservice.xml"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC Radio Scotland" URL="http://www.bbc.co.uk/radio/aod/availability/radioscotland.xml"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC Radio nan Gaidheal" URL="http://www.bbc.co.uk/radio/aod/availability/alba.xml"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC Radio Ulster" URL="http://www.bbc.co.uk/radio/aod/availability/radioulster.xml"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC Radio Wales" URL="http://www.bbc.co.uk/radio/aod/availability/radiowales.xml"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	<outline text="BBC Radio Cymru" URL="http://www.bbc.co.uk/radio/aod/availability/radiocymru.xml"
+			 parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+
+	<outline text="BBC Local Radio" icon="plugins/BBCiPlayer/html/images/bbciplayer.png">
+	  <outline text="BBC Berkshire" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_berkshire.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Bristol" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_bristol.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Cambridgeshire" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_cambridge.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Cornwall" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_cornwall.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Coventry &amp; Warwickshire" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_coventry_warwickshire.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Cumbria" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_cumbria.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Derby" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_derby.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Devon" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_devon.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Essex" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_essex.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Gloucestershire" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_gloucestershire.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Guernsey" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_guernsey.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Hereford &amp; Worcester" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_hereford_worcester.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Humberside" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_humberside.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Jersey" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_jersey.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Kent" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_kent.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Lancashire" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_lancashire.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Leeds" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_leeds.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Leicester" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_leicester.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Lincolnshire" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_lincolnshire.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC London" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_london.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Manchester" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_manchester.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Merseyside" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_merseyside.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Newcastle" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_newcastle.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Norfolk" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_norfolk.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Northampton" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_northampton.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Nottingham" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_nottingham.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Oxford" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_oxford.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Sheffield" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_sheffield.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Shropshire" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_shropshire.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Solent" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_solent.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Somerset" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_somerset_sound.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Stoke" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_stoke.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Suffolk" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_suffolk.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Surrey" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_surrey.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Sussex" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_sussex.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Tees" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_tees.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Three Counties" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_three_counties_radio.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC Wiltshire" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_wiltshire.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC WM" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_wm.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	  <outline text="BBC York" URL="http://www.bbc.co.uk/radio/aod/availability/bbc_radio_york.xml"
+			   parser="Plugins::BBCiPlayer::BBCXMLParser?byday&amp;bykey&amp;reversedays&amp;reverse" />
+	</outline>
+
+  </body>
+</opml>

@@ -470,6 +470,8 @@ sub getConvertCommand2 {
 sub tokenizeConvertCommand2 {
 	my ($transcoder, $filepath, $fullpath, $noPipe, $quality) = @_;
 	
+    Data::Dump::dump("TRASCODING HELPER - tokenizeConvertCommand2: ", $filepath, $fullpath, $noPipe);
+    
 	# Bug 10199 - make sure we do not promote any strings to decoded ones (8859-1 => UFT-8)
 	use bytes;
 	

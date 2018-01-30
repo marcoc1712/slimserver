@@ -175,7 +175,9 @@ sub openport {
 	}
 	
 	defined(Slim::Utils::Network::blocking($http_server_socket,0)) || $log->logdie("Cannot set port nonblocking");
-
+    
+    Data::Dump::dump("Slim::Web::HTTP - openport, addRead");
+     
 	Slim::Networking::Select::addRead($http_server_socket, \&acceptHTTP);
 
 	main::INFOLOG && $log->info("Server $0 accepting http connections on port $openedport");
@@ -230,6 +232,12 @@ sub connectedSocket {
 
 sub acceptHTTP {
 	# try and pull the handle
+    
+    #my ($package, $filename, $line) = caller;
+    #Data::Dump::dump("WEB HTTP - acceptHTTP - caller", $package, $filename, $line);
+    
+    # caller is Select _add callback (147)
+    
 	my $httpClient = $http_server_socket->accept('Slim::Web::HTTP::ClientConn') || do {
 
 		main::INFOLOG && $log->info("Did not accept connection, accept returned nothing");
@@ -256,7 +264,7 @@ sub acceptHTTP {
 			$httpClient->timeout(10);
 
 			$peeraddr{$httpClient} = $peer;
-
+            Data::Dump::dump("Slim::Web::HTTP - acceptHTTP, addRead, socket no:", fileno($httpClient));
 			Slim::Networking::Select::addRead($httpClient, \&processHTTP);
 			Slim::Networking::Select::addError($httpClient, \&closeStreamingSocket);
 
@@ -1170,6 +1178,7 @@ sub generateHTTPResponse {
 					
 					if ( $async ) {
 						main::INFOLOG && $log->is_info && $log->info('Async artwork request done, enable read');
+                        Data::Dump::dump("Slim::Web::HTTP - generateHTTPResponse, addRead");
 						Slim::Networking::Select::addRead($httpClient, \&processHTTP);
 					}
 				},
@@ -2100,6 +2109,11 @@ sub sendStreamingResponse {
 	my $client;
 	
 	my $isInfo = ( main::INFOLOG && $log->is_info ) ? 1 : 0;
+    
+    #my ($package, $filename, $line) = caller;
+    #Data::Dump::dump("WEB::HTTP - sendStreamingResponse - caller", $package, $filename, $line);
+    
+    # Caller is "F:/Sviluppo/slimserver/Slim/Networking/IO/Select.pm" _add
 	
 	if ( $peerclient{$httpClient} ) {
 		$client = Slim::Player::Client::getClient($peerclient{$httpClient});
@@ -2474,6 +2488,7 @@ sub closeStreamingSocket {
 	# Close socket unless it's keep-alive
 	if ( $keepAlives{$httpClient} ) {
 		main::INFOLOG && $log->is_info && $log->info('Keep-alive on streaming socket');
+        Data::Dump::dump("Slim::Web::HTTP - closeStreamingSocket, addRead");
 		Slim::Networking::Select::addRead($httpClient, \&processHTTP);
 		Slim::Networking::Select::removeWrite($httpClient);
 	}

@@ -1,0 +1,26 @@
+[% PROCESS settings/header.html %]
+
+	[% WRAPPER setting title="PLUGIN_LCI_BANNER" %]
+		<div>[% "PLUGIN_LCI_BANNER_TEXT" | string %]</div>
+	[% END %]
+
+	<div class="prefDesc">
+	
+	[% WRAPPER setting title="PLUGIN_LCI_CACHE" desc="PLUGIN_LCI_CACHE_DESC" %]
+
+		[% "PLUGIN_LCI_DISABLECACHE" | string %]
+		<input name="pref_no_cache" type="checkbox" [% IF prefs.pref_no_cache %] checked [% END %]>
+	
+	[% END %]
+	
+	[% WRAPPER setting title="PLUGIN_LCI_ICONS" desc="PLUGIN_LCI_ICONS_DESC" %]
+
+		[% "PLUGIN_LCI_ENABLEICONS" | string %]
+		<input name="pref_icons" type="checkbox" [% IF prefs.pref_icons %] checked [% END %]>
+	
+	[% END %]
+		
+	</div>
+	
+
+[% PROCESS settings/footer.html %]

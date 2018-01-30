@@ -114,6 +114,11 @@ sub nextChunk {
 
 	return if !$client;
 	
+    #my ($package, $filename, $line) = caller;
+    #Data::Dump::dump("PLAYER::SOURCE - nextChunk - caller", $package, $filename, $line);
+    
+    # Caller is Client nextChunk.
+    
 	my $queued_chunks = $client->chunks;
 
 	# if there's a chunk in the queue, then use it.
@@ -279,6 +284,11 @@ sub _readNextChunk {
 	my $client = shift;
 	my $givenChunkSize = shift;
 	my $callback = shift;
+    
+    #my ($package, $filename, $line) = caller;
+    #Data::Dump::dump("PLAYER::SOURCE - _readNextChunk - caller", $package, $filename, $line);
+    
+    # caller is nextChunk
 	
 	if (!defined($givenChunkSize)) {
 		$givenChunkSize = $prefs->get('udpChunkSize') * 10;
@@ -321,18 +331,35 @@ sub _readNextChunk {
 
 	my $fd = $client->controller()->songStreamController() ? $client->controller()->songStreamController()->streamHandler() : undef;
 	
+    
+   # Data::Dump::dump("SOURCE - _readNextChunk", $fd);
+    
 	if ($fd) {
-
+        
+        my $fileno;
+        if (fileno($fd)){
+            $fileno = fileno($fd);
+        } else {
+            $fileno = "pipe";
+            #Data::Dump::dump("SOURCE - _readNextChunk, pipeline");
+        }
+        
+        #Data::Dump::dump("SOURCE - _readNextChunk", $fd);
+        
 		if ($chunksize > 0) {
 
 			my $readlen = $fd->sysread($chunk, $chunksize);
 
 			if (!defined($readlen)) { 
+                
+                #Data::Dump::dump("SOURCE - _readNextChunk, Error(!))",$fileno, $!);
+                
 				if ($! == EWOULDBLOCK) {
 					# $log->debug("Would have blocked, will try again later.");
 					if ($callback) {
 						# This is a hack but I hesitate to use isa(Pileline) or similar.
 						# Suggestions for better, efficient implementation welcome
+                        Data::Dump::dump("SOURCE - _readNextChunk, addRead on EWOULDBLOCK", $fileno);
 						Slim::Networking::Select::addRead(${*$fd}{'pipeline_reader'} || $fd, sub {_wakeupOnReadable(shift, $client);}, 1);
 					}
 					return undef;	
@@ -352,6 +379,7 @@ sub _readNextChunk {
 			} else {
 				# too verbose
 				# $log->debug("Read $readlen bytes from source");
+                Data::Dump::dump("SOURCE - _readNextChunk, sysread:", $fileno, $readlen, $chunksize);
 			}
 		}
 
