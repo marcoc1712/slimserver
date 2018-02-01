@@ -14,7 +14,7 @@ use List::Util qw(min max first);
 use Slim::Utils::Errno;
 
 use constant MIN_OUT => 256*1024;    # delay before playback starts.
-use constant MAX_OUT => 4*1024*1024; # safety limit, the out should always be empty.
+use constant MAX_OUT => 512*1024*1024; # safety limit, the out should always be empty.
 use constant DATA_CHUNK => 1024*1024; #size of range in the http get request.
 
 use Plugins::Qobuz::API;
@@ -70,6 +70,7 @@ sub sysread {
 	my $metaPointer  = ${*$self}{'metaPointer'};
     
     #Data::Dump::dump("Plugins::Qobuz::ProtocolHandler - sysread: ", $metaInterval, $metaPointer, $chunkSize);
+    my $readLength;
     
 	if ($metaInterval && ($metaPointer + $chunkSize) > $metaInterval) {
 
@@ -79,15 +80,16 @@ sub sysread {
 		#$log->debug("Reduced chunksize to $chunkSize for metadata");
         Data::Dump::dump("Reduced chunksize for metadata", $chunkSize);
         
-        my $readLength = CORE::sysread($self, $_[1], $chunkSize, length($_[1] || '' ))
+        $readLength = CORE::sysread($self, $_[1], $chunkSize, length($_[1] || '' ))
 
-    } 
+    } else {
+        
+        $readLength = _sysread($self, $_[1], MIN_OUT);
+    }
     
     #Data::Dump::dump("sysread: ", $_[1], $chunkSize, length($_[1]));
 	#my $readLength = CORE::sysread($self, $_[1], $chunkSize, length($_[1] || '' ));
-    
-    my $readLength = _sysread($self, $_[1], $chunkSize);
-   
+
 	if ($metaInterval && $readLength) {
 
 		$metaPointer += $readLength;
@@ -120,12 +122,18 @@ sub _sysread(){
     my $url = ${*$self}{'url'};
 
     # need more data
-	if ( length $v->{'outBuf'} < MAX_OUT && !$v->{'fetching'} && $v->{'streaming'} ) {
-		my $range = "bytes=$v->{offset}-" . ($v->{offset} + DATA_CHUNK - 1);
-		
-		$v->{offset} += DATA_CHUNK;
-		$v->{'fetching'} = 1;
+	if ( length $v->{'outBuf'} < MAX_OUT && !$v->{'fetching'}) {
         
+        my $range;
+        
+        if ($v->{'streaming'}){
+            $range = "bytes=$v->{offset}-" . ($v->{offset} + DATA_CHUNK - 1);
+ 
+        } else {
+            
+            $range = "bytes=$v->{offset}-" . ($v->{offset} + 1);
+        }
+        $v->{'fetching'} = 1;
         Data::Dump::dump("* Going to fetch:  ", $url, $range, length($v->{'inBuf'} || ''), $v->{'fetching'},$v->{'streaming'});
 						
 		Slim::Networking::SimpleAsyncHTTP->new(
@@ -133,6 +141,8 @@ sub _sysread(){
 				$v->{'inBuf'} .= $_[0]->content;
 				$v->{'fetching'} = 0;
 				$v->{'streaming'} = 0 if length($_[0]->content) < DATA_CHUNK;
+                $v->{offset} += length($_[0]->content);
+                
 				main::DEBUGLOG && $log->is_debug && $log->debug("got chunk length: ", length $_[0]->content, " from ", $v->{offset} - DATA_CHUNK, " for $url");
                 Data::Dump::dump("* Got chunk length: ", length $_[0]->content, $v->{offset} - DATA_CHUNK, length $v->{'inBuf'});
             },
@@ -155,15 +165,16 @@ sub _sysread(){
         $v->{'inBuf'}='';
     }
     
-    my $bytes = min(length $v->{'outBuf'}, MIN_OUT);
+    my $bytes =length $v->{'outBuf'};
 
     if ($bytes) {
-        Data::Dump::dump("Going to return OUT BUF:  ",$bytes, length $v->{'outBuf'}, MIN_OUT);
+        Data::Dump::dump("Going to return OUT BUF:  ",$bytes, length $v->{'outBuf'});
 		$_[1] = $_[1].substr($v->{'outBuf'}, 0, $bytes);
 		$v->{'outBuf'} = substr($v->{'outBuf'}, $bytes);
 		return $bytes;
 	} elsif ( $v->{streaming} ) {
-		$! = EINTR;
+		#$! = EINTR; Pipeline does not recocgnize EINTR;
+        $! = EWOULDBLOCK;
 		return undef;
 	} else {
         Data::Dump::dump("EOF");
@@ -172,9 +183,9 @@ sub _sysread(){
     
 }
 
-sub canSeek { 0 }
-sub getSeekDataByPosition { undef }
-sub getSeekData { undef }
+sub canSeek { 1 }
+#sub getSeekDataByPosition { undef }
+#sub getSeekData { undef }
 
 sub scanUrl {
 	my ($class, $url, $args) = @_;

@@ -1,0 +1,90 @@
+PLUGIN_GROUPS_NAME
+	DE	Geräte Gruppen
+	EN	Group Players
+	FR	Lecteurs Groupés
+	
+PLUGIN_GROUPS_DESC
+	DE	Gruppe erstellen
+	EN	Create Group Player
+	FR	Création de Lecteur Groupé
+	
+PLUGIN_GROUPS_MEMBERS
+	DE	Mitglieder
+	EN	Members
+	FR	Membres
+	
+PLUGIN_GROUPS_STARTING
+	DE	Starte Gruppen
+	EN	Starting Group Players
+	FR	Démarrage des Lecteurs Groupés
+	
+PLUGIN_GROUPS_SHOWDISCONNECTED
+	DE	Zeige nicht verbundene Geräte
+	EN	Include disconnected players
+	FR	Inclure les lecteurs déconnectés
+	
+PLUGIN_GROUPS_SHOWDISCONNECTED_DESC
+	DE	Zeige alle Geräte, auch jene, welche zur Zeit nicht mit dem Server verbunden sind.
+	EN	Show all players, including devices which currently aren't connected.
+	FR	Montre tous les lecteurs, incluant ceux qui sont déconnectés
+	
+PLUGIN_GROUPS_NEWGROUP
+	DE	Neue Gruppe hinzufügen
+	EN	Add a new Group Player
+	FR	Ajouter un Lecteur Groupé
+	
+PLUGIN_GROUPS_NEWGROUP_NAME
+	DE	Neuer Gruppen-Name
+	EN	New Group Player name
+	FR	Nom du Lecteur Groupé
+	
+PLUGIN_GROUPS_NEWGROUP_DESC
+	DE	Gib den neuen Namen ein und bestätige durch Drücken von "Anwenden". Dann bearbeite die Player-Details oben.
+	EN	Enter the name of the new Group Player set, and press Apply to create it. Then edit the player set in the area above to get the details correct.
+	FR	Entrez le nom du Lecteur Groupé et cliquez sur Appliquer. Editez ensuite le lecteur dans la zone ci-dessus pour ajouter des membres
+	
+PLUGIN_GROUPS_DELETEGROUP
+	DE	Löschen
+	EN	Delete
+	FR	Supprimer
+	
+PLUGIN_GROUPS_DELETEGROUP_DESC
+	DE	Kreuze diese Checkbox an um die Gruppe definitiv zu löschen.
+	EN	Check this box and press Apply to permanently delete this Group Player
+	FR	Cliquez ici puis sur Appliquer pour détruire le Lecteur Groupé
+	
+PLUGIN_GROUPS_OPTIONS
+	DE	Einstellungen
+	EN	Options
+	FR	Options
+	
+PLUGIN_GROUPS_OPTIONS_DESC
+	DE	Steuert, wie Änderungen an der Gruppe die Player beeinflusst: <br> - Player miteinander ein/ausschalten 
+	EN	Sets how changes on Group Player affects members <br> - Power on/off members alltogether <br> - Power members when playing
+	FR	Définit la façon dont un changement sur un Lecteur Groupé affecte les membres <br> - Allume/Eteint tous les membres <br> Allume les membres à la lecture
+
+PLUGIN_GROUPS_OPTIONSPOWER
+	DE	Ein/Ausschalten
+	EN	Power on/off all with Group Player
+	FR	Allume/Eteint tout avec le Lecteur Groupé
+	
+PLUGIN_GROUPS_OPTIONSPOWERPLAY
+	DE	Alle Geräte beim Start einschalten
+	EN	Power all on play
+	FR	Allume tous à la lecture
+	
+PLUGIN_GROUPS_OPTIONSVOLUME
+	DE	Lautstärke
+	EN	Volume
+	FR	Volume
+
+PLUGIN_GROUPS_RESTORESTATIC
+	DE	Gruppen beim Ausschalten wieder herstellen
+	EN	Restore sync groups 
+	FR	Rétablir les groupes de synchronisation
+
+PLUGIN_GROUPS_RESTORESTATIC_DESC
+	DE	Wenn eine Geräte Gruppe gestoppt wird, können die enthaltenen Player wieder der zuvor zugehörigen Synchronisations-Gruppe zugewiesen werden. Die Wiedergabe wird mit dem nächsten Titel wieder hergestellt.
+	EN	When a Group Player stops, members that belonged to a LMS sync group can be re-associated to it. They will resume playing at next track
+	FR	Lorsqu'un Lecteur Groupé s'arrête, les membres appartenant à un groupe de synchronisation peuvent lui être ré-affectés. Ils ne recommenceront à jouer qu'à la piste suivante
+

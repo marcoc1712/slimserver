@@ -359,7 +359,7 @@ sub _readNextChunk {
 					if ($callback) {
 						# This is a hack but I hesitate to use isa(Pileline) or similar.
 						# Suggestions for better, efficient implementation welcome
-                        Data::Dump::dump("SOURCE - _readNextChunk, addRead on EWOULDBLOCK", $fileno);
+                        #Data::Dump::dump("SOURCE - _readNextChunk, addRead on EWOULDBLOCK", $fileno);
 						Slim::Networking::Select::addRead(${*$fd}{'pipeline_reader'} || $fd, sub {_wakeupOnReadable(shift, $client);}, 1);
 					}
 					return undef;	

@@ -1,0 +1,49 @@
+[% PROCESS settings/header.html %]
+	[% WRAPPER setting title="PLUGIN_GROUPS_RESTORESTATIC" desc="PLUGIN_GROUPS_RESTORESTATIC_DESC" %]
+		<input type="checkbox" name="pref_restoreStatic" id="pref_restoreStatic" [% IF prefs.pref_restoreStatic %] checked [% END %] value="1" />
+	[% END %]	
+	
+	[% WRAPPER setting title="PLUGIN_GROUPS_SHOWDISCONNECTED" desc="PLUGIN_GROUPS_SHOWDISCONNECTED_DESC" %]
+		<input type="checkbox" name="pref_showDisconnected" id="pref_showDisconnected" [% IF prefs.pref_showDisconnected %] checked [% END %] value="1" />
+	[% END %]	
+	
+	[% WRAPPER setting title="PLUGIN_GROUPS_NEWGROUP" desc="PLUGIN_GROUPS_NEWGROUP_DESC" %]
+		<input type="text" class="stdedit" name="newGroupName" id="newGroupName" value="[% newGroupName %]" size="20" />
+	[% END %]
+	
+	[% USE Clients %]
+	
+	[% FOREACH group IN groups %]
+		<hr>
+		[% gid = group.clientid %]
+		[% WRAPPER setting title=Clients.client(gid).name desc="PLUGIN_GROUPS_DELETEGROUP_DESC" %]
+			<input type="checkbox" name="delete.[% gid %]" id="delete.[% gid %]" value="[% gid %]" />
+			<label for="delete.[% gid %]">[% "PLUGIN_GROUPS_DELETEGROUP" | string %]</label>
+		[% END %]
+				
+		[% WRAPPER setting title="PLUGIN_GROUPS_OPTIONS" desc="PLUGIN_GROUPS_OPTIONS_DESC" %]
+			<input type="checkbox" name="powerMaster.[% gid %]" id="powerMaster.[% gid %]" [% IF group.powerMaster %] checked [% END %] value="1" class="stdedit"/>
+			<label for="powerMaster.[% gid %]">[% "PLUGIN_GROUPS_OPTIONSPOWER" | string %]</label>
+			&nbsp&nbsp
+			<input type="checkbox" name="powerPlay.[% gid %]" id="powerPlay.[% gid %]" [% IF group.powerPlay %] checked [% END %] value="1" class="stdedit"/>
+			<label for="powerPlay.[% gid %]">[% "PLUGIN_GROUPS_OPTIONSPOWERPLAY" | string %]</label>
+		[% END %]
+				
+		[% WRAPPER setting title="PLUGIN_GROUPS_MEMBERS" desc="" %]
+			<table style="border-spacing:0">
+			[% FOREACH player IN players %]
+				[% pid = player.id %]
+				[% groupPlayerId = "members." _ gid _ "." _ pid %]
+				[% IF loop.index() % 4 == 0 %]<tr>[% END %]
+				<td style="padding: 0 10px 2px 0">
+					<input type="checkbox" name="[% groupPlayerId %]" id="members.[% gid %].[% pid %]" [% IF group.members.grep(pid).size() %] checked [% END %] value="1" />
+					<label for="members.[% gid %].[% pid %]">[% player.name %]</label>
+				</td>
+				[% IF (loop.index + 1) % 4 == 0 %]</tr>[% END %]
+			[% END %]
+			</table>
+		[% END %]
+								
+	[% END %]
+	
+[% PROCESS settings/footer.html %]

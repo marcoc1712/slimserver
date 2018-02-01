@@ -1,0 +1,83 @@
+0.3.3
+ - ignore players who's volume if fixed at 100% 
+ - break-up group after 30 min of idle when pause originated by a member
+ - put codecs in "magic" order
+
+0.3.2
+ - with LMS version 7.9.1 of 01/22/2018, groups appear separately in webUI (credits @mherger)
+
+ 0.3.1
+ - volume management corrections
+ 
+0.2.6
+ - restore playlist when members leave the group
+ 
+0.2.5
+ - first non-alpha release
+ - clean a few typos in translations
+ - remove ununsed code
+ 
+0.2.4
+ - remove autochunk var
+ - clean members queue when group is broken up
+
+0.2.3
+ - correct disconnected players in settings (credits @mherger)
+ - simplify chunks cleaning (credits @mherger)
+ - remove timer for chunks cleaning -not needed thanks to the above)
+ - translations (credits @mherger)
+ - groups icon (credit @pippin)
+ 
+0.2.2
+ - move back Group Player preferences into plugin prefs
+ - restoreSync parameter was always set at init (issue with toolkit)
+ - restore power on resume when player was powered off after a re-allocation to a permanent playing group
+ 
+0.2.1
+ - virtual queue was not emptied in some corner case, stalling the whole group
+ 
+0.2.0
+ - lot of refactoring
+ - volume memorization 
+ - groups are locked (cannot manually add/remove members)
+ 
+0.1.13
+ - Volume increment management
+ 
+0.1.12
+ - option to power on all mmeber on playback start - not on resume
+ 
+0.1.11
+ - special timer to clean chunks of virtual group in case the Slim::Player::Source::nextChunk is not overloaded (can happen is anothe rplugin is doing the same hack)
+ 
+0.1.10
+ - optimize settings handling by getting rid of groups in prefs (credit @mherger)
+ 
+0.1.9
+ - nextChunk replaced otherwise master's chunks where not emptied fast enough
+ 
+0.1.8
+  - now that group is disassembled at pause, need to memorise playpoint/position as we lose surrogate
+
+0.1.7
+ - memorize player name change in plugin prefs
+   
+0.1.6
+ - clean setting page and allow clickable items (credit @mherger)
+ - when a slave is stopped "individually", do not stop the virtual player, just unsync that slave
+ - fix CLI
+ - volume management was creating an echo loop
+   
+0.1.5
+ - change volume management to match iPeng's logic
+ - add CLI command (credit @mherger)
+ 
+0.1.4
+ - break up groups at pause
+ 
+0.1.3
+ - fake mac address creation changes, make it stateless and compatible with earlier Perl version
+ - German & French translations
+ 
+0.1.2
+ - rebuffering can be caused by other players and call to rebuffer did reset bufferReady

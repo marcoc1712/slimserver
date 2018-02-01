@@ -264,7 +264,8 @@ sub acceptHTTP {
 			$httpClient->timeout(10);
 
 			$peeraddr{$httpClient} = $peer;
-            Data::Dump::dump("Slim::Web::HTTP - acceptHTTP, addRead, socket no:", fileno($httpClient));
+            #Data::Dump::dump("Slim::Web::HTTP - acceptHTTP, addRead, socket no:", fileno($httpClient));
+            
 			Slim::Networking::Select::addRead($httpClient, \&processHTTP);
 			Slim::Networking::Select::addError($httpClient, \&closeStreamingSocket);
 

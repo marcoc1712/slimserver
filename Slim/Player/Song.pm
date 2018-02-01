@@ -351,7 +351,7 @@ my %streamFormatMap = (
 sub open {
 	my ($self, $seekdata) = @_;
 	
-    Data::Dump::dump("SONG - open");
+    #Data::Dump::dump("SONG - open");
     
 	my $handler = $self->currentTrackHandler();
 	my $client  = $self->master();

@@ -35,7 +35,7 @@ sub new {
 	my $class = shift;
 	my $args  = shift;
     
-    Data::Dump::dump("Slim::Player::Protocols::HTTP new", );
+    #Data::Dump::dump("Slim::Player::Protocols::HTTP new", );
     
 	if (!$args->{'song'}) {
 
