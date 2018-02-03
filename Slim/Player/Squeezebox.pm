@@ -145,6 +145,8 @@ sub play {
 		# begin playback once we have this much data in the decode buffer (in KB)
 		$params->{bufferThreshold} = 20;
 		
+        Data::Dump::dump("STREAMING CONTROLLER - play, handler can bufferThreshold: ", handler->can('bufferThreshold'));
+        
 		# Reduce threshold if protocol handler wants to
 		if ( $handler->can('bufferThreshold') ) {
 			$params->{bufferThreshold} = $handler->bufferThreshold( $client, $params->{url} );
