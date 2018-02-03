@@ -248,11 +248,41 @@ StatusHeartbeat =>
 
 ####################################################################
 # Actions
+
+
+sub _isDump {
+    my $event = shift;
+    
+    if ($event ne 'ContinuePlay' &&
+        $event ne 'StatusHeartbeat'  &&
+        $event ne 'Play' &&
+        $event ne 'NextTrackReady' &&
+        $event ne 'Started' &&
+        $event ne 'LocalEndOfStream' &&
+        $event ne 'EndOfStream' &&
+        $event ne 'ReadyToStream' &&
+        $event ne 'Stopped') {return 1};
+        
+        return 0;
+    
+}
 sub _eventAction {
 	my ($self, $event, $params) = @_;
-	
-	my $action = $stateTable{$event}[$self->{'playingState'}][$self->{'streamingState'}];
 
+    my ($package, $filename, $line) = caller;
+    
+    if (_isDump($event)){
+        Data::Dump::dump("STREAMING CONTROLLER - _eventAction, caller: ", $package, $filename, $line);
+        Data::Dump::dump("STREAMING CONTROLLER - _eventAction, event, params: ", $event, $params);
+    }
+    
+	my $action = $stateTable{$event}[$self->{'playingState'}][$self->{'streamingState'}];
+    
+    if ($action == "_Stream"){
+        my ($package, $filename, $line) = caller;
+        Data::Dump::dump("_eventAction: ", $package, $filename, $line, $event);
+    }
+    
 	if (!defined $action) {
 		$log->error(sprintf("%s: %s in state %s-%s -> undefined",
 			$self->{'masterId'},
@@ -284,9 +314,11 @@ sub _eventAction {
 			$log->debug($s);
 		}	
 	}
-
 	my $result = $action->(@_);
 	
+    if (_isDump($event)){
+        Data::Dump::dump("STREAMING CONTROLLER - _eventAction, result, : ", $result);
+    }
 	if (!$ValidStates[$self->{'playingState'}][$self->{'streamingState'}]) {
 		$log->error(sprintf("%s:  %s with action %s resulted in invalid state %s-%s",
 			$self->{'masterId'},
@@ -579,6 +611,8 @@ sub _CheckSync {
 sub _Stop {					# stop -> Stopped, Idle
 	my ($self, $event, $params, $suppressNotifications) = @_;
 	
+    Data::Dump::dump("STREAMING CONTROLLER - _Stop");
+    
 	# bug 10458 - try to avoding unnecessary notifications
 	$suppressNotifications = 1 unless ( $self->isPlaying() || $self->isPaused() );
 	
@@ -623,6 +657,8 @@ sub _stopClient {
 sub _getNextTrack {			# getNextTrack -> TrackWait
 	my ($self, $params, $ifMoreTracks) = @_;
 	
+    Data::Dump::dump("STREAMING CONTROLLER - _getNextTrack");
+    
 	if ($self->{'consecutiveErrors'} > Slim::Player::Playlist::count(master($self)))  {
 		$log->warn("Giving up because of too many consecutive errors: " . $self->{'consecutiveErrors'});
 		return;
@@ -725,6 +761,8 @@ sub _showTrackwaitStatus {
 
 sub _nextTrackReady {
 	my ($self, $id, $song, $params) = @_;
+    
+    Data::Dump::dump("STREAMING CONTROLLER - _nextTrackReady");
 	
 	if ($self->{'nextTrackCallbackId'} != $id) {
 		main::INFOLOG && $log->info($self->{'masterId'} . ": discarding unexpected nextTrackCallbackId $id, expected " . 
@@ -949,6 +987,9 @@ sub _Continue {
 
 sub _StopGetNext {			# stop, getNextTrack -> Stopped, TrackWait
 	my ($self, $event, $params) = @_;
+    
+    Data::Dump::dump("STREAMING CONTROLLER - _StopGetNext");
+    
 	_Stop(@_);
 	_getNextTrack($self, $params);	
 }
@@ -1064,14 +1105,14 @@ sub _JumpToTime {			# IF [canSeek] THEN stop, stream -> Buffering, Streaming END
 	my ($self, $event, $params) = @_;
 	my $newtime = $params->{'newtime'};
 	my $restartIfNoSeek = $params->{'restartIfNoSeek'};
-
+    
 	my $song = playingSong($self) || return;
 	my $handler = $song->currentTrackHandler();
-
+    
 	if ($newtime !~ /^[\+\-]/ && $newtime == 0
 		|| !$song->duration()
 	) {
-		# User is trying to restart the current track
+        # User is trying to restart the current track
 		my $url         = $song->currentTrack()->url;
 		
 		if ($handler->can("canDoAction") && !$handler->canDoAction($self->master(), $url, 'rew')) {
@@ -1096,7 +1137,7 @@ sub _JumpToTime {			# IF [canSeek] THEN stop, stream -> Buffering, Streaming END
 	}
 	
 	if ($newtime > $song->duration()) {
-		_Skip($self, $event);
+         _Skip($self, $event);
 		return;
 	}
 	
@@ -1106,7 +1147,7 @@ sub _JumpToTime {			# IF [canSeek] THEN stop, stream -> Buffering, Streaming END
 	$seekdata = $song->getSeekData($newtime);
 	
 	return unless $seekdata || $restartIfNoSeek;
-
+    
 	_Stop($self, $event, $params, 'suppressNotification');
 	
 	_Stream($self, $event, {song => $song, seekdata => $seekdata});
@@ -1114,7 +1155,14 @@ sub _JumpToTime {			# IF [canSeek] THEN stop, stream -> Buffering, Streaming END
 
 sub _Stream {				# play -> Buffering, Streaming
 	my ($self, $event, $params) = @_;
-
+    
+    #my ($package, $filename, $line) = caller;
+    #Data::Dump::dump("_Stream - caller: ", $package, $filename, $line, $event);
+    
+    Data::Dump::dump("STREAMING CONTROLLER - _Stream");
+    
+    my ($package, $filename, $line) = caller;
+    
 	# Get song and seekdata from params if present
 	
 	my $song;
@@ -1127,6 +1175,7 @@ sub _Stream {				# play -> Buffering, Streaming
 	}
 	
 	if ($song) {
+        Data::Dump::dump("STREAMING CONTROLLER - _Stream index:", $song->index());
 		main::INFOLOG && $log->info($self->{'masterId'} . ": got song from params, song index ", $song->index());
 	}
 	
@@ -1144,7 +1193,9 @@ sub _Stream {				# play -> Buffering, Streaming
 	# updateOnStream will call either the success or fail callbacks, either immediately or later
 	if ( $song->currentTrackHandler()->can('updateOnStream') && !$params->{'updateOnStreamCallback'}) {
 		main::DEBUGLOG && $log->debug("Protocol Handler for ", $song->currentTrack()->url, " updateOnStream");
-		
+        
+        Data::Dump::dump("STREAMING CONTROLLER - _Stream updateOnStream:");
+         
 		my $id = ++$self->{'nextTrackCallbackId'};
 		$self->{'nextTrack'} = undef;
 		_setStreamingState($self, TRACKWAIT);
@@ -1209,6 +1260,9 @@ sub _Stream {				# play -> Buffering, Streaming
 	# used by Random Play, MusicIP, to provide URLs
 	if ( $song->currentTrackHandler()->can('overridePlayback') ) {
 		main::DEBUGLOG && $log->debug("Protocol Handler for " . $song->currentTrack()->url . " overriding playback");
+        
+        Data::Dump::dump("STREAMING CONTROLLER - _Stream updateOnStream:");
+         
 		return $song->currentTrackHandler()->overridePlayback( $self->master(), $song->currentTrack()->url );
 	}
 	
@@ -1249,6 +1303,9 @@ sub _Stream {				# play -> Buffering, Streaming
 	$self->resetFrameData();
 	
 	foreach my $player (@{$self->{'players'}}) {
+        
+        #Data::Dump::dump("STREAMING CONTROLLER - _Stream, player ", $player->id);
+        
 		if ($setVolume) {
 			# Bug 10310: Make sure volume is synced if necessary
 			my $vol = ($prefs->client($player)->get('syncVolume'))
@@ -1280,6 +1337,10 @@ sub _Stream {				# play -> Buffering, Streaming
 			# we never set the 'loop' parameter
 		);
 
+       
+       # Data::Dump::dump("SONG open -  player ISA:",  ref $player);
+       # Squeezeplay >>> Squeezebox.pm.
+       
 		$startedPlayers += $player->play( \%params );
 		
 		$reportsTrackStart ||= $player->reportsTrackStart();
@@ -1297,6 +1358,8 @@ sub _Stream {				# play -> Buffering, Streaming
 	# Bug 15477: Delayed to here so that $player->play() has the opportunity to close any old stream 
 	# before the new one becomes available
 	$self->{'songStreamController'} = $songStreamController;
+    
+    Data::Dump::dump("STREAMING CONTROLLER - _Stream, Song queue is now: ",join(',', map { $_->index() } @$queue));
 
 	if ( main::INFOLOG && $log->is_info ) {
 		$log->info("Song queue is now " . join(',', map { $_->index() } @$queue));
@@ -1335,6 +1398,9 @@ sub _PlayAndStream {		# -> PLAYING; IF [allReadyToStream] THEN play -> Streaming
 sub _StreamIfReady {		# IF [allReadyToStream] THEN play -> Streaming ENDIF
 	my ($self, $event, $params) = @_;
 	
+    
+    Data::Dump::dump("STREAMING CONTROLLER - _StreamIfReady");
+     
 	my $song = $self->{'nextTrack'};
 	if (!$song) {return;}
 	
@@ -1838,6 +1904,8 @@ sub resetFrameData {
 
 sub localEndOfStream {
 	
+    Data::Dump::dump("STREAMING CONTROLLER - localEndOfStream");
+    
 	closeStream($_[0]);
 
 	_eventAction($_[0], 'LocalEndOfStream');
@@ -2071,6 +2139,8 @@ sub playerReconnect {
 	my ($self, $bytesReceived) = @_;
 	main::INFOLOG && $log->info($self->{'masterId'});
 	
+    Data::Dump::dump("STREAMING CONTROLLER - playerReconnect");
+    
 	my $song = $self->streamingSong();
 	
 	if ($song) {
@@ -2088,6 +2158,9 @@ sub allPlayers {
 }
 
 sub closeStream {
+    
+    Data::Dump::dump("STREAMING CONTROLLER - closeStream");
+    
 	$_[0]->{'songStreamController'}->close() if $_[0]->{'songStreamController'};
 }
 
@@ -2097,6 +2170,9 @@ sub closeStream {
 sub stop       {$log->info($_[0]->{'masterId'}); _eventAction($_[0], 'Stop');}
 
 sub play       {
+    
+    Data::Dump::dump("STREAMING CONTROLLER - play");
+    
 	main::INFOLOG && $log->info($_[0]->{'masterId'});
 	$_[0]->{'consecutiveErrors'} = 0;
 	$_[0]->{'fadeIn'} = $_[4] if ($_[4] && $_[4] > 0);
@@ -2153,7 +2229,8 @@ sub jumpToTime {
 
 sub playerStopped {
 	my ($self, $client) = @_;
-		
+    
+    Data::Dump::dump("STREAMING CONTROLLER - playerStopped");
 	main::INFOLOG && $log->info($client->id);
 
 	# TODO - handler hook
@@ -2175,6 +2252,9 @@ sub playerStopped {
 }
 
 sub playerTrackStarted {
+   
+   Data::Dump::dump("STREAMING CONTROLLER - playerTrackStarted");
+   
 	my ($self, $client) = @_;
 
 	main::INFOLOG && $log->info($client->id);
@@ -2195,6 +2275,8 @@ sub playerTrackStarted {
 sub playerReadyToStream {
 	my ($self, $client) = @_;
 
+    Data::Dump::dump("STREAMING CONTROLLER - playerReadyToStream");
+    
 	main::INFOLOG && $log->info($client->id);
 
 	if ($self->_isMaster($client)) {
@@ -2213,6 +2295,8 @@ sub playerReadyToStream {
 sub playerOutputUnderrun {
 	my ($self, $client) = @_;
 	
+    Data::Dump::dump("STREAMING CONTROLLER - playerOutputUnderrun");
+    
 	if ( main::INFOLOG && $log->is_info ) {
 		my $decoder = $client->bufferFullness();
 		my $output  = $client->outputBufferFullness() || 0;
@@ -2289,6 +2373,11 @@ sub playerDirectMetadata {
 
 sub playerStatusHeartbeat {
 	my ($self, $client) = @_;
+    
+    my $fullness = $client->bufferFullness();
+	my $outputFullness = $client->outputBufferFullness();
+	
+    Data::Dump::dump("STREAMING CONTROLLER", $client->bufferSize(), $fullness, $outputFullness);
 
 	unless (_isMaster($self, $client)) {return;}
 
