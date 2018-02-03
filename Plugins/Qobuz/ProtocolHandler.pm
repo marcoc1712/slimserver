@@ -13,9 +13,18 @@ use Slim::Utils::Prefs;
 use List::Util qw(min max first);
 use Slim::Utils::Errno;
 
-use constant MIN_OUT => 256*1024;    # delay before playback starts.
-use constant MAX_OUT => 512*1024*1024; # safety limit, the out should always be empty.
-use constant DATA_CHUNK => 1024*1024; #size of range in the http get request.
+# Size of the _sysread chunksize AND buffers, NOT to be confuesed with same applied to pipeline and/or player.
+
+use constant MAX_OUT    => 512*1024*1024; # safety limit, the out should always be empty, if reached _sysread stops reading from source.
+
+use constant MIN_OUT    => 256*1024;      # data are not transferred to output until this limit is reached in input.
+use constant RANGE_SIZE => 1024*1024;     # size of range in the http get request, not really the chunksize, but similar.
+
+# Note that playback will not start untill the firs http get returns, so the greather value between RANGE_SIZE and MIN_OUT, is the real 
+# threshold.
+
+# Seconds of delay before playback starts (initial buffering seconds)
+use constant BUFFERING_SECONDS  => 5;
 
 use Plugins::Qobuz::API;
 
@@ -35,15 +44,17 @@ sub new {
     
 	my $mime = $song->pluginData('mime');
 
-	my $sock = $class->SUPER::new( {
+	my $sock = ( {
 		url     => $streamUrl,
 		song    => $song,
 		client  => $client,
 #		bitrate => $mime =~ /flac/i ? 750_000 : 320_000,
 	} ) || return;
     
-	${*$sock}{contentType} = $mime;
-   
+    
+	
+    ${*$sock}{contentType} = $mime;
+    
     if (defined($sock)) {
 		${*$sock}{'vars'} = {                   # variables which hold state for this instance:
 			'inBuf'       => '',                # buffer of received data
@@ -54,11 +65,40 @@ sub new {
 		};
 	}
     
-    return $sock;
+    return bless $sock, $class;;
 }
 
 sub vars {
 	return ${*{$_[0]}}{'vars'};
+}
+
+# The real delay is caused by max between bufferThreshold*1000 and RANGE_SIZE,
+# no data could be returned before the first chunk is here.
+# If this method is omitted, then player.pm will try to calculate the value using 
+# bitrate and buffersec preference (that is also used to size the buffer) resulting
+# in a too huge value, topped at 255, that is good for mp3 but maybe little for flac.
+#
+# THE FOLLOWING SEEMS NOT TO WORK...
+#
+
+sub bufferThreshold{
+	my ($class, $client, $url) = @_;
+    
+    #We have bufferThreshold in prefs, let's use it.
+    my $prefs= $class->getPreferences($client);
+    
+    my $bufferThreshold= $prefs->get('bufferThreshold');
+    
+    if ($bufferThreshold){return $bufferThreshold};
+ 
+    my $bufferSecs = $prefs->get('bufferSecs') || BUFFERING_SECONDS;
+        
+    #limit to BUFFERING_SECONDS seconds.
+    if ($bufferSecs > BUFFERING_SECONDS){$bufferSecs = BUFFERING_SECONDS;}
+    
+    my $format = $class->getFormatForURL($url);
+    
+	return ($format eq 'flc' ? 80 : 32) * $bufferSecs;
 }
 
 sub sysread {
@@ -115,8 +155,6 @@ sub _sysread(){
     use bytes;
     
     my $self = $_[0];
-    #my $chunk  = $_[1];
-	#my $chunkSize = $_[2];
     
     my $v = $self->vars;
     my $url = ${*$self}{'url'};
@@ -127,7 +165,7 @@ sub _sysread(){
         my $range;
         
         if ($v->{'streaming'}){
-            $range = "bytes=$v->{offset}-" . ($v->{offset} + DATA_CHUNK - 1);
+            $range = "bytes=$v->{offset}-" . ($v->{offset} + RANGE_SIZE - 1);
  
         } else {
             
@@ -140,11 +178,11 @@ sub _sysread(){
 			sub {
 				$v->{'inBuf'} .= $_[0]->content;
 				$v->{'fetching'} = 0;
-				$v->{'streaming'} = 0 if length($_[0]->content) < DATA_CHUNK;
+				$v->{'streaming'} = 0 if length($_[0]->content) < RANGE_SIZE;
                 $v->{offset} += length($_[0]->content);
                 
-				main::DEBUGLOG && $log->is_debug && $log->debug("got chunk length: ", length $_[0]->content, " from ", $v->{offset} - DATA_CHUNK, " for $url");
-                Data::Dump::dump("* Got chunk length: ", length $_[0]->content, $v->{offset} - DATA_CHUNK, length $v->{'inBuf'});
+				main::DEBUGLOG && $log->is_debug && $log->debug("got chunk length: ", length $_[0]->content, " from ", $v->{offset} - RANGE_SIZE, " for $url");
+                Data::Dump::dump("* Got chunk length: ", length $_[0]->content, $v->{offset} - RANGE_SIZE, length $v->{'inBuf'});
             },
 			
 			sub { 
@@ -183,9 +221,9 @@ sub _sysread(){
     
 }
 
-sub canSeek { 1 }
-#sub getSeekDataByPosition { undef }
-#sub getSeekData { undef }
+sub canSeek { 0 }
+sub getSeekDataByPosition { undef }
+sub getSeekData { undef }
 
 sub scanUrl {
 	my ($class, $url, $args) = @_;

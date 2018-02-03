@@ -153,10 +153,12 @@ sub play {
 
         Data::Dump::dump("SQUEEZEBOX - play buffer Threshold", $params->{bufferThreshold});
         Data::Dump::dump("SQUEEZEBOX - play handler", $handler);
-		Data::Dump::dump("SQUEEZEBOX - play handler canThreshold", $handler->can('bufferThreshold'));
+        Data::Dump::dump("SQUEEZEBOX - play handler is blessed", blessed($handler));
+		Data::Dump::dump("SQUEEZEBOX - play handler can bufferThreshold", $handler->can('bufferThreshold'));
         
+
         my $bitrate = $controller->song()->streambitrate();
-        
+
 		# Reduce threshold if protocol handler wants to
 		if ( $handler->can('bufferThreshold') ) {
 			$params->{bufferThreshold} = $handler->bufferThreshold( $client, $params->{url} );
@@ -177,12 +179,13 @@ sub play {
             Data::Dump::dump("SQUEEZEBOX - resulting buffer Threshold", $params->{bufferThreshold});
 		}
         
-		Data::Dump::dump("SQUEEZEBOX - client standard buffering:", $params->{bufferThreshold} * 1024, $bufferSecs * 44100 * 2 * 4);
-        Data::Dump::dump("SQUEEZEBOX - client real buffering:", 4 * 1024 * 1024, 32 * 1024 * 1024);
+		#Data::Dump::dump("SQUEEZEBOX - client standard buffering:", $params->{bufferThreshold} * 1024, $bufferSecs * 44100 * 2 * 4);
+        #Data::Dump::dump("SQUEEZEBOX - client real buffering:", 4 * 1024 * 1024, 32 * 1024 * 1024);
 		
         # tested line, use all the buffer and wait as long as necessary before start playback.
         #$client->buffering(4 * 1024 * 1024, $client->bufferSize());
         
+        Data::Dump::dump("SQUEEZEBOX - client buffering:", $params->{bufferThreshold} * 1024, $bufferSecs * 44100 * 2 * 4);
         $client->buffering($params->{bufferThreshold} * 1024, $bufferSecs * 44100 * 2 * 4);
         
 	}

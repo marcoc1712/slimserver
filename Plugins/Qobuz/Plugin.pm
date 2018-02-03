@@ -1,13 +1,17 @@
 package Plugins::Qobuz::Plugin;
 
 use strict;
+
 use base qw(Slim::Plugin::OPMLBased);
+
+use Socket;
 
 use Slim::Formats::RemoteMetadata;
 use Slim::Player::ProtocolHandlers;
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
 use Slim::Utils::Strings qw(string cstring);
+
 
 use Plugins::Qobuz::API;
 use Plugins::Qobuz::ProtocolHandler;
@@ -1030,7 +1034,6 @@ sub cliQobuzPlayAlbum {
 
 	$request->setStatusDone();
 }
-
 
 sub _imgProxy { if (CAN_IMAGEPROXY) {
 	my ($url, $spec) = @_;
