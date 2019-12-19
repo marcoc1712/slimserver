@@ -803,6 +803,9 @@ sub _cliQuery_done {
 				$log->error("Requested item index $xmlbrowserPlayControl out of range: ",
 					$subFeed->{'offset'}, '..', $subFeed->{'offset'} + $count -1);
 			} else {
+				# this certainly does look wrong, but I've seen cases where this menu was misbehavioung if there was a code reference in one item - mh
+				unshift @crumbIndex, 'ffffffff' if $crumbIndex[0] !~ /^[a-f0-9]{8}/i;
+
 				my $item = $items->[$i];
 				for my $eachmenu (@{ 
 					_playlistControlContextMenu({
@@ -1432,7 +1435,6 @@ sub _cliQuery_done {
 					mp3tunes	=>	'PLUGIN_MP3TUNES_MODULE_NAME',
 					radiotime	=>	'PLUGIN_RADIOTIME_MODULE_NAME',
 					slacker		=>	'PLUGIN_SLACKER_MODULE_NAME',
-					live365		=>	'PLUGIN_LIVE365_MODULE_NAME',
 					lma		=>	'PLUGIN_LMA_MODULE_NAME',
 				};
 				
