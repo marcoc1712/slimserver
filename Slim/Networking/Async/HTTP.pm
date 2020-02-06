@@ -1,8 +1,7 @@
 package Slim::Networking::Async::HTTP;
 
-# $Id$
 
-# Logitech Media Server Copyright 2003-2011 Logitech.
+# Logitech Media Server Copyright 2003-2020 Logitech.
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License,
 # version 2.
@@ -321,14 +320,14 @@ sub read_body {
 	Slim::Networking::Select::addRead( $self->socket, \&_http_read_body );
 }
 
-sub suspendStream {
+sub suspend_stream {
 	my $self = shift;
 
 	Slim::Utils::Timers::killTimers( $self->socket, \&_http_read_timeout );
 	Slim::Networking::Select::removeRead( $self->socket );
 }
 
-sub resumeStream {
+sub resume_stream {
 	my $self = shift;
 
 	my $timeout = $self->timeout || $prefs->get('remotestreamtimeout');

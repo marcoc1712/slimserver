@@ -1,6 +1,6 @@
 package Slim::Web::ImageProxy;
 
-# Logitech Media Server Copyright 2001-2011 Logitech.
+# Logitech Media Server Copyright 2001-2020 Logitech.
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License,
 # version 2.
@@ -248,6 +248,9 @@ sub _gotArtworkError {
 	elsif ($http->error && $http->error =~ /(\d{3})/) {
 		$error = $1;
 		main::INFOLOG && $log->is_info && $log->info("Server returned error: " . $http->error);
+	}
+	elsif (main::INFOLOG && $log->is_info) {
+		$log->info("Unexpected failure fetching $url: " . $http->error);
 	}
 
 	# File does not exist, return error
