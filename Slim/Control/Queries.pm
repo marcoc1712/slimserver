@@ -130,7 +130,7 @@ sub alarmPlaylistsQuery {
 							title   => $choice->{title},
 							cmd	=> [ 'playlist', 'preview' ],
 							params  => {
-								url	=>	$choice->{url}, 
+								url	=>	$choice->{url},
 								title	=>	$choice->{title},
 							},
 						},
@@ -526,6 +526,10 @@ sub albumsQuery {
 		$c->{'albums.compilation'} = 1;
 	}
 
+	if ( $tags =~ /E/ ) {
+		$c->{'albums.extid'} = 1;
+	}
+
 	if ( $tags =~ /X/ ) {
 		$c->{'albums.replay_gain'} = 1;
 	}
@@ -576,10 +580,10 @@ sub albumsQuery {
 			$sqllog->debug( "Albums indexList query: $pageSql / " . Data::Dump::dump($p) );
 		}
 
-		$request->addResult('indexList', [ 
-			map { 
-				utf8::decode($_->[0]); 
-				$_; 
+		$request->addResult('indexList', [
+			map {
+				utf8::decode($_->[0]);
+				$_;
 			} @{ $dbh->selectall_arrayref($pageSql, undef, @{$p}) }
 		]);
 
@@ -702,7 +706,7 @@ sub albumsQuery {
 				SELECT GROUP_CONCAT(contributors.name, ',') AS name, GROUP_CONCAT(contributors.id, ',') AS id
 				FROM contributor_album
 				JOIN contributors ON contributors.id = contributor_album.contributor
-				WHERE contributor_album.album = ? AND contributor_album.role IN (%s) 
+				WHERE contributor_album.album = ? AND contributor_album.role IN (%s)
 				GROUP BY contributor_album.role
 				ORDER BY contributor_album.role DESC
 			}, join(',', map { Slim::Schema::Contributor->typeToRole($_) } @roles) );
@@ -713,15 +717,17 @@ sub albumsQuery {
 		while ( $sth->fetch ) {
 
 			utf8::decode( $c->{'albums.title'} ) if exists $c->{'albums.title'};
-			$request->addResultLoop($loopname, $chunkCount, 'id', $c->{'albums.id'});				
+			$request->addResultLoop($loopname, $chunkCount, 'id', $c->{'albums.id'});
 
 			$tags =~ /l/ && $request->addResultLoop($loopname, $chunkCount, 'album', $construct_title->());
 			$tags =~ /y/ && $request->addResultLoopIfValueDefined($loopname, $chunkCount, 'year', $c->{'albums.year'});
-			$tags =~ /j/ && $request->addResultLoopIfValueDefined($loopname, $chunkCount, 'artwork_track_id', $c->{'albums.artwork'});
+			$tags =~ /j/ && $request->addResultLoopIfValueDefined($loopname, $chunkCount, 'artwork_track_id', $c->{'albums.artwork'}) if ($c->{'albums.artwork'} || '') !~ /^https?:/;;
+			$tags =~ /K/ && $request->addResultLoopIfValueDefined($loopname, $chunkCount, 'artwork_url', $c->{'albums.artwork'}) if ($c->{'albums.artwork'} || '') =~ /^https?:/;
 			$tags =~ /t/ && $request->addResultLoop($loopname, $chunkCount, 'title', $c->{'albums.title'});
 			$tags =~ /i/ && $request->addResultLoopIfValueDefined($loopname, $chunkCount, 'disc', $c->{'albums.disc'});
 			$tags =~ /q/ && $request->addResultLoopIfValueDefined($loopname, $chunkCount, 'disccount', $c->{'albums.discc'});
 			$tags =~ /w/ && $request->addResultLoopIfValueDefined($loopname, $chunkCount, 'compilation', $c->{'albums.compilation'});
+			$tags =~ /E/ && $request->addResultLoopIfValueDefined($loopname, $chunkCount, 'extid', $c->{'albums.extid'});
 			$tags =~ /X/ && $request->addResultLoopIfValueDefined($loopname, $chunkCount, 'album_replay_gain', $c->{'albums.replay_gain'});
 			$tags =~ /S/ && $request->addResultLoopIfValueDefined($loopname, $chunkCount, 'artist_id', $contributorID || $c->{'albums.contributor'});
 
@@ -822,6 +828,9 @@ sub artistsQuery {
 
 	my $va_pref  = $prefs->get('variousArtistAutoIdentification') && $prefs->get('useUnifiedArtistsList');
 
+	# we only want external artists without tracks if there's no filtering argument given
+	my $wantExternal = $tags =~ /Q/ && !$year && !$genreID && !$genreString && !$trackID && !$albumID && !$artistID;
+
 	my $sql    = 'SELECT %s FROM contributors ';
 	my $sql_va = 'SELECT COUNT(*) FROM albums ';
 	my $w      = [];
@@ -891,41 +900,37 @@ sub artistsQuery {
 
 		if ( !defined $search ) {
 			if ( $sql !~ /JOIN contributor_track/ ) {
-				$sql .= 'JOIN contributor_album ON contributor_album.contributor = contributors.id ';
+				$sql .= ($wantExternal ? 'LEFT ' : '') . 'JOIN contributor_album ON contributor_album.contributor = contributors.id ';
 			}
 		}
 
-		# XXX - why would we not filter by role, as drilling down would filter anyway, potentially leading to empty resultsets?
-		#       make sure we don't miss the VA object, as it might not have any of the roles we're looking for -mh
-		#if ( !defined $search ) {
-			if ( $sql =~ /JOIN contributor_track/ ) {
-				push @{$w}, '(contributor_track.role IN (' . join( ',', @{$roles} ) . ') ' . ($search ? 'OR contributors.id = ? ' : '') . ') ';
+		if ( $sql =~ /JOIN contributor_track/ ) {
+			push @{$w}, '(contributor_track.role IN (' . join( ',', @{$roles} ) . ') ' . ($search ? 'OR contributors.id = ? ' : '') . ') ';
+		}
+		else {
+			if ( $sql !~ /JOIN contributor_album/ ) {
+				$sql .= (($search || $wantExternal) ? 'LEFT ' : '') . 'JOIN contributor_album ON contributor_album.contributor = contributors.id ';
+			}
+			push @{$w}, '(contributor_album.role IN (' . join( ',', @{$roles} ) . ') ' . ($search ? 'OR contributors.id = ? ' : '') . ') ';
+		}
+
+		push @{$p}, Slim::Schema->variousArtistsObject->id if $search;
+
+		if ( $va_pref || $aa_merge ) {
+			# Don't include artists that only appear on compilations
+			if ( $sql =~ /JOIN tracks/ ) {
+				# If doing an artists-in-genre query, we are much better off joining through albums
+				$sql .= 'JOIN albums ON albums.id = tracks.album ';
 			}
 			else {
 				if ( $sql !~ /JOIN contributor_album/ ) {
-					$sql .= ($search ? 'LEFT ' : '') . 'JOIN contributor_album ON contributor_album.contributor = contributors.id ';
+					$sql .= ($wantExternal ? 'LEFT ' : '') . 'JOIN contributor_album ON contributor_album.contributor = contributors.id ';
 				}
-				push @{$w}, '(contributor_album.role IN (' . join( ',', @{$roles} ) . ') ' . ($search ? 'OR contributors.id = ? ' : '') . ') ';
+				$sql .= ($wantExternal ? 'LEFT ' : '') . 'JOIN albums ON contributor_album.album = albums.id ';
 			}
 
-			push @{$p}, Slim::Schema->variousArtistsObject->id if $search;
-
-			if ( $va_pref || $aa_merge ) {
-				# Don't include artists that only appear on compilations
-				if ( $sql =~ /JOIN tracks/ ) {
-					# If doing an artists-in-genre query, we are much better off joining through albums
-					$sql .= 'JOIN albums ON albums.id = tracks.album ';
-				}
-				else {
-					if ( $sql !~ /JOIN contributor_album/ ) {
-						$sql .= 'JOIN contributor_album ON contributor_album.contributor = contributors.id ';
-					}
-					$sql .= 'JOIN albums ON contributor_album.album = albums.id ';
-				}
-
-				push @{$w}, '(albums.compilation IS NULL OR albums.compilation = 0' . ($va_pref ? '' : ' OR contributors.id = ' . Slim::Schema->variousArtistsObject->id) . ')';
-			}
-		#}
+			push @{$w}, '(albums.compilation IS NULL OR albums.compilation = 0' . ($va_pref ? '' : ' OR contributors.id = ' . Slim::Schema->variousArtistsObject->id) . ')';
+		}
 
 		if (defined $albumID || defined $year) {
 			if ( $sql !~ /JOIN contributor_album/ ) {
@@ -966,7 +971,7 @@ sub artistsQuery {
 		}
 
 		if (defined $libraryID) {
-			$sql .= 'JOIN library_contributor ON library_contributor.contributor = contributors.id ';
+			$sql .= ($wantExternal ? 'LEFT ' : '') . 'JOIN library_contributor ON library_contributor.contributor = contributors.id ';
 			push @{$w}, 'library_contributor.library = ?';
 			push @{$p}, $libraryID;
 		}
@@ -976,7 +981,7 @@ sub artistsQuery {
 		$sql .= 'WHERE ';
 		my $s = join( ' AND ', @{$w} );
 		$s =~ s/\%/\%\%/g;
-		$sql .= $s . ' ';
+		$sql .= ($wantExternal ? "($s) OR (contributors.extid IS NOT NULL AND contributors.extid != '')" : $s) . ' ';
 	}
 
 	my $dbh = Slim::Schema->dbh;
@@ -1022,7 +1027,7 @@ sub artistsQuery {
 		}
 	}
 
-	$sql = sprintf($sql, 'contributors.id, contributors.name, contributors.namesort')
+	$sql = sprintf($sql, 'contributors.id, contributors.name, contributors.namesort' . ($tags =~ /E/ ? ', contributors.extid' : ''))
 			. 'GROUP BY contributors.id ';
 
 	$sql .= "ORDER BY $sort " unless $tags eq 'CC';
@@ -1086,7 +1091,7 @@ sub artistsQuery {
 	my $loopname = 'artists_loop';
 	my $chunkCount = 0;
 
-	if ($valid && $tags ne 'CC') {			
+	if ($valid && $tags ne 'CC') {
 		# Limit the real query
 		if ( $index =~ /^\d+$/ && $quantity =~ /^\d+$/ ) {
 			$sql .= "LIMIT ?,? ";
@@ -1100,8 +1105,10 @@ sub artistsQuery {
 		my $sth = $dbh->prepare_cached($sql);
 		$sth->execute( @{$p} );
 
-		my ($id, $name, $namesort);
-		$sth->bind_columns( \$id, \$name, \$namesort );
+		my ($id, $name, $namesort, $extid);
+		my @bind = (\$id, \$name, \$namesort);
+		push @bind, \$extid if $tags =~ /E/;
+		$sth->bind_columns(@bind);
 
 		my $process = sub {
 			$id += 0;
@@ -1115,6 +1122,10 @@ sub artistsQuery {
 				# Bug 11070: Don't display large V at beginning of browse Artists
 				my $textKey = ($count_va && $chunkCount == 0) ? ' ' : substr($namesort, 0, 1);
 				$request->addResultLoop($loopname, $chunkCount, 'textkey', $textKey);
+			}
+
+			if ($tags =~ /E/ && $extid) {
+				$request->addResultLoop($loopname, $chunkCount, 'extid', $extid);
 			}
 
 			$chunkCount++;
@@ -1412,7 +1423,7 @@ sub displaystatusQuery {
 
 	} elsif ($subs =~ /showbriefly|update|bits|all/) {
 		# new subscription request - add subscription, assume cli or jive format for the moment
-		$request->privateData({ 'format' => $request->source eq 'CLI' ? 'cli' : 'jive' }); 
+		$request->privateData({ 'format' => $request->source eq 'CLI' ? 'cli' : 'jive' });
 
 		my $client = $request->client;
 
@@ -1605,10 +1616,10 @@ sub genresQuery {
 	if ($tags =~ /Z/) {
 		my $pageSql = sprintf($sql, "SUBSTR(genres.namesort,1,1), count(distinct genres.id)")
 			 . "GROUP BY SUBSTR(genres.namesort,1,1) ORDER BY genres.namesort $collate";
-		$request->addResult('indexList', [ 
-			map { 
-				utf8::decode($_->[0]); 
-				$_; 
+		$request->addResult('indexList', [
+			map {
+				utf8::decode($_->[0]);
+				$_;
 			} @{ $dbh->selectall_arrayref($pageSql, undef, @{$p}) }
 		]);
 		if ($tags =~ /ZZ/) {
@@ -2648,6 +2659,8 @@ sub playlistsQuery {
 				$request->addResultLoop($loopname, $chunkCount, "playlist", $eachitem->title);
 				$tags =~ /u/ && $request->addResultLoop($loopname, $chunkCount, "url", $eachitem->url);
 				$tags =~ /s/ && $request->addResultLoop($loopname, $chunkCount, 'textkey', $textKey);
+				$tags =~ /E/ && $request->addResultLoop($loopname, $chunkCount, 'extid', $eachitem->extid);
+				$tags =~ /x/ && $request->addResultLoop($loopname, $chunkCount, 'remote', $eachitem->remote ? 1 : 0);
 
 				$chunkCount++;
 
@@ -4772,10 +4785,11 @@ my %tagMap = (
 	                                                                    #replay_peak
 
 	  'c' => ['coverid',          'COVERID',       'coverid'],          # coverid
-	  'K' => ['artwork_url',      '',              'coverurl'],         # artwork URL, not in db
+	  'K' => ['artwork_url',      '',              'coverurl'],         # artwork URL
 	  'B' => ['buttons',          '',              'buttons'],          # radio stream special buttons
 	  'L' => ['info_link',        '',              'info_link'],        # special trackinfo link for i.e. Pandora
 	  'N' => ['remote_title'],                                          # remote stream title
+	  'E' => ['extid',            '',              'extid'],            # a track's external identifier (eg. on an online music service)
 
 
 	# Tag    Tag name              Token              Relationship     Method          Track relationship
@@ -4838,6 +4852,7 @@ my %colMap = (
 	x => sub { $_[0]->{'tracks.remote'} ? 1 : 0 },
 	c => 'tracks.coverid',
 	H => 'tracks.channels',
+	E => 'tracks.extid',
 );
 
 sub _songDataFromHash {
@@ -5045,7 +5060,7 @@ sub _songData {
 					# array returned/genre
 					if ( blessed($related) && $related->isa('Slim::Schema::ResultSet::Genre')) {
 						$value = join(', ', map { $_ = $_->$submethod() } $related->all);
-					} elsif ( $isRemote ) {
+					} elsif ( $isRemote && !$related->can($submethod) ) {
 						$value = $related;
 					} else {
 						$value = $related->$submethod();

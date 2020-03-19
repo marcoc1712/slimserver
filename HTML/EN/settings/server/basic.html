@@ -92,11 +92,7 @@
 	[% WRAPPER setting title="SETUP_RESCAN" desc="SETUP_RESCAN_DESC" %]
 		<select class="stdedit disableOnScan" name="pref_rescantype" id="rescantype" [% IF scanning %]disabled[% END %]>
 
-		[% FOREACH option = {
-			'1rescan'   => 'SETUP_STANDARDRESCAN',
-			'2wipedb'   => 'SETUP_WIPEDB',
-			'3playlist' => 'SETUP_PLAYLISTRESCAN',
-		} %]
+		[% FOREACH option = scanTypes %]
 			<option [% IF scanning == option.value %]selected [% END %]value="[% option.key %]">[% option.value | string %]</option>
 		[%- END -%]
 		

@@ -10,7 +10,7 @@
 # Also, when submitting changes, please use the latest version in CVS
 #
 # NOTE: Please keep the languages in alphabetical order by two-letter identifier.
-# 
+#
 # The two letter codes are defined by ISO 639-1
 # http://en.wikipedia.org/wiki/List_of_ISO_639_codes
 
@@ -90,19 +90,19 @@ CREDITS
 	ZH_CN	Kok-Bin Lee
 
 COPYRIGHT
-	CS	© 2001-2020 Logitech Verze 7.9.3
-	DA	© 2001-2020 Logitech - version 7.9.3
-	DE	© 2001-2020 Logitech Version 7.9.3
-	EN	© 2001-2020 Logitech Version 7.9.3
-	ES	© 2001-2020 Logitech Versión 7.9.3
-	FI	© 2001-2020 Logitechin versio 7.9.3
-	FR	© 2001-2020 Logitech Version 7.9.3
-	IT	© 2001-2020 Logitech versione 7.9.3
-	NL	© 2001-2020 Logitech versie 7.9.3
-	NO	© 2001–2011 Logitech versjon 7.9.3
-	PL	© 2001-2020 Logitech wersja 7.9.3
-	RU	© Logitech, 2001-2020. Версия 7.9.3
-	SV	© 2001–2011 Logitech Version 7.9.3
+	CS	© 2001-2020 Logitech Verze 8.0.0
+	DA	© 2001-2020 Logitech - version 8.0.0
+	DE	© 2001-2020 Logitech Version 8.0.0
+	EN	© 2001-2020 Logitech Version 8.0.0
+	ES	© 2001-2020 Logitech Versión 8.0.0
+	FI	© 2001-2020 Logitechin versio 8.0.0
+	FR	© 2001-2020 Logitech Version 8.0.0
+	IT	© 2001-2020 Logitech versione 8.0.0
+	NL	© 2001-2020 Logitech versie 8.0.0
+	NO	© 2001–2011 Logitech versjon 8.0.0
+	PL	© 2001-2020 Logitech wersja 8.0.0
+	RU	© Logitech, 2001-2020. Версия 8.0.0
+	SV	© 2001–2011 Logitech Version 8.0.0
 
 COPYRIGHT_LOGITECH
 	CS	© 2001-2020 Logitech
@@ -120,19 +120,19 @@ COPYRIGHT_LOGITECH
 	SV	© 2001-2020 Logitech
 
 VERSION
-	CS	Verze 7.9.3 / r%s
-	DA	Version 7.9.3 / r%s
-	DE	Version 7.9.3 / r%s
-	EN	Version 7.9.3 / r%s
-	ES	Versión 7.9.3 / r%s
-	FI	Versio 7.9.3 / r%s
-	FR	Version 7.9.3 / r%s
-	IT	Versione 7.9.3/r%s
-	NL	Versie 7.9.3 / r%s
-	NO	Versjon 7.9.3 / r%s
-	PL	Wersja 7.9.3 / r%s
-	RU	Версия 7.9.3 / r%s
-	SV	Version 7.9.3 / r%s
+	CS	Verze 8.0.0 / r%s
+	DA	Version 8.0.0 / r%s
+	DE	Version 8.0.0 / r%s
+	EN	Version 8.0.0 / r%s
+	ES	Versión 8.0.0 / r%s
+	FI	Versio 8.0.0 / r%s
+	FR	Version 8.0.0 / r%s
+	IT	Versione 8.0.0/r%s
+	NL	Versie 8.0.0 / r%s
+	NO	Versjon 8.0.0 / r%s
+	PL	Wersja 8.0.0 / r%s
+	RU	Версия 8.0.0 / r%s
+	SV	Version 8.0.0 / r%s
 
 CHOOSE_A_LANGUAGE
 	CS	Zvolte prosím jazyk
@@ -3494,6 +3494,10 @@ SOURCE
 	SV	Källa
 	ZH_CN	源头
 
+EXTERNAL_ID
+	DE	Externe ID
+	EN	External ID
+
 #
 # Setup page strings
 # General strings for the setup pages
@@ -5798,11 +5802,11 @@ SETUP_TRANSITIONDURATION_DESC
 	RU	Введите временной интервал для перекрестного затухания между песнями (в секундах). Максимум — 10 с.
 	SV	Ange varaktighet för korstoningen i sekunder. Maximalt värde är 10 sekunder.
 	ZH_CN	请以秒为单位输入在歌曲之间音频同时淡出淡入的持久时间。最大值为10秒。
-	
+
 SETUP_FADEINDURATION
 	DE	Dauer der Einblendung
 	EN	Play or Resume fade-in duration
-	FR	Durée de montée en volume 
+	FR	Durée de montée en volume
 	NL	Duur infaden
 
 SETUP_FADEINDURATION_DESC
@@ -5961,7 +5965,7 @@ SETUP_TRANSITIONSAMPLERESTRICTION
 	EN	Crossfade Across Different Sample Rates
 
 SETUP_TRANSITIONSAMPLERESTRICTION_DESC
-	DE	In manchen Konfigurationen kann es angebracht sein, Überblendung zwischen Titeln mit unterschiedlichen Sampleraten zu deaktivieren. Dies kann etwa notwendig sein, wenn ein Player beim Überblenden nur ein Knacken oder Lärm wieder gibt. 
+	DE	In manchen Konfigurationen kann es angebracht sein, Überblendung zwischen Titeln mit unterschiedlichen Sampleraten zu deaktivieren. Dies kann etwa notwendig sein, wenn ein Player beim Überblenden nur ein Knacken oder Lärm wieder gibt.
 	EN	It may be appropriate to disable crossfading between tracks with different sample rates. This may be required if this player produces a burst of noise during such transitions.
 
 SETUP_TITLEFORMAT
@@ -7267,7 +7271,7 @@ SETUP_CHECKVERSION_MONTHLY
 	EN	Monthly
 	FR	Mensuel
 	NL	Maandelijks
-	
+
 SETUP_AUTO_DOWNLOAD
 	CS	Automatické stahování
 	DA	Hent automatisk
@@ -7331,7 +7335,7 @@ SETUP_AUTO_DOWNLOAD_1
 SETUP_CHECK_NOW
 	DE	Jetzt nach Update suchen
 	EN	Check for updates now
-	
+
 SETUP_SCREENSAVER
 	CS	Spořič obrazovky při přehrávání
 	DA	Pauseskærm når der spilles
@@ -8194,7 +8198,7 @@ SETUP_SCAN_ON_PREF_CHANGE
 	NL	Start scan bij voorkeurswijzigingen
 	NO	Start gjennomsøking når innstillinger endres
 	PL	Uruchom przeszukiwanie biblioteki po zmianie ustawień
-	
+
 SETUP_SCAN_ON_PREF_CHANGE_DESC
 	DE	Einige Einstellungen erfordern ein erneutes Einlesen der Mediensammlung. Dieser Scan kann automatisch ausgelöst werden. Allerdings kann dies zur Folge haben, dass mehrere Durchsuchen-Läufe hintereinander gestartet werden, falls mehrere Einstellungen geändert werden.
 	EN	Some preferences need a full wipe & rescan of your media library to take effect. This scan can be triggered automatically if you wish. But it could cause multiple scans to be queued up if you change several preferences at once.
@@ -8731,6 +8735,18 @@ SETUP_CSRFPROTECTIONLEVEL_DESC
 	RU	Для защиты от угроз безопасности CSRF (подделки межсайтовых запросов) HTTP-запросы в Logitech Media Server проходят специальную проверку на наличие функций, способных повлиять на работу системы, а также на плей-листы или плееры. В Logitech Media Server можно выбрать уровень проверки. По умолчанию проверка не выполняется. Дополнительные сведения <a href="/html/docs/http.html#csrf">см. в разделе справки</a>.
 	SV	För att skydda dig mot så kallade CSRF-säkerhetshot (Cross Site Request Forgery) granskas varje HTTP-begäran extra noggrant om den gäller funktioner där datorn, spelarna eller spellistorna kan manipuleras. Du kan själv välja hur noggrant granskningen ska utföras. Standardnivån är Ingen. Mer information <a href="/html/docs/http.html#csrf">finns i hjälpavsnittet</a>.
 	ZH_CN	为了免受&quot;CSRF&quot;安全威胁，Logitech Media Server会向那些可能变动您的系统或操作播放表的HTTP请求特别察视。您可以选择此察视的严密程度。缺省为中等。详情请参阅<a href="/html/docs/http.html#csrf">帮助部分</a>。
+
+SETUP_INSECURE_HTTPS
+	DE	Unsicheres HTTPS
+	EN	Insecure HTTPS
+
+SETUP_INSECURE_HTTPS2
+	DE	Server Zertifikate bei HTTPS Verbindungen nicht überprüfen.
+	EN	Switch off certificate verification on HTTPS connections.
+
+SETUP_INSECURE_HTTPS_DESC
+	DE	"Unsicheres HTTPS" bedeutet, dass Logitech Media Server Zertifikate von entfernten Servern nicht mehr auf ihre Gültigkeit überprüft. <b>Es wird nicht empfohlen, diese Option zu aktivieren!</b>. Grundsätzlich sollten Zertifikate immer überprüft werden. Allerdings kann dies unter Umständen fehlschlagen, wenn etwa eine Bibliothek nicht aktualisiert werden kann.
+	EN	Enabling "Insecure HTTPS" switches off certificate verification when Logitech Media Server acts as an HTTPS client. <b>Enabling this option is discouraged!</b> It is bad practice to disable certificate verification, but can be necessary under certain circumstances, eg. when the libraries can't be updated.
 
 SETUP_IPFILTER_HEAD
 	CS	Blokovat příchozí spojení
@@ -11962,7 +11978,7 @@ OGF
 	PL	Ogg FLAC
 	RU	Ogg FLAC
 	SV	Ogg FLAC
- 
+
 DFF
 	EN	DFF
 	NO	DFF
@@ -13312,6 +13328,10 @@ BROWSE_MUSIC_FOLDER_WHILE_SCANNING
 	RU	Во время сканирования папка "Музыка" недоступна.
 	SV	Musikmappen är inte tillgänglig under sökning.
 
+BROWSE_ON_SERVICE
+	DE	Auf %s
+	EN	Browse on %s
+
 SYNCHRONIZE
 	CS	Synchronizovat
 	DA	Synkroniser
@@ -14434,7 +14454,7 @@ PLAYER_IP_ADDRESS
 	FR	L'adresse IP de cette platine est
 	HE	כתובת ה-IP של הנגן היא
 	IT	L'indirizzo IP del lettore è
-	JA	このプレーヤーのIPアドレスは 
+	JA	このプレーヤーのIPアドレスは
 	NL	Het IP-adres van deze muziekspeler is
 	NO	Spillerens IP-adresse er
 	PL	Adres IP tego odtwarzacza to
@@ -14453,7 +14473,7 @@ PLAYER_MAC_ADDRESS
 	FR	L'adresse MAC de cette platine est
 	HE	כתובת ה-MAC של האתרנט של הנגן היא
 	IT	L'indirizzo MAC Ethernet di questo lettore è
-	JA	このプレーヤーのMACアドレスは 
+	JA	このプレーヤーのMACアドレスは
 	NL	Het ethernet-MAC-adres van deze muziekspeler is
 	NO	Spillerens MAC-adresse er
 	PL	Adres MAC w sieci Ethernet tego odtwarzacza to
@@ -16399,7 +16419,7 @@ RADIO_TUNEIN_DESC
 	ES	Si ya conoce la URL de la emisora que desea escuchar, escríbala aquí y haga clic en el botón "Sintonizar". Se puede introducir la URL de la propia secuencia de radio o (por ejemplo, http://62.49.59.50:8000) o el archivo de lista de reproducción que apunta a esa secuencia (por ejemplo http://www.hitzradio.com/hitzradio.pls).
 	FI	Jos tiedät jo sen radiokanavan URL-osoitteen, jota haluat kuunnella, kirjoita se tähän ja valitse Virittäydy kanavalle. Voit kirjoittaa joko radiovirran itsensä (esim. http://62.49.59.50:8000) tai virtaa osoittavan soittoluettelotiedoston (esim. http://www.hitzradio.com/hitzradio.pls) URL:n.
 	FR	Si vous connaissez l'URL d'une station de radio, vous pouvez la spécifier ici et cliquer sur Connecter. Vous pouvez spécifier l'URL du flux lui-même (http://62.49.59.50:8000, par exemple) ou de la liste de lecture pointant vers le flux http://www.hitzradio.com/hitzradio.pls).
-	HE	אם ידועה לך כתובת ה-URL של התחנה שלה ברצונך להאזין, הזן אותה בשדה שלהלן ולחץ על הלחצן "התכוונן". באפשרותך להזין את כתובת ה-URL של זרימת הרדיו עצמה (לדוגמה, http://62.49.59.50:8000) או של קובץ רשימת ההשמעה שמצביע על הזרימה (לדוגמה, http://www.hitzradio.com/hitzradio.pls). 
+	HE	אם ידועה לך כתובת ה-URL של התחנה שלה ברצונך להאזין, הזן אותה בשדה שלהלן ולחץ על הלחצן "התכוונן". באפשרותך להזין את כתובת ה-URL של זרימת הרדיו עצמה (לדוגמה, http://62.49.59.50:8000) או של קובץ רשימת ההשמעה שמצביע על הזרימה (לדוגמה, http://www.hitzradio.com/hitzradio.pls).
 	IT	Se si conosce già l'URL della stazione che si vuole ascoltare, inserirlo qui e fare clic sul pulsante Sintonizza. È possibile inserire l'URL dello stream della radio (esempio http://62.49.59.50:8000) o del file della playlist che punta allo stream (esempio http://www.hitzradio.com/hitzradio.pls).
 	NL	Als je de URL al weet van de zender die je wilt beluisteren, kun je deze hieronder invoeren. Klik vervolgens op de knop Instellen. Je kunt de URL van de radio-stream zelf invoeren (bijv. http://62.49.59.50:8000), of van de playlist dat naar de stream wijst (bijv. http://www.hitzradio.com/hitzradio.pls).
 	NO	Hvis du allerede vet url-en til stasjonen du vil høre på, kan du angi den her og klikke på «Finn». Du kan enten angi url-en til selve radiostrømmen (for eksempel http://62.49.59.50:8000), eller til spillelistefilen som peker til strømmen (for eksempel http://www.hitzradio.com/hitzradio.pls).
@@ -18187,7 +18207,7 @@ SETUP_VARIOUSARTISTAUTOIDENTIFICATION_DESC
 	ES	Se puede optar por hacer que los álbumes recopilatorios aparezcan juntos en "Varios artistas" o que aparezcan por cada artista de la recopilación.
 	FI	Voit valita, että kaikki kokoelmalevyt näkyvät Eri artistit -kohdan alla, tai voit valita, että ne näkyvät kokoelman eri artistien nimen alla.
 	FR	Vous pouvez spécifier si les albums de compilation apparaissent ensemble sous Artistes divers ou indépendamment sous chaque nom d'artiste.
-	HE	באפשרותך לבחור להציג את כל אלבומי האוסף יחדיו תחת "מבצעים שונים" או להציגם תחת כל מבצע מהאוסף. 
+	HE	באפשרותך לבחור להציג את כל אלבומי האוסף יחדיו תחת "מבצעים שונים" או להציגם תחת כל מבצע מהאוסף.
 	IT	È possibile elencare gli album di compilation sotto Artisti vari o mostrarli sotto ogni di artista della compilation.
 	NL	Je kunt verzamelalbums bij 'Diverse artiesten' laten weergeven of ze bij elke artiest in het verzamelalbum laten verschijnen.
 	NO	Du kan velge at samlealbum skal vises under Diverse artister, eller at de skal vises under hver artist i samlingen.
@@ -18238,7 +18258,7 @@ SETUP_VARIOUSARTISTSSTRING_DESC
 	ES	Cuando se agrupan álbumes recopilatorios, aparecen de forma predeterminada en "Varios artistas". Ese nombre se puede cambiar a continuación.
 	FI	Kun kokoelmalevyjä laitetaan samaan ryhmään, ne näkyvät oletuksena kohdassa Eri artistit.  Voit vaihtaa nimen alla.
 	FR	Lorsque des albums de compilation sont regroupés, ils s'affichent par défaut sous Artistes divers. Vous pouvez modifier ce nom ci-dessous.
-	HE	כאשר אלבומי אוסף מקובצים יחדיו, הם מופיעים תחת "מבצעים שונים" כברירת מחדל. באפשרותך לשנות את השם בשדה שלהלן. 
+	HE	כאשר אלבומי אוסף מקובצים יחדיו, הם מופיעים תחת "מבצעים שונים" כברירת מחדל. באפשרותך לשנות את השם בשדה שלהלן.
 	IT	Quando gli album di compilation sono raggruppati, appaiono sotto Artisti vari per impostazione predefinita. È possibile cambiare la denominazione qui sotto.
 	NL	Wanneer verzamelalbums bij elkaar gegroepeerd zijn, verschijnen ze standaard bij 'Diverse artiesten'. Je kunt die naam hieronder wijzigen.
 	NO	Når samlealbum grupperes sammen, sorteres de under «Diverse artister» som standard. Du kan endre det navnet nedenfor.
@@ -19136,7 +19156,7 @@ SETUP_PRECACHEARTWORK_CUSTOM_SPECS
 	NL	Aangepaste specificaties pre-caching
 	NO	Egendefinerte spesifikasjoner for forhåndsbufring
 	PL	Dostosowanie ustawień bufora
-	
+
 SETUP_IMAGEPROXY
 	DE	Plattenhüllen Grössenanpassung
 	EN	Artwork resizing
@@ -19159,7 +19179,7 @@ SETUP_IMAGEPROXY_REMOTE
 	FR	Redimensionner les pochettes avec mysqueezebox.com
 	NL	Gebruik mysqueezebox.com om albumcovers te schalen
 	NO	La mysqueezebox.com skalere plateomslag
-	PL	Użyj mysqueezebox.com do dopasowywania okładek   
+	PL	Użyj mysqueezebox.com do dopasowywania okładek
 
 SETUP_IMAGEPROXY_LOCAL
 	DE	Plattenhüllen lokal in Logitech Media Server anpassen
@@ -19167,7 +19187,7 @@ SETUP_IMAGEPROXY_LOCAL
 	FR	Redimensionner les pochettes avec Logitech Media Server
 	NL	Gebruik Logitech Media Server om albumcovers te schalen
 	NO	La Logitech Media Server skalere plateomslag
-	PL	Użyj Logitech Media Server do dopasowywania okładek   
+	PL	Użyj Logitech Media Server do dopasowywania okładek
 
 SETUP_SERVERPRIORITY
 	CS	Priorita serveru
@@ -21249,6 +21269,10 @@ PLAYLIST_PROGRESS
 	RU	Сканирование плей-листа
 	SV	Sökning i spellista
 
+ONLINE_LIBRARY_DELETED_PROGRESS
+	DE	Titel aus Online Musiksammlung werden gelöscht
+	EN	Removing online library tracks
+
 MERGEVA_PROGRESS
 	CS	Sloučit více interpretů
 	DA	Flet Diverse kunstnere
@@ -21401,6 +21425,13 @@ VIRTUALLIBRARIES
 	NO	Delbiblioteker
 	PL	Biblioteki tematyczne
 
+SETUP_LIBRARY_VIEWS_DESC
+	DE	Bibliotheksansichten erlauben es, die Auswahl in Eigene Musik zu filtern. Falls Ansichten aktiviert sind, so können Sie diese im Menü Eigene Musik auswählen.
+	EN	Library views allow you to use the My Music menu on a filtered selection of tracks. When views are enabled, you'll be able to switch between them from a sub-menu in My Music.
+	NL	Deelcollecties maken het mogelijk om Mijn Muziek te filteren op geselecteerde nummers. Wanneer ingeschakeld, kun je in een submenu in Mijn Muziek wisselen tussen je deelcollecties.
+	NO	Delbiblioteker gjør at du kan bruke Min musikk-menyen på et filtrert utvalg av spor. Når de er aktivert, kan du veksle mellom delbibliotekene fra en undermeny av Min musikk.
+	PL	Biblioteki tematyczne pozwalają na użycie menu "Moja muzyka" na przefiltrowanym zbiorze utworów. Do menu "Moja muzyka" zostanie dodana dodatkowa opcja, służąca do przełączania się pomiędzy bibliotekami.
+
 ALL_LIBRARY
 	DE	Ganze Musiksammlung
 	EN	All music library
@@ -21408,7 +21439,7 @@ ALL_LIBRARY
 	NL	Hele muziekcollectie
 	NO	Hele musikksamlingen
 	PL	Cała biblioteka muzyczna
-	
+
 SUB_LIBRARY
 	DE	Aktive Bibliotheksansicht
 	EN	Selected library view
@@ -24291,7 +24322,7 @@ SYNC_ABOUT
 
 SETUP_DEFEAT_DESTRUCTIVE_TTP
 # SLT - try to keep this as short as possible...
-	DE	Destruktive "Wiedergabe durch Berühren" unterdrücken 
+	DE	Destruktive "Wiedergabe durch Berühren" unterdrücken
 	EN	Defeat destructive Touch-To-Play
 	FR	Nouvelle sélection et liste de lecture en cours
 	NL	Bevestigen Touch-To-Play
@@ -24299,8 +24330,8 @@ SETUP_DEFEAT_DESTRUCTIVE_TTP
 	PL	Zachowanie Touch-To-Play
 
 SETUP_DEFEAT_DESTRUCTIVE_TTP_DESC
-	DE	Durch das Berühren/auswählen eines Musikstückes auf der Squeezebox kann versehentlich eine aktuelle Wiedergabeliste ersetzt werden. Dieses destruktive Verhalten kann mit dieser Einstellunge kontrolliert weren.
-	EN	When touching/selecting a playable item on your Squeezebox, you can accidentally replace what is currently playing. This destructive behaviour can be controlled using this parameter. 
+	DE	Durch das Berühren/Auswählen eines Musikstückes auf der Squeezebox kann versehentlich eine Aktuelle Wiedergabeliste ersetzt werden. Dieses destruktive Verhalten kann mit dieser Einstellung gesteuert werden.
+	EN	When touching/selecting a playable item on your Squeezebox, you can accidentally replace what is currently playing. This destructive behaviour can be controlled using this parameter.
 	FR	La sélection d'un titre peut accidentellement remplacer la liste de lecture en cours. Ce paramètre propose plusieurs comportements suite à une sélection.
 	NL	Bij het aanraken/selecteren van een afspeelbaar item op je Squeezebox, kun je per ongeluk vervangen wat op dat moment wordt afgespeeld. Dit gedrag kan worden aangepast met behulp van deze instelling.
 	NO	Ved å berøre avspillbart innhold på squeezeboxmenyen, kan du ved et uhell erstatte det som spilles. Slike uønskede hendelser kan styres av denne innstillingen.
@@ -24337,7 +24368,7 @@ SETUP_DEFEAT_DESTRUCTIVE_TTP_3
 	NL	Alleen vragen als de huidige playlist meer dan een nummer bevat
 	NO	Spør bare hvis den aktuelle spillelista inneholder mer enn ett spor og avspilling er i gang
 	PL	Nie pozwól tylko wtedy, gdy trwa odtwarzanie oraz aktualna lista odtwarzania zawiera więcej niż jeden utwór
-	
+
 SETUP_DEFEAT_DESTRUCTIVE_TTP_4
 	DE	Nachfragen, wenn die Wiedergabe läuft, und aktuell keine Radiostation wiedergegeben wird
 	EN	Defeat only if playing and current item is not a radio stream

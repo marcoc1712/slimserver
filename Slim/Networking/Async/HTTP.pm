@@ -112,24 +112,12 @@ sub new_socket {
 			# So we will probably need to explicitly set "SSL_hostname" if we are to succeed with such
 			# a server.
 
-			# First, try without explicit SNI, so we don't inadvertently break anything.
-			# (This is the 'old' behaviour.) (Probably overly conservative.)
-
-			my $sock;
-
-			if ($self->socks) {
-				$sock = Slim::Networking::Async::Socket::HTTPSSocks->new( %{$self->socks}, @_ );
-			}
-			else {
-				$sock = Slim::Networking::Async::Socket::HTTPS->new( @_ );
-			}
-			return $sock if $sock;
-
 			my %args = @_;
 
 			# Failed. Try again with an explicit SNI.
 			$args{SSL_hostname} = $args{Host};
-			$args{SSL_verify_mode} = Net::SSLeay::VERIFY_NONE();
+			$args{SSL_verify_mode} = Net::SSLeay::VERIFY_NONE() if $prefs->get('insecureHTTPS');
+			
 			if ($self->socks) {
 				return Slim::Networking::Async::Socket::HTTPSSocks->new( %{$self->socks}, %args );
 			}
@@ -497,9 +485,12 @@ sub _http_read {
 		# must be forced. But if nothing has been read yet, attempting to force body reading can lead to
 		# a false empty body result, so let it to the event loop.
 		# Body might also be empty but a keep-alive with no content-length in the response is an error
-		# if everything has already been read, _http_body_read will unsubscribe to event loop
-		# we just subscrive above ... a bit unefficient
-		_http_read_body( $self->socket, $self, $args ) if ( $self->response->headers->header('Connection') =~ /keep-alive/i && $self->socket->_rbuf_length == ($headers->content_length || 0));
+		# if everything has already been read, _http_body_read will unsubscribe to event loop 
+		# we just subscrive above ... a bit unefficient 
+		if ( (!defined $self->response->headers->header('Connection') ||  $self->response->headers->header('Connection') =~ /keep-alive/i) && 
+			$self->socket->_rbuf_length == ($headers->content_length || 0) ) {
+			_http_read_body( $self->socket, $self, $args ) 
+		}
 	}
 }
 
