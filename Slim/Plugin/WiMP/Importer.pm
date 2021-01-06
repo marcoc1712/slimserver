@@ -23,6 +23,7 @@ use Slim::Utils::Strings qw(string);
 use constant ACCOUNTS_URL  => '/api/wimp/v1/opml/library/getAccounts';
 use constant ALBUMS_URL    => '/api/wimp/v1/opml/library/myAlbums?account=%s';
 use constant ARTISTS_URL   => '/api/wimp/v1/opml/library/myArtists?account=%s';
+use constant ARTIST_URL    => '/api/wimp/v1/opml/library/getArtist?id=%s';
 use constant PLAYLISTS_URL => '/api/wimp/v1/opml/library/myPlaylists?account=%s';
 use constant FINGERPRINT_URL => '/api/wimp/v1/opml/library/fingerprint';
 
@@ -89,6 +90,8 @@ sub scanAlbums { if (main::SCANNER) {
 		main::INFOLOG && $log->is_info && $log->info("Reading albums for $account...");
 		$progress->update(string('PLUGIN_TIDAL_PROGRESS_READ_ALBUMS', $account));
 
+		my $accountName = "tidal:$account" if scalar @$accounts > 1;
+
 		my $albumsResponse = $http->get(Slim::Networking::SqueezeNetwork::Sync->url(sprintf(ALBUMS_URL, $account)));
 		my $albums = eval { from_json($albumsResponse->content) } || [];
 
@@ -111,7 +114,7 @@ sub scanAlbums { if (main::SCANNER) {
 
 			$class->storeTracks([
 				map { _prepareTrack($_, $album) } @$tracks
-			]);
+			], undef, $accountName);
 		}
 
 		Slim::Schema->forceCommit;
@@ -138,7 +141,7 @@ sub scanArtists { if (main::SCANNER) {
 			});
 		}
 
-		main::INFOLOG && $log->is_info && $log->info("Reading albums for $account...");
+		main::INFOLOG && $log->is_info && $log->info("Reading artists for $account...");
 		$progress->update(string('PLUGIN_TIDAL_PROGRESS_READ_ARTISTS', $account));
 
 		my $artistsResponse = $http->get(Slim::Networking::SqueezeNetwork::Sync->url(sprintf(ARTISTS_URL, $account)));
@@ -161,12 +164,12 @@ sub scanArtists { if (main::SCANNER) {
 			$progress->update($account . string('COLON') . ' ' . $name);
 			Slim::Schema->forceCommit;
 
-			Slim::Schema->rs('Contributor')->update_or_create({
-				'name'       => $name,
-				'namesort'   => Slim::Utils::Text::ignoreCaseArticles($name),
-				'namesearch' => Slim::Utils::Text::ignoreCase($name, 1),
-				'extid'      => 'wimp:artist:' . $artist->{id},
-			}, { 'key' => 'namesearch' });
+			Slim::Schema::Contributor->add({
+				'artist' => $name,
+				'extid'  => 'wimp:artist:' . $artist->{id},
+			});
+
+			_cacheArtistPictureUrl($artist)
 		}
 
 		Slim::Schema->forceCommit;
@@ -236,7 +239,7 @@ sub scanPlaylists { if (main::SCANNER) {
 					title     => $_->{title},
 					cover     => $_->{cover},
 					duration  => $_->{duration},
-					type      => $_->{flac} ? 'FLAC' : 'MP3',
+					type      => $_->{flac} ? 'FLAC' : 'AAC',
 				}, time + 360 * 86400);
 
 				push @trackIds, $_->{url};
@@ -253,6 +256,40 @@ sub scanPlaylists { if (main::SCANNER) {
 	Slim::Schema->forceCommit;
 } }
 
+sub getArtistPicture { if (main::SCANNER) {
+	my ($class, $id) = @_;
+
+	my $url = $cache->get('tidal_artist_image' . $id);
+
+	return $url if $url;
+
+	$id =~ s/wimp:artist://;
+
+	my $artistResponse = $http->get(Slim::Networking::SqueezeNetwork::Sync->url(sprintf(ARTIST_URL, $id)));
+
+	my $artist = eval { from_json($artistResponse->content) } || [];
+
+	if (scalar @$artist) {
+		$artist = $artist->[0];
+		if ($artist && ref $artist) {
+			_cacheArtistPictureUrl($artist, 30*86400);
+			return $artist->{cover};
+		}
+	}
+
+	return;
+} }
+
+my $previousArtistId = '';
+sub _cacheArtistPictureUrl {
+	my ($artist, $ttl) = @_;
+
+	if ($artist->{cover} && $artist->{id} ne $previousArtistId) {
+		$cache->set('tidal_artist_image' . 'wimp:artist:' . $artist->{id}, $artist->{cover}, $ttl || 86400);
+		$previousArtistId = $artist->{id};
+	}
+}
+
 sub trackUriPrefix { 'wimp://' }
 
 # This code is not run in the scanner, but in LMS
@@ -260,7 +297,7 @@ sub needsUpdate { if (!main::SCANNER) {
 	my ($class, $cb) = @_;
 
 	my $oldFingerprint = $cache->get('tidal_library_fingerprint') || return $cb->(1);
-	
+
 	if ($oldFingerprint == -1) {
 		return $cb->($oldFingerprint);
 	}
@@ -289,15 +326,15 @@ sub _prepareTrack {
 	return {
 		url          => $track->{url},
 		TITLE        => $track->{title},
-		ARTIST       => $track->{artist}->{name},
-		ARTIST_EXTID => 'wimp:artist:' . $track->{artist}->{id},
+		ARTIST       => $album->{artist}->{name},
+		ARTIST_EXTID => 'wimp:artist:' . $album->{artist}->{id},
 		TRACKARTIST  => join($splitChar, map { $_->{name} } @{ $track->{artists} }),
 		ALBUM        => $album->{title},
 		ALBUM_EXTID  => 'wimp:album:' . $album->{id},
 		TRACKNUM     => $track->{trackNumber},
 		GENRE        => 'TIDAL',
 		DISC         => $track->{volumeNumber},
-		DISCC        => $track->{numberOfVolumes} || 1,
+		DISCC        => $album->{numberOfVolumes} || 1,
 		SECS         => $track->{duration},
 		YEAR         => substr($album->{releaseDate} || '', 0, 4),
 		COVER        => $album->{cover},

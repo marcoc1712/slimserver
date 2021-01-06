@@ -48,8 +48,8 @@ $prefs->init({
 });
 
 $prefs->setChange( \&initMenus, 'additionalMenuItems' );
-Slim::Control::Request::subscribe( \&initMenus, [['library'], ['changed']] );
-Slim::Control::Request::subscribe( \&initMenus, [['rescan'], ['done']] );
+Slim::Control::Request::subscribe( sub { initMenus(@_) }, [['library'], ['changed']] );
+Slim::Control::Request::subscribe( sub { initMenus(@_) }, [['rescan'], ['done']] );
 
 $prefs->setChange( sub {
 	__PACKAGE__->initLibraries($_[0], $_[1] || 0);
@@ -298,19 +298,17 @@ sub registerBrowseMode {
 	my $icon = $item->{icon};
 
 	# replace feed placeholders
-	my ($feed, $mode);
+	my $feed;
 	if ( ref $item->{feed} eq 'CODE' ) {
 		$feed = $item->{feed};
 	}
 	elsif ( $item->{feed} =~ /\balbums$/ ) {
 		$feed = \&Slim::Menu::BrowseLibrary::_albums;
 		$icon = 'html/images/albums.png';
-		$mode = $item->{params}->{mode} || $item->{id};
 	}
 	else {
 		$feed = \&Slim::Menu::BrowseLibrary::_artists;
 		$icon = 'html/images/artists.png';
-		$mode = $item->{params}->{mode} || $item->{id};
 	}
 
 	my %params = map {
@@ -337,7 +335,7 @@ sub registerCustomString {
 	my ($class, $string) = @_;
 
 	if ( !Slim::Utils::Strings::stringExists($string) ) {
-		my $token = Slim::Utils::Text::ignoreCase($string, 1);
+		my $token = uc(Slim::Utils::Text::ignoreCase($string, 1));
 
 		$token =~ s/\s/_/g;
 		$token = 'PLUGIN_EXTENDED_BROWSEMODES_' . $token;

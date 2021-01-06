@@ -509,7 +509,7 @@ sub opened {
 #	u8_t transition_type;	// [1]	'0' = none, '1' = crossfade, '2' = fade in, '3' = fade out, '4' fade in & fade out, '5' = crossfade-immediate
 #	u8_t flags;	// [1]	0x80 - loop infinitely
 #               //      0x40 - stream without restarting decoder
-#               //      0x20 - Rtmp (SqueezePlay only)
+#               //      0x20 - SSL socket required (when canHTTPS is set in HELO) or Rtmp (other SqueezePlay)
 #               //      0x10 - SqueezePlay direct protocol handler - pass direct to SqueezePlay
 #               //      0x08 - output only right channel as mono
 #               //      0x04 - output only left channel as mono
@@ -574,7 +574,7 @@ sub stream_s {
 
 	$format ||= 'mp3';
 
-	if ($format eq 'pcm') {
+	if ($format eq 'pcm' || $format eq 'wav') {
 
 		$formatbyte      = 'p';
 		$pcmsamplesize   = 1;
@@ -587,6 +587,7 @@ sub stream_s {
 			$pcmsamplesize = $client->pcm_sample_sizes($track);
 			$pcmsamplerate = $client->pcm_sample_rates($track);
 			$pcmchannels   = $track->channels() || '2';
+			$pcmendian = 0 if $track->endian == 1;
 		}
 
 	} elsif ($format eq 'aif') {
@@ -710,7 +711,6 @@ sub stream_s {
 		# (2) All other AAC streams will be adts.
 		
 		$pcmsamplesize   = Slim::Music::Info::contentType($track) =~ /^(?:mp4|sls)$/ ? '5' : '2';
-		
 		$pcmsamplerate   = '?';
 		$pcmendian       = '?';
 		$pcmchannels     = '?';
