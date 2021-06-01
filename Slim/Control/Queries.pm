@@ -698,6 +698,26 @@ sub albumsQuery {
 				GROUP BY contributor_album.role
 				ORDER BY contributor_album.role DESC
 			}, join(',', map { Slim::Schema::Contributor->typeToRole($_) } @roles) );
+
+			# when filtering by role, put that role at the head of the list if it wasn't in there yet
+			if ($roleID) {
+				unshift @roles, map { Slim::Schema::Contributor->roleToType($_) || $_ } split(/,/, $roleID);
+				my %seen;
+				@roles = reverse grep !($seen{$_}++), reverse @roles;
+
+				$contributorSql = sprintf( qq{
+					SELECT GROUP_CONCAT(c.name, ',') AS name, GROUP_CONCAT(c.id, ',') AS id
+					FROM (
+						SELECT contributors.name AS name, contributors.id AS id
+						FROM contributor_album
+							JOIN	contributors ON contributors.id = contributor_album.contributor
+						WHERE contributor_album.album = ? AND contributor_album.role IN (%s)
+						GROUP BY contributors.id
+						ORDER BY contributor_album.role DESC
+					)
+					AS c;
+				}, join(',', map { Slim::Schema::Contributor->typeToRole($_) } @roles) );
+			}
 		}
 
 		my $vaObjId = Slim::Schema->variousArtistsObject->id;
@@ -3235,14 +3255,15 @@ sub serverstatusQuery {
 	}
 
 	# add version
-	if ($request->source && $request->source !~ /-lms8/ && $request->source =~ /serverstatus\|.*?\|.*?\|.*?\|(SqueezePlay-(?:baby|fab4|jive)\b.+)$/) {
+	if ($request->source && $request->source !~ /-lms8/ && $request->source =~ /serverstatus\|.*?\|.*?\|.*?\|(SqueezePlay-(?:baby|fab4|jive|squeezeplay)\b.+)$/) {
 		my $ua = $1;
-		my ($model, $version) = $ua =~ m{SqueezePlay-(baby|fab4|jive)/(\d+\.\d+\.\d+)};
+		my ($model, $version) = $ua =~ m{SqueezePlay-(baby|fab4|jive|squeezeplay)/(\d+\.\d+\.\d+)};
 		if (Slim::Utils::Versions->compareVersions($version, '7.8.0') < 0) {
 			$model = {
 				baby => 'Radio',
 				fab4 => 'Touch',
-				jive => 'Controller'
+				jive => 'Controller',
+				squeezeplay => 'SqueezePlay'
 			}->{$model} || $model;
 
 			main::INFOLOG && logger('network.protocol')->info("Found outdated SB $model, need to return compatible version string: $ua");
@@ -3457,6 +3478,9 @@ sub statusQuery_filter {
 	# Bug 10064: playlist notifications get sent to everyone in the sync-group
 	if ($request->isCommand([['playlist', 'newmetadata']]) && (my $client = $request->client)) {
 		return 0 if !grep($_->id eq $myclientid, $client->syncGroupActiveMembers());
+	} elsif ($request->isCommand([['sync']])) {
+		# Don't filter out notifications for sync commands. All players are notified
+		# of the change in sync state regardless of whether they are "on" or "off".
 	} else {
 		return 0 if $clientid ne $myclientid;
 	}
@@ -5545,6 +5569,8 @@ sub _getTagDataForTracks {
 		$sql .= "ORDER BY $sort ";
 	}
 
+	$ids_only && do { $c->{'tracks.primary_artist'} = 1 };
+
 	# Add selected columns
 	# Bug 15997, AS mapping needed for MySQL
 	my @cols = sort keys %{$c};
@@ -5652,6 +5678,7 @@ sub _getTagDataForTracks {
 		$contrib_sth->execute;
 
 		my %values;
+		my $separator = $tags =~ /AA/ ? ',' : ', ';
 		while ( my ($id, $name, $track, $role) = $contrib_sth->fetchrow_array ) {
 			$values{$track} ||= {};
 			my $role_info = $values{$track}->{$role} ||= {};
@@ -5659,7 +5686,7 @@ sub _getTagDataForTracks {
 			# XXX: what if name has ", " in it?
 			utf8::decode($name);
 			$role_info->{ids}   .= $role_info->{ids} ? ', ' . $id : $id;
-			$role_info->{names} .= $role_info->{names} ? ', ' . $name : $name;
+			$role_info->{names} .= $role_info->{names} ? $separator . $name : $name;
 		}
 
 		my $want_names = $tags =~ /A/;

@@ -34,6 +34,8 @@ our @EXPORT = qw(assert msg msgf errorMsg specified);
 
 use File::Basename qw(basename);
 use File::Spec::Functions qw(:ALL);
+use File::Path qw(mkpath rmtree);
+use File::Temp qw(tempdir);
 use File::Slurp;
 use FindBin qw($Bin);
 use POSIX qw(strftime);
@@ -75,6 +77,7 @@ elsif ($^O =~/darwin/i) {
 
 # Cache our user agent string.
 my $userAgentString;
+my $tempdir;
 
 my %pathToFileCache = ();
 my %fileToPathCache = ();
@@ -421,13 +424,32 @@ sub crackURL {
 	$path ||= '/';
 	$port ||= ((Slim::Networking::Async::HTTP->hasSSL() && $string =~ /^https/) ? 443 : 80);
 
+	my $proxied = "http://$host:$port$path" if $prefs->get('webproxy') && $host !~ /(?:localhost|127.0.0.1)/;
+
 	if ( main::DEBUGLOG && $ospathslog->is_debug ) {
 		$ospathslog->debug("Cracked: $string with [$host],[$port],[$path]");
 		$ospathslog->debug("   user: [$user]") if $user;
 		$ospathslog->debug("   pass: [$pass]") if $pass;
 	}
 
-	return ($host, $port, $path, $user, $pass);
+	return ($host, $port, $path, $user, $pass, $proxied);
+}
+
+=head2 cloneProtocol( $url, $model )
+
+borrow the protocol from $model if missing in $url
+
+=cut
+
+sub cloneProtocol {
+	my ($url, $model) = @_;
+
+	return $url if $url =~ m|^\w+://|;
+
+	$url =~ s|^//||;
+	$model =~ m|^(\w+://)|;
+
+	return $1 . $url;
 }
 
 =head2 fixPath( $file, $base)
@@ -615,6 +637,59 @@ sub getLibraryName {
 	$hostname =~ s/\x{2019}/'/g;
 
 	return $hostname;
+}
+
+=head2 getTempDir()
+
+	Get LMS-private temp dir
+
+=cut
+
+sub getTempDir {
+	return $tempdir;
+}
+
+=head2 makeTempDir()
+
+	make and clean LMS-private temp dir
+
+=cut
+
+sub makeTempDir {
+	return if $tempdir;
+
+	if ($::tmpdir) {
+		$tempdir = catdir($::tmpdir, 'squeezeboxserver');
+
+		if (-d $tempdir) {
+			rmtree($tempdir, { keep_root => 1 });
+			return;
+		}
+
+		mkpath($tempdir);
+		return if -d $tempdir;
+
+		$ospathslog->warn("can't make custom temp dir $tempdir");
+	}
+
+	$tempdir = catdir($prefs->get('cachedir'), 'tmp');
+
+	if (-d $tempdir) {
+		rmtree($tempdir, { keep_root => 1 });
+		return;
+	}
+
+	mkpath($tempdir);
+
+	if (!-d $tempdir) {
+		$tempdir = tempdir( DIR => $prefs->get('cachedir'), CLEANUP => 1 );
+		$ospathslog->warn("can't make private temp dir, trying $tempdir");
+	}
+
+	if (!-d $tempdir) {
+		$tempdir = tempdir( CLEANUP => 1 );
+		$ospathslog->warn("still can't make private temp dir, using $tempdir");
+	}
 }
 
 =head2 getAudioDir()
@@ -1130,7 +1205,7 @@ sub parseRevision {
 
 	# The revision file may not exist for svn copies.
 	my $tempBuildInfo = eval { File::Slurp::read_file(
-		catdir(Slim::Utils::OSDetect::dirsFor('revision'), 'revision.txt')
+		catdir(scalar Slim::Utils::OSDetect::dirsFor('revision'), 'revision.txt')
 	) } || "TRUNK\nUNKNOWN";
 
 	my ($revision, $builddate) = split (/\n/, $tempBuildInfo);

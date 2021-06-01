@@ -66,6 +66,48 @@ my %ogg_quality = (
 	10 => 500000,
 );
 
+
+=head2 parseRemoteHeader( $track, $url, $format, $successCb, $errorCb );
+
+parse a remote URL to acquire header and populate $track object. When 
+finished, calls back success or error callback
+
+=cut
+
+my %parsers = (
+	'wma' => { parser => \&parseWMAHeader, readLimit => 128 * 1024 }, 
+	'aac' => { parser => \&parseAACHeader, readLimit => 4 * 1024 },	  	
+	'ogg' => { parser => \&parseOggHeader, readLimit => 64 },         
+	'flc' => { parser => \&parseFlacHeader },						  
+	'wav' => { parser => \&parseWavAifHeader, extra => 'format' },    
+	'aif' => { parser => \&parseWavAifHeader, extra => 'format' },    
+	'mp4' => { parser => \&parseMp4Header, extra => 'url' },			
+);
+
+sub parseRemoteHeader {
+	my ($track, $url, $format, $successCb, $errorCb) = @_;
+	
+	# first, tidy up things a bit
+	$url ||= $track->url;
+	$format =~ s/flac/flc/;
+
+	my $parser = $parsers{$format};
+	return $successCb->() unless $parser;
+
+	my $http = Slim::Networking::Async::HTTP->new;
+	my $method = $parser->{'readLimit'} ? 'onBody' : 'onStream';
+	push my @extra, $url if $parser->{'extra'} =~ /url/;
+	push @extra, $format if $parser->{'extra'} =~ /format/;
+
+	$http->send_request( {
+		request     => HTTP::Request->new( GET => $url ),
+		$method     => $parser->{'parser'},
+		readLimit   => $parser->{'readLimit'},
+		onError     => $errorCb,
+		passthrough => [ $track, { cb => $successCb }, @extra ],
+	} );
+}
+
 =head2 scanURL( $url, $args );
 
 Scan a remote URL.  When finished, calls back to $args->{cb} with a success flag
@@ -530,14 +572,24 @@ sub readRemoteHeaders {
 				}
 
 				# Continue scanning in the background
+				delete $args->{cb};	
 
 				# We may be able to determine the bitrate or other tag information
 				# about this remote stream/file by reading a bit of audio data
 				main::DEBUGLOG && $log->is_debug && $log->debug('Reading audio data in the background to detect bitrate and/or tags');
+					
+				# as https for whatever reason didn't allow us to start the stream while scanning
+				# we're now disconnecting to allow the stream to start
+				$args->{cb} = sub {
+					my $track = shift;
+					my $param = shift;
+					$http->disconnect;
+					$cb->( $track, $param, @_ );
+				} if $cb && $track->url =~ /^https/;
 
 				# read as much as is necessary to read all ID3v2 tags and determine bitrate
 				$http->read_body( {
-					onStream    => \&streamAudioData,
+					onStream    => \&parseAudioStream,
 					passthrough => [ $track, $args, $url ],
 				} );
 			}
@@ -717,7 +769,6 @@ sub parseFlacHeader {
 	
 	return 1 if ref $info ne 'HASH' && $info;
 
-	$track->audio_initiate( \&Slim::Formats::FLAC::initiateFrameAlign );
 	$track->content_type('flc');
 	
 	if ($info) {
@@ -731,10 +782,10 @@ sub parseFlacHeader {
 		Slim::Music::Info::setDuration( $track, $info->{song_length_ms} / 1000 );
 
 		# we have valid header, means there will be no alignment unless we seek
-		$track->initial_block_type(Slim::Schema::RemoteTrack::INITIAL_BLOCK_ONSEEK);
+		$track->processors('flc', Slim::Schema::RemoteTrack::INITIAL_BLOCK_ONSEEK, \&Slim::Formats::FLAC::initiateFrameAlign);
 	} else {
 		# if we don't have an header, need to always process
-		$track->initial_block_type( Slim::Schema::RemoteTrack::INITIAL_BLOCK_ALWAYS );
+		$track->processors('flc', Slim::Schema::RemoteTrack::INITIAL_BLOCK_ALWAYS, \&Slim::Formats::FLAC::initiateFrameAlign );
 	}	
 
 	# All done
@@ -763,21 +814,22 @@ sub parseMp4Header {
 			return 1;
 		} 
 		else {
-			# please restart from offset set by $info
+			# please restart from offset set by $info, keep current request's custom fields...
 			my $query = Slim::Networking::Async::HTTP->new;
 			$http->disconnect;
+			$http->request->header('Range' => "bytes=$info-");
 	
 			# re-calculate header all the time (i.e. can't go direct at all)
-			$track->initial_block_type(Slim::Schema::RemoteTrack::INITIAL_BLOCK_ALWAYS);
+			$args->{initial_block_type} = Slim::Schema::RemoteTrack::INITIAL_BLOCK_ALWAYS;
 		
-			main::INFOLOG && $log->is_info && $log->debug("'mdat' reached before 'moov' at ", length($args->{_scanbuf}), " => seeking with $args->{_range}");
+			main::INFOLOG && $log->is_info && $log->info("'mdat' reached before 'moov' at ", length($args->{_scanbuf}), " => seeking with $args->{_range}");
 	
 			$query->send_request( {
-				request    => HTTP::Request->new( GET => $url,  [ 'Range' => "bytes=$info-" ] ),
+				request    => $http->request,
 				onStream   => \&parseMp4Header,
 				onError    => sub {
 						my ($self, $error) = @_;
-						$log->warn( "could not find MP4 header $error" );
+						$log->error( "could not find MP4 header $error" );
 						$args->{cb}->( $track, undef, @{$args->{pt} || []} );
 				},
 				passthrough => [ $track, $args, $url ],			
@@ -794,7 +846,7 @@ sub parseMp4Header {
 	my $bitrate = $info->{avg_bitrate};
 	
 	if ( my $item = $info->{tracks}->[0] ) {
-		my $format;
+		my $format = 'mp4';
 		
 		$samplesize = $item->{bits_per_sample};
 		$channels = $item->{channels};
@@ -818,20 +870,12 @@ sub parseMp4Header {
 		}
 		
 		# use process_audio hook & format if set by parser
-		# MPEG-4 audio = 64,  MPEG-4 ADTS main = 102, MPEG-4 ADTS Low Complexity = 103
-		# MPEG-4 ADTS Scalable Sampling Rate = 104
-		if ( $info->{audio_initiate} ) {
-			# we are going to pre-process audio, can't go direct
-			$track->initial_block_type(Slim::Schema::RemoteTrack::INITIAL_BLOCK_ALWAYS);
-			$track->audio_initiate($info->{audio_initiate});
-			$format = $info->{audio_format};
+		foreach ( keys %{$info->{processors}} ) {
+			$track->processors($_, Slim::Schema::RemoteTrack::INITIAL_BLOCK_ALWAYS, $info->{processors}->{$_});
 		} 
-		elsif ( !$format && $item->{audio_type} >= 102 && $item->{audio_type} <= 104 ) {
-			$format = 'aac';
-		}
 		
 		# change track attributes if format has been altered
-		if ( $format ) {
+		if ( $format ne $track->content_type ) {
 			Slim::Schema->clearContentTypeCache( $track->url );
 			Slim::Music::Info::setContentType( $track->url, $format );
 			$track->content_type($format);
@@ -851,8 +895,10 @@ sub parseMp4Header {
 	Slim::Music::Info::setDuration( $track, $duration );
 	
 	# use the audio block to stash the temp file handler
-	$track->initial_block_fh($info->{fh});
-	$track->initial_block_type(Slim::Schema::RemoteTrack::INITIAL_BLOCK_ONSEEK) unless $track->initial_block_type;
+	$track->initial_block_fn($info->{fh}->filename);
+	$info->{fh}->unlink_on_destroy(0);
+	$info->{fh}->close;	
+	$track->processors($track->content_type, $args->{initial_block_type} // Slim::Schema::RemoteTrack::INITIAL_BLOCK_ONSEEK);
 	
 	if ( main::DEBUGLOG && $log->is_debug ) {
 		$log->debug( sprintf( "mp4: %dHz, %dBits, %dch => bitrate: %dkbps (ofs:%d, len:%d, hdr:%d)",
@@ -931,10 +977,11 @@ sub parseWavAifHeader {
 		$args->{cb}->( $track, undef, @{$args->{pt} || []} );
 		return 0;
 	}
-	
+
 	$track->samplerate($info->{samplerate});
 	$track->samplesize($info->{samplesize});
 	$track->channels($info->{channels});	
+	$track->endian($type eq 'wav' || $info->{compression_type} eq 'swot' ? 0 : 1);
 	
 	$track->block_alignment($info->{channels} * $info->{bits_per_sample} / 8);
 	$track->audio_offset($info->{audio_offset});
@@ -949,15 +996,18 @@ sub parseWavAifHeader {
 	}	
 	
 	# we have a dynamic header but can go direct when not seeking
-	$track->initial_block_fh($info->{fh});
-	$track->initial_block_type(Slim::Schema::RemoteTrack::INITIAL_BLOCK_ONSEEK);
+	$track->initial_block_fn($info->{fh}->filename);
+	$info->{fh}->unlink_on_destroy(0);
+	$info->{fh}->close;	
+	
+	$track->processors($type, Slim::Schema::RemoteTrack::INITIAL_BLOCK_ONSEEK);
 
 	# all done
 	$args->{cb}->( $track, undef, @{$args->{pt} || []} );
 	return 0;
 }
 
-sub streamAudioData {
+sub parseAudioStream {
 	my ( $http, $dataref, $track, $args, $url ) = @_;
 
 	return 1 unless defined $$dataref;
@@ -991,6 +1041,9 @@ sub streamAudioData {
 
 			# Read the full ID3v2 tag + some audio frames for bitrate
 			$args->{_scanlen} = $id3size + (16 * 1024);
+			
+			# last chance to set content_type if missing
+			Slim::Music::Info::setContentType( $track->url, 'mp3' ) unless $track->content_type;
 
 			main::DEBUGLOG && $log->is_debug && $log->debug( 'ID3v2 tag detected, will read ' . $args->{_scanlen} . ' bytes' );
 		}
@@ -1064,12 +1117,8 @@ sub streamAudioData {
 	delete $args->{_scanbuf};
 	delete $args->{_scanlen};
 
-	# as https for whatever reason didn't allow us to start the stream while scanning
-	# we're now disconnecting to allow the stream to start
-	if ( $args->{cb} && $track->url =~ /^https/ ) {
-		$http->disconnect;
-		$args->{cb}->( $track, undef, @{$args->{pt} || []} );
-	}
+	# callback if needed
+	$args->{cb}->( $track, undef, @{$args->{pt} || []} ) if $args->{cb};
 
 	# Disconnect
 	return 0;

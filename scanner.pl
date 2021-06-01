@@ -11,7 +11,7 @@
 # GNU General Public License for more details.
 #
 
-require 5.008_001;
+require 5.010;
 use strict;
 
 use FindBin qw($Bin);
@@ -46,7 +46,7 @@ our $REVISION    = undef;
 our $BUILDDATE   = undef;
 
 BEGIN {
-	our $VERSION = '8.0.1';
+	our $VERSION = '8.2.0';
 	use Slim::bootstrap;
 	use Slim::Utils::OSDetect;
 

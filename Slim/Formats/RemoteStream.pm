@@ -38,7 +38,7 @@ sub isRemote {
 	return 1;
 }
 
-sub open {
+sub new {
 	my $class = shift;
 	my $args  = shift;
 
@@ -119,8 +119,12 @@ sub open {
 	
 	${*$sock}{'song'} = $args->{'song'};
 
-	return $sock->request($args);
+	return $sock->open($args);
 
+}
+
+sub open {
+	shift->request(@_);
 }
 
 sub request {
@@ -193,9 +197,11 @@ sub request {
 		# socket in a CLOSE_WAIT state and leaking.
 		$self->close();
 
+		# some 302 location omit the protocol, take it from original url
+		$redir = Slim::Utils::Misc::cloneProtocol($redir, $url);
 		main::INFOLOG && $log->info("Redirect to: $redir");
 
-		return $class->open({
+		return $class->new({
 			'url'     => $redir,
 			'song'    => $args->{'song'},
 			'infoUrl' => $self->infoUrl,
@@ -205,6 +211,8 @@ sub request {
 		});
 	}
 
+	$self->response($args, $request, @headers) if $self->can('response');
+	
 	main::INFOLOG && $log->info("Opened stream!");
 
 	return $self;
@@ -294,6 +302,12 @@ sub contentLength {
 	my $self = shift;
 
 	return ${*$self}{'contentLength'};
+}
+
+sub contentRange {
+	my $self = shift;
+
+	return ${*$self}{'contentRange'};
 }
 
 sub contentType {

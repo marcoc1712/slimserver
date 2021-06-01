@@ -45,6 +45,10 @@ sub initDetails {
 					$class->{osDetails}->{'osArch'} = 'x86_64';
 				}
 
+			} elsif (/Chip.*(Apple .*)/) {
+
+				$class->{osDetails}->{'osArch'} = $1;
+
 			} elsif (/PowerPC/i) {
 
 				$class->{osDetails}->{'osArch'} = 'ppc';
@@ -217,7 +221,7 @@ sub dirsFor {
 
 	} elsif ($dir eq 'playlists') {
 
-		push @dirs, catdir($class->dirsFor('music'), 'Playlists');
+		push @dirs, catdir(scalar $class->dirsFor('music'), 'Playlists');
 
 	# We might get called from some helper script (update checker)
 	} elsif ($dir eq 'libpath' && $Bin =~ m|Bin/darwin|) {

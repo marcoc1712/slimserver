@@ -52,6 +52,9 @@ sub findAndAdd {
 		return undef;
 	}
 
+	my $queryLibrary = $prefs->get('library') || Slim::Music::VirtualLibraries->getLibraryIdForClient($client);
+	my $libraryParam = '&library_id=' . $queryLibrary if $queryLibrary;
+
 	# Add the items to the end
 	foreach my $id (@randomIds) {
 
@@ -63,7 +66,7 @@ sub findAndAdd {
 
 		# Replace the current playlist with the first item / track or add it to end
 		my $request = $client->execute([
-			'playlist', $addOnly ? 'addtracks' : 'loadtracks', sprintf('%s.id=%d', $type, $id)
+			'playlist', $addOnly ? 'addtracks' : 'loadtracks', sprintf('%s.id=%d%s', $type, $id, $libraryParam)
 		]);
 
 		# indicate request source
@@ -101,12 +104,22 @@ sub getIdList {
 
 	if ($type =~ /track|year/) {
 		# it's messy reaching that far in to Slim::Control::Queries, but it's >5x faster on a Raspberry Pi2 with 100k tracks than running the full "titles" query
-		(undef, $idList) = Slim::Control::Queries::_getTagDataForTracks( 'II', {
+		my $results;
+		($results, $idList) = Slim::Control::Queries::_getTagDataForTracks( 'II', {
 			where     => '(tracks.content_type != "cpl" AND tracks.content_type != "src" AND tracks.content_type != "ssp" AND tracks.content_type != "dir")',
 			year      => $type eq 'year' && getRandomYear($client, $filteredGenres),
 			genreId   => $queryGenres,
 			libraryId => $queryLibrary,
 		} );
+
+		if (preferences('server')->get('useBalancedShuffle')) {
+			main::DEBUGLOG && $log->is_debug && $log->debug("Using balanced shuffle");
+			$idList = Slim::Player::Playlist::balancedShuffle([ map { [$_, $results->{$_}->{'tracks.primary_artist'}] } keys %$results ]);
+		}
+		else {
+			# shuffle ID list
+			Slim::Player::Playlist::fischer_yates_shuffle($idList);
+		}
 
 		$type = 'track';
 	}
@@ -130,10 +143,10 @@ sub getIdList {
 		$loop = 'artists_loop' if $type eq 'contributor';
 
 		$idList = [ map { $_->{id} } @{ $request->getResult($loop) || [] } ];
-	}
 
-	# shuffle ID list
-	Slim::Player::Playlist::fischer_yates_shuffle($idList);
+		# shuffle ID list
+		Slim::Player::Playlist::fischer_yates_shuffle($idList);
+	}
 
 	return $idList;
 }

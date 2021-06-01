@@ -97,7 +97,7 @@ href="[% webroot %]plugins/RandomPlay/mix.html?type=[% type %]&amp;player=[% pla
 			[% BLOCK controls %]
 				[%
 					itemobj = {
-						url   = "randomplay://${type}" 
+						url   = "randomplay://${type}"
 						title = title
 					};
 					PROCESS favoritescontrol isFavorite = favorites.${type}
@@ -127,7 +127,7 @@ href="[% webroot %]plugins/RandomPlay/mix.html?type=[% type %]&amp;player=[% pla
 
 
 		<p>[% "PLUGIN_RANDOM_GENRE_FILTER_WEB" | string %]</p>
-	
+
 		[% odd = 1 %]
 		<table border="0" width="100%">[% USE table pluginRandomGenreListSort, cols=2, pad=0 %]
 			[%- FOREACH genrerow = table.rows %]

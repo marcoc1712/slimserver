@@ -147,7 +147,7 @@
 		[% END %]
 	[% END %]
 
-	[% IF prefs.exists('pref_bass') || prefs.exists('pref_treble') || prefs.exists('pref_stereoxl') %]
+	[% IF prefs.exists('pref_bass') || prefs.exists('pref_treble') || prefs.exists('pref_stereoxl') || prefs.exists('pref_balance') %]
 		[% WRAPPER settingSection %]
 			[% IF prefs.exists('pref_bass') %]
 				[% WRAPPER settingGroup title="BASS" desc="" %]
@@ -175,6 +175,13 @@
 					</select>
 				[% END %]
 			[% END %]
+		
+			[% IF prefs.exists('pref_balance') %]
+				[% WRAPPER settingGroup title="BALANCE" desc="" %]
+				<input type="text" class="stdedit sliderInput_-25_25" name="pref_balance" id="pref_balance" value="[% prefs.pref_balance %]" size="5">
+				[% END %]
+			[% END %]
+			
 		[% END %]
 	[% END %]
 
@@ -418,6 +425,7 @@
 				'0' => 'OUTPUT_CHANNELS_NORMAL',
 				'1' => 'OUTPUT_CHANNELS_LEFT',
 				'2' => 'OUTPUT_CHANNELS_RIGHT',
+				'3' => 'OUTPUT_CHANNELS_COMBINED',
 			} %]
 				<option [% IF prefs.pref_outputChannels == option.key %]selected [% END %]value="[% option.key %]">[% option.value | string %]</option>
 			[%- END -%]

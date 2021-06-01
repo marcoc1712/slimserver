@@ -11,7 +11,7 @@
 # GNU General Public License for more details.
 #
 
-require 5.008_001;
+require 5.010;
 use strict;
 
 # Bug 7491 - bug in PerlSvc: ARGV is not populated when executable is run in service mode.
@@ -154,7 +154,7 @@ our $REVISION    = undef;
 our $BUILDDATE   = undef;
 
 BEGIN {
-	our $VERSION = '8.0.1';
+	our $VERSION = '8.2.0';
 
 	# With EV, only use select backend
 	# I have seen segfaults with poll, and epoll is not stable
@@ -328,6 +328,7 @@ our $httpport    = undef;
 our (
 	$inInit,
 	$cachedir,
+	$tmpdir,
 	$user,
 	$group,
 	$cliaddr,
@@ -336,6 +337,7 @@ our (
 	$diag,
 	$help,
 	$httpaddr,
+	$advertiseaddr,
 	$lastlooptime,
 	$logfile,
 	$logdir,
@@ -744,11 +746,13 @@ sub idleStreams {
 sub showUsage {
 	print <<EOF;
 Usage: $0 [--diag] [--daemon] [--stdio]
+          [--cachedir <dirpath>] [--tmpdir <dirpath>]
           [--logdir <logpath>]
           [--logfile <logfilepath|syslog>]
           [--user <username>]
           [--group <groupname>]
           [--httpport <portnumber> [--httpaddr <listenip>]]
+          [--advertiseaddr <ipaddress>]
           [--cliport <portnumber> [--cliaddr <listenip>]]
           [--priority <priority>]
           [--prefsdir <prefspath> [--pidfile <pidfilepath>]]
@@ -761,6 +765,7 @@ Usage: $0 [--diag] [--daemon] [--stdio]
 
     --help           => Show this usage information.
     --cachedir       => Directory for Logitech Media Server to save cached music and web data
+    --tmpdir         => Directory for Logitech Media Server's temporary files (cleaned on start and stop)
     --diag           => Use diagnostics, shows more verbose errors.
                         Also slows down library processing considerably
     --logdir         => Specify folder location for log file
@@ -778,6 +783,8 @@ Usage: $0 [--diag] [--daemon] [--stdio]
     --httpport       => Activate the web interface on the specified port.
                         Set to 0 in order disable the web server.
     --httpaddr       => Activate the web interface on the specified IP address.
+    --advertiseaddr  => IP address to report as its exposed address (UI and to mysqueezebox.com).
+                        Basically the user facing IP address.
     --cliport        => Activate the command line interface TCP/IP interface
                         on the specified port. Set to 0 in order disable the
                         command line interface server.
@@ -836,6 +843,7 @@ sub initOptions {
 		'help'          => \$help,
 		'httpaddr=s'    => \$httpaddr,
 		'httpport=s'    => \$httpport,
+		'advertiseaddr=s' => \$advertiseaddr,
 		'logfile=s'     => \$logfile,
 		'logdir=s'      => \$logdir,
 		'logconfig=s'   => \$logconf,
@@ -843,6 +851,7 @@ sub initOptions {
 		'logging=s'     => \$logging,
 		'LogTimestamp!' => \$LogTimestamp,
 		'cachedir=s'    => \$cachedir,
+		'tmpdir=s'      => \$tmpdir,
 		'pidfile=s'     => \$pidfile,
 		'playeraddr=s'  => \$localClientNetAddr,
 		'priority=i'    => \$priority,
@@ -914,7 +923,7 @@ sub initSettings {
 		$prefs->set('cachedir', $cachedir);
 		$prefs->set('librarycachedir', $cachedir);
 	}
-
+	
 	if (defined($httpport)) {
 		$prefs->set('httpport', $httpport);
 	}
@@ -938,6 +947,10 @@ sub initSettings {
 	}
 
 	Slim::Utils::Prefs::makeCacheDir();
+	
+	# tmpdir is set only through command line
+	$tmpdir = Win32::GetANSIPathName($tmpdir) if main::ISWINDOWS;
+	Slim::Utils::Misc::makeTempDir();
 }
 
 sub daemonize {

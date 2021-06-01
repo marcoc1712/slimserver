@@ -1729,6 +1729,39 @@ sub playlistXtracksCommand {
 		@tracks = _playlistXtracksCommand_parseSearchTerms($client, $what, $cmd);
 	}
 
+	if ( scalar @tracks && $what =~ /track\.titlesearch|contributor\.namesearch|genre\.id/i ) {
+		if ($prefs->get('useBalancedShuffle')) {
+			my $categoryMethod = 'artistName';
+			my $categoryRemoteItem = 'artist';
+
+			if ($what =~ /contributor\.namesearch/i) {
+				$categoryMethod = 'albumname';
+				$categoryRemoteItem = 'album';
+			}
+
+			my $sortList = Slim::Player::Playlist::balancedShuffle([ map {
+				my $track = $tracks[$_];
+				my $category = $track->$categoryMethod if ref $track && $track->can($categoryMethod);
+
+				if (!$categoryMethod) {
+					my $url = ref $track ? $track->url : $track;
+					my $handler = Slim::Player::ProtocolHandlers->handlerForURL($url);
+
+					if ( $handler && $handler->can('getMetadataFor') && (my $meta = $handler->getMetadataFor($client, $url)) ) {
+						$category = $meta->{$categoryRemoteItem};
+					}
+				}
+
+				[$_, $category || ''];
+			} 0 .. $#tracks ], 'alpha');
+
+			@tracks = @tracks[@$sortList];
+		}
+		else {
+			Slim::Player::Playlist::fischer_yates_shuffle(\@tracks);
+		}
+	};
+
 	my $size;
 
 	# add or remove the found songs

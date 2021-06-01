@@ -1,3 +1,163 @@
+<h2><a name="v8.2.0" id="v8.2.0"></a>Version 8.2.0</h2>
+<ul>
+	<li><a href="Changelog8.html#v8.1.2">Upstream fixes from Logitech Media Server 8.1.x</a></li>
+	<br />
+
+	<li>New Features:</li>
+	<ul>
+		<li>Try to group online artists with local artists by ignoring slightly different spelling (eg. "The Beatles" vs. "Beatles", "Amy Macdonald" vs. "Amy MacDonald").</li>
+		<li><a href="https://github.com/Logitech/slimserver/issues/510">#510</a> - Add (optional) "balanced" track shuffling method, which is less random, but hopefully more pleasing to the listener.</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/537">#537</a> - Add audio option to combine channels to build a mono signal (whether player is synchronized or not).</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/538">#538</a> - Add Balance setting for players which support it (thanks philippe44!).</li>
+		<li>Enable basic track statistics (play count, last played, ratings) for online tracks imported into the library.</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/581">#581</a>, <a href="https://github.com/Logitech/slimserver/pull/591">#591</a> - Create new player protocol to buffer http streams to disk or re-establish dropped connections to improve reliability (thanks philippe44!).</li>
+	</ul>
+	<br />
+
+	<li>Server Changes:</li>
+	<ul>
+		<li>When an online scan doesn't return any track, but previously had some, do not remove tracks from library. The empty new list is likely due to a scan failure.</li>
+		<li>Try to improve backwards compatibility with eg. Erland's plugins, which sometimes struggle with the remote tracks.</li>
+		<li><a href="https://github.com/Logitech/slimserver/issues/411">#411</a> - Transcoder conversion rules: Support resampling for Ogg/Flac streams (thanks bpa/mw9!)</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/598">#598</a> - Shuffle tracks added with "playlist loadtracks" and certain search filters (thanks philchillbill!)</li>
+	</ul>
+	<br />
+
+	<li>Platform Support:</li>
+	<ul>
+		<li><a href="https://github.com/Logitech/slimserver-platforms/pull/18">#18</a> - Add a systemd service file for Debian based systems (thanks mw9 & tomscytale).</li>
+		<li><a href="https://github.com/Logitech/slimserver-platforms/pull/22">#22</a> - Add systemd service configuration for RPM based systems (thanks JohanSaaw!)</li>
+		<li><a href="https://github.com/Logitech/slimserver-platforms/pull/25">#25</a> - Add weak dependency on perl IO::Socket:SSL in RPM (thanks JohanSaaw!)</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/526">#526</a> - Add Perl 5.32 and 5.30 support for Linux aarch64 platform. (thanks clivem!)</li>
+		<li>Remove Font::FreeType from Linux distributions. It's easy enough to install it using the system's package manager, and it would conflict on system where we don't provide the binary.</li>
+	</ul>
+	<br />
+
+	<li>Bug Fixes:</li>
+	<ul>
+		<li><a href="https://github.com/Logitech/slimserver/issues/554">#554</a> - Long current playlist disappears from UI during wipe and rescan.</li>
+		<li><a href="https://github.com/Logitech/slimserver/issues/601">#601</a> - "icon" for URL="file://..." entries does not work in favorites.ompl.</li>
+	</ul>
+	<br />
+
+	<li>Other:</li>
+	<ul>
+		<li><a href="https://github.com/Logitech/slimserver/issues/528">#528</a> - On Unix-like platforms, we now ensure that plugins are installed in such a way that none of their files are writable by users other than the user running LMS, even if theyʼre stored that way in the plugin ZIP file.</li>
+		<li>No longer include the firmware images for ip3k based players (Classic, Boom, Receiver, Transporter) with the installation packages. Logitech Media Server can download them when needed. But after about a decade without updates it's unlikely anybody would still have to update anyway.</li>
+	</ul>
+	<br />
+</ul>
+
+
+<h2><a name="v8.1.2" id="v8.1.2"></a>Version 8.1.2</h2>
+<ul>
+	<li>New Features:</li>
+	<ul>
+	</ul>
+	<br />
+
+	<li>Server Changes:</li>
+	<ul>
+		<li><a href="https://github.com/Logitech/slimserver/pull/522">#522</a> - add new --advertiseaddr startup parameter to tell LMS what user facing IP address to use (in case of NATed setups, like with load balancers or Kubernetes etc.) - thanks fuero!</li>
+		<li>Don't sync favorites from mysqueezebox.com when prefs syncing is disabled.</li>
+	</ul>
+	<br />
+
+	<li>Platform Support:</li>
+	<ul>
+	</ul>
+	<br />
+
+	<li>Bug Fixes:</li>
+	<ul>
+		<li>Don't poll the Deezer library if the user doesn't have a premium subscription.</li>
+		<li>Open App Gallery item in new window/tab - fix some regexes where we'd only accept http instead of https.</li>
+		<li>Make sure we get the mysqueezebox.com based app menu even for players which are not registered there.</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/508">#508</a> - Don't include the port when using default ports in host header for http requests.</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/521">#521</a> - Fix http redirection on HTTPS protocol handlers (thanks philippe44!)</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/523">#523</a> - Fix http redirection when redirect URL is missing the protocol (thanks philippe44!)</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/531">#531</a> - Player's library view setting and Random Mix preference conflict with each other.</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/536">#536</a> - When an album list is filtered by contributor role, the contributor's name sometimes isn't shown with the album.</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/545">#545</a> - Under certain circumstances 3rd party plugins could be hidden on non-Squeezeplay based players.</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/559">#559</a> - Deleting favourite via CLI using URL deletes others (thanks CDrummond!)</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/585">#585</a> - mp4 parser for trailing header must keep original request fields (thanks philippe44!)</li>
+		<li><a href="https://github.com/Logitech/slimserver/pull/593">#593</a> - Handle redirect with processors (eg. mp4 => aac) (thanks philippe44!)</li>
+	</ul>
+	<br />
+
+	<li>Other:</li>
+	<ul>
+		<li></li>
+	</ul>
+	<br />
+</ul>
+
+
+<h2><a name="v8.1.1" id="v8.1.1"></a>Version 8.1.1 - 2021-01-14 (dd356a423)</h2>
+<ul>
+	<li>Server Changes:</li>
+	<ul>
+		<li><a href="https://github.com/Logitech/slimserver/issues/489">#489</a> - Enable Deezer flac seeking for ip3k players.</li>
+		<li><a href="https://github.com/Logitech/slimserver/issues/490">#490</a> - Enable "Defeat Touch To Play" for all players.</li>
+	</ul>
+	<br />
+
+	<li>Platform Support:</li>
+	<ul>
+		<li>Restore Perl 5.18 support in the x86_64 .deb file.</li>
+	</ul>
+	<br />
+
+	<li>Bug Fixes:</li>
+	<ul>
+		<li>Fix Ogg Opus on Windows.</li>
+		<li>Fix advanced genre replacement in Online Music Library Integration plugin.</li>
+		<li><a href="https://github.com/Logitech/slimserver/issues/485">#485</a> - HTTP range request is last byte not size.</li>
+		<li><a href="https://github.com/Logitech/slimserver/issues/486">#486</a> - When using internal transcoding only, the container format must be set.</li>
+		<li><a href="https://github.com/Logitech/slimserver/issues/488">#488</a> - When resampling FLAC, add targeted $RESAMPLE$,not only the source sample rate.</li>
+		<li><a href="https://github.com/Logitech/slimserver/issues/501">#501</a> - Fix logging in Deezer and TIDAL importers.</li>
+		<li><a href="https://github.com/Logitech/slimserver/issues/506">#506</a> - Fix Napster streaming.</li>
+	</ul>
+	<br />
+</ul>
+
+
+<h2><a name="v8.1.0" id="v8.1.0"></a>Version 8.1.0 - 2020-12-23 (effae8494)</h2>
+<ul>
+	<li><a href="Changelog8.html#v8.0.1">Upstream fixes from Logitech Media Server 8.0.x</a></li>
+	<br />
+
+	<li>New Features:</li>
+	<ul>
+		<li>Deezer HiFI! Stream lossless music from Deezer if you have a Deezer HiFi subscription.</li>
+		<li>Add support for lyrics stored in the UNSYNCEDLYRICS tag in FLAC files.</li>
+		<li>Optionally allow installation of plugins which were targeted at Logitech Media Server 7.*.</li>
+	</ul>
+	<br />
+
+	<li>Server Changes:</li>
+	<ul>
+		<li>Improve transcoding framework to allow protocol handlers to force transcoding (eg. TIDAL)</li>
+		<li>Increase the default maximum playlist length for systems with more memory.</li>
+	</ul>
+	<br />
+
+	<li>Platform Support:</li>
+	<ul>
+		<li>Improved compatibility with macOS 11 Big Sur and Apple Silicon (M1 CPU).</li>
+		<li>Remove (buggy) support for Perl 5.8 - we broke compatibility already a while back.</li>
+		<li>Remove support for ReadyNAS - we broke compatibility already a while back (using Perl 5.8).</li>
+	</ul>
+	<br />
+
+	<li>Bug Fixes:</li>
+	<ul>
+		<li><a href="https://github.com/Logitech/slimserver/issues/475">#475</a> - Socket leaks when pipeline is used.</li>
+	</ul>
+	<br />
+</ul>
+
+
 <h2><a name="v8.0.1" id="v8.0.1"></a>Version 8.0.1</h2>
 <ul>
 	<li>Bug Fixes:</li>

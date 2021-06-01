@@ -47,6 +47,8 @@ sub isImportEnabled {
 
 		return 1 if scalar @$accounts;
 
+		$cache->set('deezer_library_fingerprint', -1, 30 * 86400);
+
 		main::INFOLOG && $log->is_info && $log->info("No Premium Deezer account found - skipping import");
 	}
 
@@ -182,7 +184,7 @@ sub scanArtists { if (main::SCANNER) {
 			Slim::Schema->forceCommit;
 
 			Slim::Schema::Contributor->add({
-				'artist' => $name,
+				'artist' => $class->normalizeContributorName($name),
 				'extid'  => 'deezer:artist:' . $artist->{id},
 			});
 
@@ -318,7 +320,7 @@ sub needsUpdate { if (!main::SCANNER) {
 sub _prepareTrack {
 	my ($track, $album) = @_;
 
-	my $url = sprintf("deezer://%s.mp3", $track->{id});
+	my $url = sprintf("deezer://%s.%s", $track->{id}, $track->{lossless} ? 'flac' : 'mp3');
 	my $splitChar = substr(preferences('server')->get('splitList'), 0, 1);
 
 	return {
@@ -336,7 +338,7 @@ sub _prepareTrack {
 		AUDIO        => 1,
 		EXTID        => $url,
 		TIMESTAMP    => $album->{added},
-		CONTENT_TYPE => 'mp3',
+		CONTENT_TYPE => $track->{lossless} ? 'flc' : 'mp3',
 	};
 }
 

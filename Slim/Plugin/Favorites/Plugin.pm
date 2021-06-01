@@ -518,7 +518,7 @@ sub indexHandler {
 
 					my $url = $params->{'entryurl'};
 
-					if ($url !~ /^http:/) {
+					if ($url !~ /^https?:/) {
 
 						if ($url !~ /\.(xml|opml|rss)$/) {
 
@@ -937,8 +937,9 @@ sub cliDelete {
 			return;
 		}
 	}
-
-	$favs->deleteIndex($index);
+	else {
+		$favs->deleteIndex($index);
+	}
 
 	# show feedback if this action came from jive cometd session
 	if ($request->source && $request->source =~ /\/slim\/request/) {
