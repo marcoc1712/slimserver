@@ -93,6 +93,10 @@ sub getFeedAsync {
 		$handler->explodePlaylist($params->{client}, $url, sub {
 			my ($tracks) = @_;
 
+			# explode playlist might return a full opml list
+			return $cb->($tracks, $params) if ref $tracks eq 'HASH';
+
+			# if not, this is just an array of url
 			return $cb->({
 				'type'  => 'opml',
 				'title' => '',
@@ -143,8 +147,8 @@ sub getFeedAsync {
 
 	if ( $url =~ IS_TUNEIN_RE ) {
 		# Add the TuneIn username
-		if ( $url !~ /username/ && $url =~ /(?:presets|title)/ 
-			&& Slim::Utils::PluginManager->isEnabled('Slim::Plugin::InternetRadio::Plugin') 
+		if ( $url !~ /username/ && $url =~ /(?:presets|title)/
+			&& Slim::Utils::PluginManager->isEnabled('Slim::Plugin::InternetRadio::Plugin')
 			&& ( my $username = Slim::Plugin::InternetRadio::TuneIn->getUsername($params->{client}) )
 		) {
 			$url .= '&username=' . uri_escape_utf8($username);
@@ -405,7 +409,17 @@ sub parseRSS {
 	# E.g. If a broken podcast provides an empty 'url' tag, 'XMLin' would interpret it
 	# as an empty hash ref. So we explicitly guard against such occurrences.
 
-	if ( ref $xml->{'channel'}->{'image'} ) {
+	# Prefer an 'itunes:image' if it exists, because some publishers seem to mess up
+	# the standard RSS image.
+	if ( ref $xml->{'itunes:image'} eq 'HASH' ) {
+		my $href = $xml->{'itunes:image'}->{'href'};
+		$feed{'image'} = $href unless ref $href;
+	}
+	elsif ( ref $xml->{'channel'}->{'itunes:image'} eq 'HASH' ) {
+		my $href = $xml->{'channel'}->{'itunes:image'}->{'href'};
+		$feed{'image'} = $href unless ref $href;
+	}
+	elsif ( ref $xml->{'channel'}->{'image'} ) {
 
 		my $image = $xml->{'channel'}->{'image'};
 		my $url = "";
@@ -424,15 +438,15 @@ sub parseRSS {
 			$url = $image->{'link'};
 		}
 
-		$feed{'image'} = $url unless ref $url; # scalar value only !
+		$feed{'image'} = trim($url) unless ref $url; # scalar value only !
 	}
-	elsif ( ref $xml->{'itunes:image'} eq 'HASH' ) {
-		my $href = $xml->{'itunes:image'}->{'href'};
-		$feed{'image'} = $href unless ref $href;
+
+	if (my $language = $xml->{'channel'}->{'language'}) {
+		$feed{language} = unescapeAndTrim($language);
 	}
-	elsif ( ref $xml->{'channel'}->{'itunes:image'} eq 'HASH' ) {
-		my $href = $xml->{'channel'}->{'itunes:image'}->{'href'};
-		$feed{'image'} = $href unless ref $href;
+
+	if (my $author = $xml->{'channel'}->{'author'} || $xml->{'channel'}->{'itunes:author'}) {
+		$feed{author} = unescapeAndTrim($author);
 	}
 
 	# some feeds (slashdot) have items at same level as channel
@@ -537,8 +551,9 @@ sub parseAtom {
 	);
 
 	# look for an image
-	if ( $xml->{'logo'} ) {
-		$feed{'image'} = $xml->{'logo'};
+	# but ensure it's a *scalar* value, anything else will break Jive browsing
+	if ( $xml->{'logo'} && ! ref $xml->{'logo'} ) {
+		$feed{'image'} = trim($xml->{'logo'});
 	}
 
 	my $count = 1;

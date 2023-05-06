@@ -543,7 +543,7 @@ sub _cliQuery_done {
 						($subFeed->{'type'} && $subFeed->{'type'} eq 'audio') ||
 						$subFeed->{'enclosure'} ||
 						# Bug 17385 - rss feeds include description at non leaf levels
-						($subFeed->{'description'} && $subFeed->{'type'} ne 'rss')
+						($subFeed->{'description'} && $subFeed->{'type'} && $subFeed->{'type'} ne 'rss')
 					)
 				) {
 
@@ -1160,6 +1160,10 @@ sub _cliQuery_done {
 							$hash{'action'} = 'none';
 						}
 
+						if ( $item->{extid} ) {
+							$hash{extid} = $item->{extid};
+						}
+
 						if ( $item->{type} && $item->{type} eq 'localservice' ) {
 							$hash{'actions'} = {
 								go => {
@@ -1309,9 +1313,15 @@ sub _cliQuery_done {
 								my %params;
 								my @vars = @{$actionParamsNeeded{$key}};
 								for (my $i = 0; $i < scalar @vars; $i += 2) {
+									# ignore items whose URL points to a code ref - Squeezeplay can't handle them
+									if (ref $item->{$vars[$i+1]}) {
+										%params = ();
+										last;
+									}
+
 									$params{$vars[$i]} = $item->{$vars[$i+1]};
 								}
-								$hash{$key} = \%params;
+								$hash{$key} = \%params if keys %params;
 							}
 						}
 
@@ -1431,7 +1441,6 @@ sub _cliQuery_done {
 				# make a best effort to make a labeled title for the search
 				my $queryTypes = {
 					rhapsodydirect	=>	'PLUGIN_RHAPSODY_DIRECT_MODULE_NAME',
-					mp3tunes	=>	'PLUGIN_MP3TUNES_MODULE_NAME',
 					radiotime	=>	'PLUGIN_RADIOTIME_MODULE_NAME',
 					slacker		=>	'PLUGIN_SLACKER_MODULE_NAME',
 					lma		=>	'PLUGIN_LMA_MODULE_NAME',

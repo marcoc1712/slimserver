@@ -12,7 +12,7 @@ package Slim::Networking::Async::HTTP;
 #   Slim::Networking::Async::HTTP->new( { options => {
 #               SSL_cipher_list => 'DEFAULT:!DH',
 #               SSL_verify_mode => Net::SSLeay::VERIFY_NONE } })
-# - 'socks': use a socks proxy to tunnel the request 
+# - 'socks': use a socks proxy to tunnel the request
 # See code below for better explanation
 
 use strict;
@@ -102,7 +102,7 @@ sub new {
 
 sub new_socket {
 	my $self = shift;
-	
+
 	# merge with user-defined socket parameters
 	push @_, %{$self->options} if $self->options;
 
@@ -133,7 +133,6 @@ sub new_socket {
 
 			my %args = @_;
 
-			# Failed. Try again with an explicit SNI.
 			$args{SSL_hostname} //= $args{Host};
 			$args{SSL_verify_mode} //= Net::SSLeay::VERIFY_NONE() if $prefs->get('insecureHTTPS');
 
@@ -186,7 +185,7 @@ sub use_proxy {
 sub send_request {
 	my ( $self, $args, $redirect ) = @_;
 
-	$self->maxRedirect( $args->{maxRedirect} || MAX_REDIR );
+	$self->maxRedirect( $args->{maxRedirect} // MAX_REDIR );
 	$self->response( undef ) unless $redirect;
 
 	if ( $args->{Timeout} ) {
@@ -304,7 +303,7 @@ sub _format_request {
 	my ($version) = $self->request->protocol =~ m|HTTP/(\S*)|i;
 	$version = '1.0' if $version ne '1.1';
 	$self->socket->http_version($version);
-	$self->socket->keep_alive(1) if ($version == '1.1' && $self->request->header('Connection') !~ /close/i) || 
+	$self->socket->keep_alive(1) if ($version == '1.1' && $self->request->header('Connection') !~ /close/i) ||
 									$self->request->header('Connection') =~ /keep-alive/i;
 
 	my $request = $self->socket->format_request(
@@ -509,11 +508,11 @@ sub _http_read {
 		# must be forced. But if nothing has been read yet, attempting to force body reading can lead to
 		# a false empty body result, so let it to the event loop.
 		# Body might also be empty but a keep-alive with no content-length in the response is an error
-		# if everything has already been read, _http_body_read will unsubscribe to event loop 
-		# we just subscrive above ... a bit unefficient 
-		if ( (!defined $self->response->headers->header('Connection') ||  $self->response->headers->header('Connection') =~ /keep-alive/i) && 
+		# if everything has already been read, _http_body_read will unsubscribe to event loop
+		# we just subscrive above ... a bit unefficient
+		if ( (!defined $self->response->headers->header('Connection') ||  $self->response->headers->header('Connection') =~ /keep-alive/i) &&
 			$self->socket->_rbuf_length == ($headers->content_length || 0) ) {
-			_http_read_body( $self->socket, $self, $args ) 
+			_http_read_body( $self->socket, $self, $args )
 		}
 	}
 }
@@ -586,7 +585,7 @@ sub _http_read_body {
 		}
 	}
 
-	if ( !defined $result || $result == 0 || (defined $self->response->headers->header('Content-Length') && length($self->response->content) == $self->response->headers->header('Content-Length')) ) {
+	if ( (defined $result && $result == 0) || (defined $self->response->headers->header('Content-Length') && length($self->response->content) == $self->response->headers->header('Content-Length')) ) {
 		# if here, we've reached the end of the body
 
 		# close and remove the socket if not keep-alive

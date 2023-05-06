@@ -32,6 +32,13 @@ my $prefs = preferences('server');
 my $log       = logger('network.protocol.slimproto');
 my $sourcelog = logger('player.source');
 
+use constant TRANSITION_NONE      => 0;
+use constant TRANSITION_CROSSFADE => 1;
+use constant TRANSITION_FADEIN    => 2;
+use constant TRANSITION_FADEOUT   => 3;
+use constant TRANSITION_FADEINOUT => 4;
+use constant TRANSITION_CROSSFADE_IMMEDIATE => 5;
+
 # We inherit new() completely from our parent class.
 
 sub modelName { 'Squeezebox' }
@@ -70,31 +77,42 @@ sub reconnect {
 
 	my $controller = $client->controller();
 
-	if (!$reconnect) {
+	if (!defined $reconnect) {
 
+		# Reconnection of a forgotten client, need to take resume position from
+		# the preferences
 		if ($client->power()) {
+			# Don't try to resume if we are synced, we might confuse others who have
+			# moved on. I think playerActive is not need should Sync::restoreSync be
+			# removed from Client::startup.
+			$client->resumeOnPower(1) if $controller->onlyActivePlayer($client);
 			$controller->playerActive($client);
 		}
 
-		if ($controller->onlyActivePlayer($client)) {
-			main::INFOLOG && $sourcelog->is_info && $sourcelog->info($client->id . " restaring play on pseudo-reconnect at "
-				. ($bytes_received ? $bytes_received : 0));
-			$controller->playerReconnect($bytes_received);
+	} else {
+
+		if ($client->power()) {
+			$client->resumeOnPower();
+			$controller->playerActive($client);
 		}
 
-		if ($client->isStopped()) {
-			# Ensure that a new client is stopped, but only on sb2s
-			if ( $client->isa('Slim::Player::Squeezebox2') ) {
-				main::INFOLOG && $sourcelog->is_info && $sourcelog->info($client->id . " forcing stop on pseudo-reconnect");
-				$client->stop();
+		# Disconnected but not forgotten clients may need a restart or a proper stop
+		if (!$reconnect) {
+			if ($controller->onlyActivePlayer($client)) {
+				main::INFOLOG && $sourcelog->is_info && $sourcelog->info($client->id . " restarting play on pseudo-reconnect at "
+					. ($bytes_received ? $bytes_received : 0));
+				$controller->playerReconnect($bytes_received);
+			}
+
+			if ($client->isStopped()) {
+				# Ensure that a new client is stopped, but only on sb2s
+				if ( $client->isa('Slim::Player::Squeezebox2') ) {
+					main::INFOLOG && $sourcelog->is_info && $sourcelog->info($client->id . " forcing stop on pseudo-reconnect");
+					$client->stop();
+				}
 			}
 		}
-	} else {
-		# bug 16881: player in a sync-group may have been made inactive upon disconnect;
-		# make sure it is active now.
-		if ($client->power()) {
-			$controller->playerActive($client);
-		}
+
 	}
 
 	# reinitialize the irtime to the current time so that
@@ -136,7 +154,7 @@ sub play {
 	my $params = shift;
 
 	my $controller = $params->{'controller'};
-	my $handler = $controller->songProtocolHandler();
+	my $handler = $controller->currentTrackHandler();
 
 	# Calculate the correct buffer threshold for remote URLs
 	if ( $handler->isRemote() ) {
@@ -290,11 +308,11 @@ sub needsUpgrade {
 		}
 	}
 
+	my $okButCheckFirmware;
 	if ($to == $from) {
-
 		main::INFOLOG && $log->info("$model firmware is up-to-date, v. $from");
 		$client->_needsUpgrade(0);
-		return 0;
+		$okButCheckFirmware = 1;
 	}
 
 	# skip upgrade if file doesn't exist
@@ -313,10 +331,12 @@ sub needsUpgrade {
 			'line' => [ $client->string( 'FIRMWARE_MISSING' ), $client->string( 'FIRMWARE_MISSING_DESC' ) ]
 		}, {
 			'block' => 1, 'scroll' => 1, 'firstline' => 1,
-		} );
+		} ) unless $okButCheckFirmware;
 
 		return 0;
 	}
+
+	return 0 if $okButCheckFirmware;
 
 	main::INFOLOG && $log->info("$model v. $from requires upgrade to $to");
 
@@ -468,8 +488,6 @@ sub upgradeFirmware_SDK5 {
 
 	main::INFOLOG && $log->info("Firmware updated successfully.");
 
-#	Slim::Utils::Network::blocking($client->tcpsock, 0);
-
 	return undef;
 }
 
@@ -534,8 +552,8 @@ sub stream_s {
 	my $controller  = $params->{'controller'};
 	my $url         = $controller->streamUrl();
 	my $track       = $controller->track();
-	my $handler     = $controller->protocolHandler();
-	my $songHandler = $controller->songProtocolHandler();
+	my $handler     = $controller->streamUrlHandler();
+	my $currentTrackHandler = $controller->currentTrackHandler();
 	my $isDirect    = $controller->isDirect();
 	my $master      = $client->master();
 
@@ -563,9 +581,8 @@ sub stream_s {
 		# use getFormatForURL only if the format is not already given
 		# This method is bad because it only looks at the URL suffix and can cause
 		# (for example) Ogg HTTP streams to be played using the mp3 decoder!
-		if ( !$format && $handler->can("getFormatForURL") ) {
-			$format = $handler->getFormatForURL($url);
-		}
+		my $methodHandler = $currentTrackHandler->can('getFormatForURL') ? $currentTrackHandler : $handler;
+		$format = $methodHandler->getFormatForURL($url) if !$format && $methodHandler;
 	}
 
 	if ( !$format ) {
@@ -751,8 +768,8 @@ sub stream_s {
 		$outputThreshold = 1;
 
 		# Handler may override pcmsamplesize (Rhapsody)
-		if ( $songHandler && $songHandler->can('pcmsamplesize') ) {
-			$pcmsamplesize = $songHandler->pcmsamplesize( $client, $params );
+		if ( $currentTrackHandler && $currentTrackHandler->can('pcmsamplesize') ) {
+			$pcmsamplesize = $currentTrackHandler->pcmsamplesize( $client, $params );
 		}
 
 		# XXX: The use of mp3 as default has been known to cause the mp3 decoder to be used for
@@ -773,7 +790,8 @@ sub stream_s {
 
 		main::INFOLOG && logger('player.streaming.direct')->info("SqueezePlay direct stream: $url");
 
-		$request_string = $songHandler->requestString($client, $url, undef, $params->{'seekdata'});
+		my $methodHandler = $currentTrackHandler->can('requestString') ? $currentTrackHandler : $handler;
+		$request_string = $methodHandler->getRequestString($client, $url, undef, $params->{'seekdata'} || $controller->song->seekdata);
 		$autostart += 2; # will be 2 for direct streaming with no autostart, or 3 for direct with autostart
 
 	} elsif (my $proxy = $params->{'proxyStream'}) {
@@ -816,7 +834,9 @@ sub stream_s {
 		}
 		$server_port = $port;
 
-		$request_string = $songHandler->requestString($client, $url, undef, $params->{'seekdata'});
+		# prioritize current track's protocol handler at even in direct mode it might change requestString
+		my $methodHandler = $currentTrackHandler->can('requestString') ? $currentTrackHandler : $handler;
+		$request_string = $methodHandler->requestString($client, $url, undef, $params->{'seekdata'} || $controller->song->seekdata);
 		$autostart += 2; # will be 2 for direct streaming with no autostart, or 3 for direct with autostart
 
 		if (!$server_port || !$server_ip) {
@@ -910,13 +930,13 @@ sub stream_s {
 	my $transitionDuration;
 
 	if ($params->{'fadeIn'}) {
-		$transitionType = 2;
+		$transitionType = TRANSITION_FADEIN;
 		$transitionDuration = $params->{'fadeIn'};
 	} elsif ($params->{'crossFade'}) {
-		$transitionType = 5;
+		$transitionType = TRANSITION_CROSSFADE_IMMEDIATE;
 		$transitionDuration = $params->{'crossFade'};
 	} else {
-		$transitionType = $prefs->client($master)->get('transitionType') || 0;
+		$transitionType = $prefs->client($master)->get('transitionType') || TRANSITION_NONE;
 		$transitionDuration = $prefs->client($master)->get('transitionDuration') || 0;
 
 		# If we need to determine dynamically
@@ -931,14 +951,14 @@ sub stream_s {
 			)
 		) {
 			main::INFOLOG && $log->info('Using smart transition mode');
-			$transitionType = 0;
+			$transitionType = TRANSITION_NONE;
 		}
 
 		# Bug 10567, allow plugins to override transition setting
-		if ( $songHandler && $songHandler->can('transitionType') ) {
-			my $override = $songHandler->transitionType( $master, $controller->song(), $transitionType );
+		if ( $currentTrackHandler && $currentTrackHandler->can('transitionType') ) {
+			my $override = $currentTrackHandler->transitionType( $master, $controller->song(), $transitionType );
 			if ( defined $override ) {
-				main::INFOLOG && $log->is_info && $log->info("$songHandler changed transition type to $override");
+				main::INFOLOG && $log->is_info && $log->info("$currentTrackHandler changed transition type to $override");
 				$transitionType = $override;
 			}
 		}
@@ -957,7 +977,7 @@ sub stream_s {
 			# check against remaining time to see if sleep time matches within a minute.
 			if (int($sleeptime/60 + 0.5) == int($remaining/60 + 0.5)) {
 				main::INFOLOG && $log->info('Overriding transition due to sleeping at end of song');
-				$transitionType = 0;
+				$transitionType = TRANSITION_NONE;
 			}
 		}
 
@@ -969,21 +989,26 @@ sub stream_s {
 		# by a player preference.
 		my $transitionSampleRestriction = $prefs->client($master)->get('transitionSampleRestriction') || 0;
 
-		if ($transitionSampleRestriction && ($transitionType == 1 || $transitionType == 5) && !Slim::Player::ReplayGain->trackSampleRateMatch($master, -1)) {
+		if ($transitionSampleRestriction && ($transitionType == TRANSITION_CROSSFADE || $transitionType == 5) && !Slim::Player::ReplayGain->trackSampleRateMatch($master, -1)) {
 			main::INFOLOG && $log->info('Overriding crossfade due to differing sample rates or single track');
-			$transitionType = 0;
-		 } elsif ($transitionSampleRestriction) {
+			$transitionType = TRANSITION_NONE;
+		} elsif ($transitionSampleRestriction) {
 			main::INFOLOG && $log->info('Crossfade sample rate restriction enabled but not needed for this transition');
-		 }
+		}
 
-		 # this is crossfade, so only apply fade-in if we are already playing (exclude start, resume, reposition actions)
-		 if (!$master->isPlaying(1)) {
-			if ($transitionType == 2) {
-				$transitionType = 0;
-			} elsif ($transitionType == 4) {
-				$transitionType = 3;
+		# this is crossfade, so only apply fade-in if we are already playing (exclude start, resume, reposition actions)
+		if (!$master->isPlaying(1)) {
+			if ($transitionType == TRANSITION_FADEIN) {
+				$transitionType = TRANSITION_NONE;
+			} elsif ($transitionType == TRANSITION_FADEINOUT) {
+				$transitionType = TRANSITION_FADEOUT;
 			}
-		 }
+		}
+
+		if ($transitionType && $dur < $transitionDuration*2) {
+			$transitionDuration = $dur/3;
+			main::INFOLOG && $log->is_info && $log->info("Overriding transition duration, as track is very short: $transitionDuration");
+		}
 	}
 
 	if ($transitionDuration > $client->maxTransitionDuration()) {
@@ -992,8 +1017,8 @@ sub stream_s {
 
 	if ( main::INFOLOG && $log->is_info ) {
 		$log->info(sprintf(
-			"Starting decoder with format: %s flags: 0x%x autostart: %s buffer threshold: %s output threshold: %s samplesize: %s samplerate: %s endian: %s channels: %s",
-			$formatbyte, $flags, $autostart, $bufferThreshold, $outputThreshold, $pcmsamplesize, $pcmsamplerate, $pcmendian, $pcmchannels,
+			"Starting decoder with format: %s flags: 0x%x autostart: %s buffer threshold: %s output threshold: %s samplesize: %s samplerate: %s endian: %s channels: %s, transitionType: %s",
+			$formatbyte, $flags, $autostart, $bufferThreshold, $outputThreshold, $pcmsamplesize, $pcmsamplerate, $pcmendian, $pcmchannels, $transitionType
 		));
 	}
 
@@ -1076,7 +1101,7 @@ sub stream {
 		0,		# bufferTthreshold
 		0,		# s/pdif auto
 		0,		# transition duration
-		0,		# transition type
+		TRANSITION_NONE,		# transition type
 		$flags,	# flags
 		0,		# outputThreshold
 		0,		# reserved

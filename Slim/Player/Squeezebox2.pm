@@ -449,7 +449,9 @@ sub songElapsedSeconds {
 		$songElapsed = $elapsedSeconds;
 	}
 
-	if ($client->isPlaying(1)) {
+	# If we are disconnected and the only player or not master, elapsed shall not progress
+	# anymore otherwise, extrapolate value to not confuse other players
+	if ($client->isPlaying(1) && (!$client->disconnected() || ($client->isSynced() && Slim::Player::Sync::isMaster($client)))) {
 		my $timeDiff = Time::HiRes::time() - $client->jiffiesToTimestamp($jiffies);
 		$songElapsed += $timeDiff if ($timeDiff > 0);
 	}
@@ -458,19 +460,17 @@ sub songElapsedSeconds {
 }
 
 sub canDirectStream {
-	my $client = shift;
-	my $url = shift;
-	my $song = shift;
+	my ($client, $url, $song) = @_;
 
-	my $handler = Slim::Player::ProtocolHandlers->handlerForURL($url);
+	# this is client's canDirectStream, not protocol handler's so there is a $song
+	my $handler = $song->currentTrackHandler;
+	return unless $handler;
 
-	if ($song && $handler && $handler->can("canDirectStreamSong")) {
+	if ($handler->can("canDirectStreamSong")) {
 		return $handler->canDirectStreamSong($client, $song);
-	} elsif ($handler && $handler->can("canDirectStream")) {
+	} elsif ($handler->can("canDirectStream")) {
 		return $handler->canDirectStream($client, $url);
 	}
-
-	return undef;
 }
 
 sub directHeaders {
@@ -480,7 +480,7 @@ sub directHeaders {
 	main::INFOLOG && $directlog->is_info && $directlog->info("Processing headers for direct streaming:\n$headers");
 
 	my $controller = $client->controller()->songStreamController();
-	my $handler    = $controller ? $controller->protocolHandler() : undef;
+	my $handler    = $controller->streamUrlHandler() if $controller;
 
 	if ($handler && $handler->can('handlesStreamHeaders')) {
 
@@ -490,10 +490,10 @@ sub directHeaders {
 
 	}
 
-	unless ($controller && $controller->isDirect()) {return;}
+	return unless $controller && $controller->isDirect();
 
 	my $url = $controller->streamUrl();
-	my $songHandler = $controller->songProtocolHandler();
+	my $currentTrackHandler = $controller->currentTrackHandler();
 
 	# We involve the protocol handler in the header parsing process.
 	# The current iteration of the firmware only knows about HTTP
@@ -527,15 +527,31 @@ sub directHeaders {
 		$response = $1;
 
 		if (($response < 200) || $response > 399) {
+			my $track = $controller->song->currentTrack;
 
 			$directlog->warn("Invalid response code ($response) from remote stream $url");
 
-			if ($songHandler && $songHandler->can("handleDirectError")) {
+			if ($currentTrackHandler && $currentTrackHandler->can("handleDirectError")) {
 
 				# bug 10407 - make sure ready to stream again
 				$client->readyToStream(1);
 
-				$songHandler->handleDirectError($client, $url, $response, $status_line);
+				$currentTrackHandler->handleDirectError($client, $url, $response, $status_line);
+			}
+			elsif ($track->can('redir') && $track->redir && $track->redir ne $url) {
+
+				# if we have been redirected and we fail on directstream, give it a shot with
+				# the initial utl. This is not a ideal solution, but we have no other option
+				main::INFOLOG && $directlog->is_info && $directlog->info("retrying with non-redirected url ", $track->redir);
+
+				$controller->song->streamUrl($track->redir);
+				$client->play({
+					'paused'     => ($client->isSynced(1)),
+					'format'     => ($client->master())->streamformat(),
+					'url'        => $track->redir,
+					'controller' => $controller,
+					'seekdata'   => $controller->song->seekdata(),
+				});
 			}
 			else {
 				$client->failedDirectStream($status_line);
@@ -555,16 +571,13 @@ sub directHeaders {
 				$directlog->info("Processing " . scalar(@headers) . " headers");
 			}
 
-			if ($songHandler && $songHandler->can("parseDirectHeaders")) {
-				# Could use a hash ref for header parameters
-				main::INFOLOG && $directlog->info("Calling $songHandler ::parseDirectHeaders");
-				($title, $bitrate, $metaint, $redir, $contentType, $length, $body)
-					= $songHandler->parseDirectHeaders($client, $controller->song()->currentTrack(), @headers);
-			} elsif ($handler->can("parseDirectHeaders")) {
-				# Could use a hash ref for header parameters
-				main::INFOLOG && $directlog->info("Calling $handler ::parseDirectHeaders");
-				($title, $bitrate, $metaint, $redir, $contentType, $length, $body) = $handler->parseDirectHeaders($client, $url, @headers);
-			}
+			# prioritize current track's protocol handler over streamUrl handler
+			my $methodHandler = $currentTrackHandler->can('parseDirectHeaders') ? $currentTrackHandler : $handler;
+
+			main::INFOLOG && $directlog->info("Calling $methodHandler :: parseDirectHeader");
+			# currentTrackHandler relates to the current (sub)track while streamUrl handler just use streamUrl
+			($title, $bitrate, $metaint, $redir, $contentType, $length, $body) =
+				$methodHandler->parseDirectHeaders($client, $methodHandler == $currentTrackHandler ? $controller->song()->currentTrack() : $url, @headers);
 
 			$controller->song()->isLive($length ? 0 : 1) if !$redir;
 			# XXX maybe should (also) check $song->scanData()->{$url}->{metadata}->{info}->{broadcast}
@@ -654,7 +667,7 @@ sub directHeaders {
 
 			} elsif ($client->contentTypeSupported($controller->song->streamformat)) {
 
-				# If we redirected (Live365), update the original URL with the metadata from the real URL
+				# If we redirected, update the original URL with the metadata from the real URL
 				if ( my $oldURL = delete $redirects->{ $url } ) {
 
 					$controller->song->bitrate($bitrate) if $bitrate;
@@ -717,7 +730,7 @@ sub directBodyFrame {
 
 	my $controller = $client->controller()->songStreamController();
 
-	unless ($controller && $controller->isDirect()) {return;}
+	return unless $controller && $controller->isDirect();
 
 	my $url = $controller->streamUrl();
 	my $handler = $controller->protocolHandler();
@@ -808,7 +821,6 @@ sub directMetadata {
 	my $controller = $client->controller()->songStreamController() || return;
 
 	# Will also get called for proxy streaming
-	# unless ($controller && $controller->isDirect()) {return;}
 
 	my $handler = $controller->song()->currentTrackHandler();
 	if ( $handler->can('parseMetadata') ) {

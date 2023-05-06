@@ -102,7 +102,10 @@ sub new {
 sub scanUrl {
 	my ( $class, $url, $args ) = @_;
 
-	$args->{cb}->( $args->{song}->currentTrack() );
+	# can't just take $args->{song}->currentTrack as it might be a playlist
+	$args->{cb}->( Slim::Schema->objectForUrl( {
+		url => $url,
+	} ) );
 }
 
 # Source for AudioScrobbler
@@ -198,6 +201,10 @@ sub explodePlaylist {
 		else {
 			$url = "deezer://$type:$id";
 		}
+	}
+
+	if ($url =~ m{^deezer:\/\/([0-9a-z]+)\.dzl}) {
+		$url = 'deezer://playlist:' . $1;
 	}
 
 	my $tracks = [];
@@ -309,7 +316,8 @@ sub getNextTrack {
 	my ( $class, $song, $successCb, $errorCb ) = @_;
 
 	my $client = $song->master();
-	my $url    = $song->track()->url;
+	# must use currentTrack and not track to get the playlist item (if any)
+	my $url    = $song->currentTrack()->url;
 
 	$song->pluginData( radioTrackURL => undef );
 	$song->pluginData( radioTitle    => undef );
@@ -351,7 +359,7 @@ sub _getNextRadioTrack {
 		},
 	);
 
-	main::DEBUGLOG && $log->debug("Getting next radio track from SqueezeNetwork");
+	main::DEBUGLOG && $log->debug("Getting next radio track from SqueezeNetwork: $radioURL");
 
 	$http->get( $radioURL );
 }
@@ -506,7 +514,9 @@ sub _gotTrack {
 	my ($trackId, $format) = _getStreamParams( $info->{url} );
 
 	# as we don't know the format for a flow/radio station, let's keep the format of the last played track to make assumptions later on...
-	$prefs->set('latestFormat', __PACKAGE__->getFormatForURL($info->{url}));
+	if ( $client->isPlaying(1) && $client->playingSong()->track()->url !~ /\.dzr/ ) {
+		$prefs->set('latestFormat', __PACKAGE__->getFormatForURL($info->{url}));
+	}
 
 	# Save the media URL for use in strm
 	$song->streamUrl($info->{url});
@@ -535,14 +545,14 @@ sub _gotTrack {
 
 	# When doing flac, parse the header to be able to seek (IP3K)
 	if ($format =~ /fla?c/i) {
-		Slim::Utils::Scanner::Remote::parseRemoteHeader( 
-			$song->track, $info->{url}, $format, $params->{successCb}, 
+		Slim::Utils::Scanner::Remote::parseRemoteHeader(
+			$song->track, $info->{url}, $format, $params->{successCb},
 			sub {
 				my ($self, $error) = @_;
 				$log->warn( "could not find $format header $error" );
 				$params->{successCb}->();
 			} );
-	} 
+	}
 	else {
 		# Async resolve the hostname so gethostbyname in Player::Squeezebox::stream doesn't block
 		# When done, callback will continue on to playback
@@ -555,7 +565,7 @@ sub _gotTrack {
 			onError     => $params->{successCb}, # even if it errors, keep going
 			passthrough => [],
 		} );
-	}	
+	}
 
 	# Watch for playlist commands
 	Slim::Control::Request::subscribe(
@@ -639,10 +649,12 @@ sub trackInfoURL {
 sub getMetadataFor {
 	my ( $class, $client, $url ) = @_;
 
+	return {} unless $url;
+
 	my $icon = $class->getIcon();
+	my $song = $client->currentSongForUrl($url);
 
 	if ( $url =~ /\.dzr$/ ) {
-		my $song = $client->currentSongForUrl($url);
 		if (!$song || !($url = $song->pluginData('radioTrackURL'))) {
 			return {
 				title     => ($url && $url =~ /flow\.dzr/) ? $client->string('PLUGIN_DEEZER_FLOW') : $client->string('PLUGIN_DEEZER_SMART_RADIO'),
@@ -654,27 +666,37 @@ sub getMetadataFor {
 		}
 	}
 
-	return {} unless $url;
-
 	my $cache = Slim::Utils::Cache->new;
+
+	# need to take the real current track url for playlists
+	$url = $song->currentTrack->url if $song && $song->isPlaylist && $song->currentTrack->url !~ /\.dzr$/;
 
 	# If metadata is not here, fetch it so the next poll will include the data
 	my ($trackId, $format) = _getStreamParams($url);
 	my $meta = $cache->get( 'deezer_meta_' . $trackId );
 
-	if ( !$meta && !$client->master->pluginData('fetchingMeta') ) {
+	if ( !$client->master->pluginData('fetchingMeta') ) {
 
 		$client->master->pluginData( fetchingMeta => 1 );
 
 		# Go fetch metadata for all tracks on the playlist without metadata
-		my @need = ($trackId);
+		my @need;
+		push @need, $trackId if !$meta || !$meta->{cover};
 
 		for my $track ( @{ Slim::Player::Playlist::playList($client) } ) {
 			my $trackURL = blessed($track) ? $track->url : $track;
+
 			my ($id) = _getStreamParams($trackURL);
-			if ( $id && !$cache->get("deezer_meta_$id") ) {
-				push @need, $id;
+
+			if ($id) {
+				my $trackMeta = $cache->get("deezer_meta_$id");
+				push @need, $id if !$trackMeta || !$trackMeta->{cover};
 			}
+		}
+
+		if (!scalar @need) {
+			$client->master->pluginData( fetchingMeta => 0 );
+			return $meta;
 		}
 
 		if ( main::DEBUGLOG && $log->is_debug ) {
@@ -822,7 +844,7 @@ sub _getStreamParams {
 	if ( $url =~ m{deezer://(.+)\.(mp3|flac)}i ) {
 		return ($1, lc($2) );
 	}
-	elsif ( $url =~ /deezer\.com.*\.(mp3|flac)/) {
+	elsif ( $url =~ /deezer\.com.*?\.(mp3|flac)/) {
 		return (undef, lc($1));
 	}
 }

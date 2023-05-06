@@ -53,6 +53,12 @@ sub shuffleType {
 }
 
 sub song {
+	$log->warn("The use of Slim::Player::Playlist::song() is deprecated, use Slim::Player::Playlist::track() instead");
+	main::INFOLOG && $log->is_info && logBacktrace('deprecated!') ;
+	return track(@_);
+}
+
+sub track {
 
 	my ($client, $index, $refresh, $useShuffled) = @_;
 	$refresh ||= 0;
@@ -157,7 +163,7 @@ sub refreshTrack {
 }
 
 sub url {
-	my $objOrUrl = song( @_ );
+	my $objOrUrl = track( @_ );
 
 	return ( blessed $objOrUrl ) ? $objOrUrl->url : $objOrUrl;
 }
@@ -342,7 +348,7 @@ sub removeTrack {
 	my $oldMode = Slim::Player::Source::playmode($client);
 
 	# Stop playing track, if necessary, before cuting old track(s) out of playlist
-	# in case Playlist::song() is called while stopping
+	# in case Playlist::track() is called while stopping
 	my $playingSongIndex = Slim::Player::Source::playingSongIndex($client);
 	if ($playingSongIndex >= $tracknum  && $playingSongIndex < $tracknum + $nTracks) {
 
@@ -673,7 +679,7 @@ sub stopAndClear {
 	my $client = shift;
 
 	# Bug 11447 - Have to stop player and clear song queue
-	$client->controller->stop();
+	$client->controller->stop($client);
 	$client->controller()->resetSongqueue();
 
 	@{playList($client)} = ();
@@ -762,8 +768,6 @@ sub reshuffle {
 
 		return;
 	}
-
-	return if $songcount <= 1;
 
 	my $realsong = ${$listRef}[Slim::Player::Source::playingSongIndex($client)];
 

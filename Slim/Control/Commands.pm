@@ -25,11 +25,10 @@ through Request.pm and the mechanisms it defines.
 
 use strict;
 
-use Scalar::Util qw(blessed);
+use Scalar::Util qw(blessed looks_like_number);
 use File::Spec::Functions qw(catfile);
 use File::Basename qw(basename);
 use Digest::MD5 qw(md5_hex);
-use Digest::SHA1 qw(sha1_base64);
 use JSON::XS::VersionOneAndTwo;
 
 use Slim::Utils::Alarm;
@@ -377,12 +376,6 @@ sub clientForgetCommand {
 		main::INFOLOG && $log->info($client->id . ': not forgetting as connected again');
 		return;
 	}
-
-	# Persist playback state like we would do when turning off a player, that is, treat a vanishing
-	# player that's still playing the same way as a player that's turned off while still playing, so
-	# we can make it start playing again if it reappears and the user told us to resume playing
-	# when powering on.
-	$client->persistPlaybackStateForPowerOff();
 
 	$client->controller()->playerInactive($client);
 
@@ -1009,7 +1002,6 @@ sub playlistJumpCommand {
 	if ( defined $index && $index =~ /[+-]/ ) {
 
 		if (!$isStopped) {
-			my $handler = $client->playingSong()->currentTrackHandler();
 
 			if ( ($songcount == 1 && $index eq '-1') || $index eq '+0' ) {
 				# User is trying to restart the current track
@@ -1175,7 +1167,7 @@ sub playlistSaveCommand {
 	if ($prefs->get('saveShuffled')) {
 
 		for my $shuffleitem (@{Slim::Player::Playlist::shuffleList($client)}) {
-			push @$annotatedList, Slim::Player::Playlist::song($client, $shuffleitem, 0, 0);
+			push @$annotatedList, Slim::Player::Playlist::track($client, $shuffleitem, 0, 0);
 		}
 
 	} else {
@@ -1425,6 +1417,12 @@ sub playlistXitemCommand {
 	if ( $handler && $handler->can('explodePlaylist') ) {
 		$handler->explodePlaylist($client, $path, sub {
 			my $tracks = shift;
+			# transform opml list into url array if needed
+			if (ref $tracks eq 'HASH') {
+				$tracks = [ map {
+					$_->{play} || $_->{url}
+				} @{$tracks->{items}} ];
+			}
 			$client->execute(['playlist', $cmd . 'tracks' , 'listRef', $tracks, $fadeIn]);
 			$request->setStatusDone();
 		});
@@ -1729,7 +1727,7 @@ sub playlistXtracksCommand {
 		@tracks = _playlistXtracksCommand_parseSearchTerms($client, $what, $cmd);
 	}
 
-	if ( scalar @tracks && $what =~ /track\.titlesearch|contributor\.namesearch|genre\.id/i ) {
+	if ( scalar @tracks && $what =~ /track\.titlesearch|contributor\.namesearch|genre\.id|track\.year/i ) {
 		if ($prefs->get('useBalancedShuffle')) {
 			my $categoryMethod = 'artistName';
 			my $categoryRemoteItem = 'artist';
@@ -1843,7 +1841,7 @@ sub playlistZapCommand {
 
 	my $zapped   = $client->string('ZAPPED_SONGS');
 	my $zapindex = defined $index ? $index : Slim::Player::Source::playingSongIndex($client);
-	my $zapsong  = Slim::Player::Playlist::song($client, $zapindex);
+	my $zaptrack  = Slim::Player::Playlist::track($client, $zapindex);
 
 	#  Remove from current playlist
 	if (Slim::Player::Playlist::count($client) > 0) {
@@ -1864,7 +1862,7 @@ sub playlistZapCommand {
 		},
 	});
 
-	$playlistObj->appendTracks([ $zapsong ]);
+	$playlistObj->appendTracks([ $zaptrack ]);
 	$playlistObj->update;
 
 	Slim::Player::Playlist::scheduleWriteOfPlaylist($client, $playlistObj);
@@ -2346,13 +2344,10 @@ sub playlistsDeleteCommand {
 
 
 sub _wipePlaylist {
-
 	my $playlistObj = shift;
 
-
 	if ( ! ( blessed($playlistObj) && $playlistObj->isPlaylist() ) ) {
-		$log->error('PlaylistObj not right for this sub: ', $playlistObj);
-		$log->error('PlaylistObj not right for this sub: ', $playlistObj->isPlaylist() );
+		Slim::Utils::Log::logBacktrace('PlaylistObj not right for this sub: ' . $playlistObj);
 		return 0;
 	}
 
@@ -2665,7 +2660,7 @@ sub rescanCommand {
 		$singledir = Slim::Utils::Misc::pathFromFileURL($singledir);
 
 		# don't run scan if newly added entry is disabled for all media types
-		if ( grep { /\Q$singledir\E/ } @{ Slim::Utils::Misc::getInactiveMediaDirs() }) {
+		if ( grep { /\Q$singledir\E/ } @{ Slim::Utils::Misc::getInactiveAudioDirs() }) {
 			main::INFOLOG && $log->info("Ignore scan request for folder, it's disabled for all media types: $singledir");
 			$request->setStatusDone();
 			return;
@@ -2723,47 +2718,7 @@ sub rescanCommand {
 
 			Slim::Utils::Progress->clear();
 
-			# we only want to scan folders for video/pictures
-			my %seen = (); # to avoid duplicates
-			@dirs = grep {
-				!$seen{$_}++
-			} @{ Slim::Utils::Misc::getVideoDirs($singledir) }, @{ Slim::Utils::Misc::getImageDirs($singledir) };
-
-			if ( main::MEDIASUPPORT && scalar @dirs && $mode ne 'playlists' ) {
-				require Slim::Utils::Scanner::LMS;
-
-				# XXX - we need a better way to handle the async mode, eg. passing the exception list together with the folder list to Media::Scan
-				my $lms;
-				$lms = sub {
-					if (scalar @dirs) {
-						Slim::Utils::Scanner::LMS->rescan( shift @dirs, {
-							scanName   => 'directory',
-							progress   => 1,
-							onFinished => sub {
-								# XXX - delay call to self for a second, or we segfault
-								Slim::Utils::Timers::setTimer(undef, time() + 1, $lms);
-							},
-						} );
-					}
-				};
-
-				# Audio scan is run first, when done, the LMS scanner is run
-				my $audiodirs = Slim::Utils::Misc::getAudioDirs($singledir);
-
-				if (my $playlistdir = Slim::Utils::Misc::getPlaylistDir()) {
-					# scan playlist folder too
-					push @$audiodirs, $playlistdir;
-				}
-
-				# XXX until libmediascan supports audio, run the audio scanner now
-				Slim::Utils::Scanner::Local->rescan( $audiodirs, {
-					types      => 'list|audio',
-					scanName   => 'directory',
-					progress   => 1,
-					onFinished => $lms,
-				} );
-			}
-			elsif ($mode eq 'playlists') {
+			if ($mode eq 'playlists') {
 				my $playlistdir = Slim::Utils::Misc::getPlaylistDir();
 
 				# XXX until libmediascan supports audio, run the audio scanner now
@@ -2811,18 +2766,7 @@ sub setSNCredentialsCommand { if (!main::NOMYSB) {
 	# Sync can be toggled without username/password
 	if ( defined $sync ) {
 		$prefs->set('sn_sync', $sync);
-
-		if ( UNIVERSAL::can('Slim::Networking::SqueezeNetwork::PrefSync', 'shutdown') ) {
-			Slim::Networking::SqueezeNetwork::PrefSync->shutdown();
-		}
-
-		if ( $sync ) {
-			require Slim::Networking::SqueezeNetwork::PrefSync;
-			Slim::Networking::SqueezeNetwork::PrefSync->init();
-		}
 	}
-
-	$password = sha1_base64($password);
 
 	# Verify username/password
 	if ($username) {
@@ -2841,7 +2785,6 @@ sub setSNCredentialsCommand { if (!main::NOMYSB) {
 				Slim::Networking::SqueezeNetwork->shutdown();
 
 				$prefs->set('sn_email', $username);
-				$prefs->set('sn_password_sha', $password);
 
 				# Start it up again if the user enabled it
 				Slim::Networking::SqueezeNetwork->init();
@@ -2862,9 +2805,7 @@ sub setSNCredentialsCommand { if (!main::NOMYSB) {
 	# stop SN integration if either mail or password is undefined
 	else {
 		$request->addResult('validated', 1);
-		$prefs->set('sn_email', '');
-		$prefs->set('sn_password_sha', '');
-		Slim::Networking::SqueezeNetwork->shutdown();
+		Slim::Networking::SqueezeNetwork->logout();
 	}
 } }
 
@@ -3092,7 +3033,7 @@ sub syncCommand {
 		my $buddy = Slim::Player::Client::getClient($newbuddy);
 
 		# try a player index
-		if (!defined $buddy) {
+		if (looks_like_number($newbuddy) && !defined $buddy) {
 			my @clients = Slim::Player::Client::clients();
 			if (defined $clients[$newbuddy]) {
 				$buddy = $clients[$newbuddy];
@@ -3296,8 +3237,10 @@ sub _playlistXitem_load_done {
 
 	if ($wipePlaylist) {
 		my $playlistObj = Slim::Schema->objectForUrl($url);
-		_wipePlaylist($playlistObj);
 
+		if ($playlistObj && blessed($playlistObj) && $playlistObj->isPlaylist()) {
+			_wipePlaylist($playlistObj);
+		}
 	}
 
 	Slim::Control::Request::notifyFromArray($client, ['playlist', 'load_done']);
@@ -3635,7 +3578,6 @@ sub _playlistXtracksCommand_parseDbItem {
 
 	my %classes;
 	my $class   = 'Track';
-	my $obj     = undef;
 
 	# Bug: 2569
 	# We need to ask for the right type of object.
@@ -3666,16 +3608,23 @@ sub _playlistXtracksCommand_parseDbItem {
 				$class = ucfirst($1);
 
 				if ( $class eq 'LibraryTracks' && $key eq 'library' && $value eq '-1' ) {
-					$obj = -1;
+					$classes{$class} = -1;
+				}
+				# album favorites need to be filtered by contributor, too
+				elsif ($class eq 'Contributor' && (my $albumObj = $classes{Album})) {
+					my $lcClass = lc($class);
+					$classes{Album} = Slim::Schema->search('Album', {
+						titlesearch => $albumObj->titlesearch,
+						"$lcClass.$key" => $value,
+					},{
+						prefetch => $lcClass
+					})->first;
 				}
 				else {
-					$obj = Slim::Schema->single( $class, { $key => $value } );
+					$classes{$class} = Slim::Schema->search( $class, { $key => $value } )->first;
 				}
-
-				$classes{$class} = $obj;
 			}
 		}
-
 	}
 	elsif ( Slim::Music::Info::isPlaylist($url) && !Slim::Music::Info::isRemoteURL($url) ) {
 
@@ -3698,7 +3647,7 @@ sub _playlistXtracksCommand_parseDbItem {
 	# Bug 4790: we get a track object of content type 'dir' if a fileurl for a directory is passed
 	# this needs scanning so pass empty list back to playlistXitemCommand in this case
 	my $terms = "";
-	while ( ($class, $obj) = each %classes ) {
+	while ( my ($class, $obj) = each %classes ) {
 		if ( blessed($obj) && (
 			$class eq 'Album' ||
 			$class eq 'Contributor' ||

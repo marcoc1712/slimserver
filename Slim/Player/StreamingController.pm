@@ -435,7 +435,7 @@ sub _CheckPaused {	# only called when PAUSED
 		if ($song->canSeek() && defined $self->{'resumeTime'}) {
 
 			# Bug 10645: stop only the streaming if there is a chance to restart
-			main::INFOLOG && $log->info("Stopping remote stream upon full buffer when paused");
+			main::INFOLOG && $log->info("Stopping remote stream upon full buffer when paused (resume time: $self->{'resumeTime'})");
 				
 			_pauseStreaming($self, $song);
 			
@@ -443,7 +443,7 @@ sub _CheckPaused {	# only called when PAUSED
 			
 			# Bug 7620: stop remote radio streams if they have been paused long enough for the buffer to fill.
 			# Assume unknown duration means radio and so we shuould stop now
-			main::INFOLOG && $log->info("Stopping remote stream upon full buffer when paused");
+			main::INFOLOG && $log->info("Stopping remote stream upon full buffer when paused (no resume)");
 			
 			_Stop(@_);
 		}
@@ -926,7 +926,6 @@ sub _RetryOrNext {		# -> Idle; IF [shouldretry && canretry] THEN continue
 	
 	_getNextTrack($self, $params, 1);
 }
-	
 
 sub _Continue {
 	my ($self, $event, $params) = @_;
@@ -942,13 +941,15 @@ sub _Continue {
 	if ($seekdata && $seekdata->{'streamComplete'}) {
 		main::INFOLOG && $log->is_info && $log->info("stream already complete at offset $bytesReceived");
 		_Streamout($self);
-	} elsif (!$bytesReceived || $seekdata) {
+	} elsif ($seekdata && $bytesReceived) {
 		main::INFOLOG && $log->is_info && $log->info("Restarting stream at offset $bytesReceived");
 		_Stream($self, $event, {song => $song, seekdata => $seekdata, reconnect => 1});
 		if ($song == playingSong($self)) {
 			$song->setStatus(Slim::Player::Song::STATUS_PLAYING);
 		}
 	} else {
+		# This handles resuming after reboot with the caveat that if connection has been lost (no reboot) 
+		# while playing and before reception of next song's 1st byte, we'll resume the current song
 		main::INFOLOG && $log->is_info && $log->info("Restarting playback at time offset: ". $self->playingSongElapsed());
 		_JumpToTime($self, $event, {newtime => $self->playingSongElapsed(), restartIfNoSeek => 1});
 	}
@@ -2138,7 +2139,7 @@ sub pause      {
 	# Some protocol handlers don't allow pausing of active streams.
 	# We check if that's the case before continuing.
 	my $song = playingSong($self) || {};
-	my $handler = $song->handler();
+	my $handler = $song->currentTrackHandler();
 
 	if ($handler && $handler->can("canDoAction") &&
 		!$handler->canDoAction(master($self), $song->currentTrack()->url, 'pause'))

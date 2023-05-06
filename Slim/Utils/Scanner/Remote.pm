@@ -82,6 +82,7 @@ my %parsers = (
 	'wav' => { parser => \&parseWavAifHeader, extra => 'format' },    
 	'aif' => { parser => \&parseWavAifHeader, extra => 'format' },    
 	'mp4' => { parser => \&parseMp4Header, extra => 'url' },			
+	'mp3' => { parser => \&parseAudioStream, extra => 'url' },			
 );
 
 sub parseRemoteHeader {
@@ -143,9 +144,10 @@ sub scanURL {
 	my $track = Slim::Schema->updateOrCreate( {
 		url => $url,
 	} );
-
+	
 	# Make sure it has a title
 	if ( !$track->title ) {
+		$args->{'title'} ||= $args->{'song'}->track->title if $args->{'song'}; 		
 		$track = Slim::Music::Info::setTitle( $url, $args->{'title'} ? $args->{'title'} : $url );
 	}
 
@@ -299,7 +301,7 @@ sub handleRedirect {
 	# Keep track of artwork or station icon across redirects
 	my $cache = Slim::Utils::Cache->new();
 	if ( my $icon = $cache->get("remote_image_" . $track->url) ) {
-		$cache->set("remote_image_" . $request->uri, $icon, '30 days');
+		$cache->set("remote_image_" . $request->uri->canonical->as_string, $icon, '30 days');
 	}
 
 	return $request;
@@ -321,7 +323,7 @@ sub readRemoteHeaders {
 	# $track is the track object for the original URL we scanned
 	# $url is the final URL, may be different due to a redirect
 
-	my $url = $http->request->uri->as_string;
+	my $url = $http->request->uri->canonical->as_string;
 
 	if ( main::DEBUGLOG && $log->is_debug ) {
 		$log->debug( "Headers for $url are " . Data::Dump::dump( $http->response->headers ) );
@@ -403,6 +405,7 @@ sub readRemoteHeaders {
 			$redirTrack->title( $track->title );
 			$redirTrack->content_type( $track->content_type );
 			$redirTrack->bitrate( $track->bitrate );
+			$redirTrack->redir( $track->redir || $track->url );
 
 			$redirTrack->update;
 
@@ -537,6 +540,7 @@ sub readRemoteHeaders {
 				Slim::Music::Info::setBitrate( $track, $bitrate, $vbr );
 
 				if ( $track->url ne $url ) {
+					$log->warn("don't know what we are doing here $url ", $track->url);
 					Slim::Music::Info::setBitrate( $url, $bitrate, $vbr );
 				}
 
@@ -565,27 +569,25 @@ sub readRemoteHeaders {
 			}
 			else {
 				# XXX - for whatever reason we have to disconnect an https connection before we can do another connection...
-				#       we'll start playback once the scanning has finished
-				if ( $track->url !~ /^https/ ) {
+				# or bitrate is mandatory, so we'll start playback once the scanning has finished
+				if ( $track->url =~ /^https/ ) {
+					# as https for whatever reason didn't allow us to start the stream while scanning
+					# we're now disconnecting to allow the stream to start
+					$args->{cb} = sub {
+						my $track = shift;
+						my $param = shift;
+						$http->disconnect;
+						$cb->( $track, $param, @_ );
+					};
+				} elsif ( !$args->{song}->seekdata || !$args->{song}->seekdata->{startTime} ) {
 					# We still need to read more info about this stream, but we can begin playing it now - unless it's an https stream
 					$cb->( $track, undef, @{$pt} );
+					delete $args->{cb};
 				}
-
-				# Continue scanning in the background
-				delete $args->{cb};	
 
 				# We may be able to determine the bitrate or other tag information
 				# about this remote stream/file by reading a bit of audio data
-				main::DEBUGLOG && $log->is_debug && $log->debug('Reading audio data in the background to detect bitrate and/or tags');
-					
-				# as https for whatever reason didn't allow us to start the stream while scanning
-				# we're now disconnecting to allow the stream to start
-				$args->{cb} = sub {
-					my $track = shift;
-					my $param = shift;
-					$http->disconnect;
-					$cb->( $track, $param, @_ );
-				} if $cb && $track->url =~ /^https/;
+				main::DEBUGLOG && $log->is_debug && $log->debug('Reading audio data to detect bitrate and/or tags');
 
 				# read as much as is necessary to read all ID3v2 tags and determine bitrate
 				$http->read_body( {
@@ -886,8 +888,14 @@ sub parseMp4Header {
 		return 0;
 	}
 	
+	# some mp4 file have wrong mdat length
+	if ($info->{audio_offset} + $info->{audio_size} > $http->response->content_length) { 
+		$log->warn("inconsistent audio offset/size $info->{audio_offset}+$info->{audio_size}and content_length ", $http->response->content_length);
+		$track->audio_size($http->response->content_length - $info->{audio_offset});
+	} else {
+		$track->audio_size($info->{audio_size});		
+	} 	
 	$track->audio_offset($info->{audio_offset});
-	$track->audio_size($info->{audio_size});
 	$track->samplerate($samplerate);
 	$track->samplesize($samplesize);
 	$track->channels($channels);	
@@ -1085,6 +1093,7 @@ sub parseAudioStream {
 
 			# Copy bitrate to redirected URL
 			if ( $track->url ne $url ) {
+				$log->warn("don't know what we are doing here $url ", $track->url);
 				Slim::Music::Info::setBitrate( $url, $bitrate );
 				if ($cl) {
 					Slim::Music::Info::setDuration( $url, ( $cl * 8 ) / $bitrate );
@@ -1141,6 +1150,25 @@ sub parsePlaylist {
 		my $fh = IO::String->new( $http->response->content_ref );
 		@results = eval { $formatClass->read( $fh, '', $playlist->url ) };
 	}
+	 elsif ( $type =~ /json/ ) {
+		my $feed = eval { Slim::Formats::XML::parseXMLIntoFeed( $http->response->content_ref, $type ) };
+		$@ && $log->error("Failed to parse playlist from OPML: $@");
+
+		if ($feed && $feed->{items}) {
+			$args->{song}->_playlist(1);
+			@results = map {
+				Slim::Schema->updateOrCreate( {
+					url => $_->{play} || $_->{url},
+					attributes => {
+						TITLE => $_->{name},
+						COVER => $_->{image},
+					},
+				} );
+			} grep {
+				$_ ->{play} || $_->{url}
+			} @{$feed->{items}};
+		}
+	}
 
 	if ( !scalar @results || !defined $results[0]) {
 		main::DEBUGLOG && $log->is_debug && $log->debug( "Unable to parse playlist for content-type $type $@" );
@@ -1177,7 +1205,9 @@ sub parsePlaylist {
 			next;
 		}
 
-		__PACKAGE__->scanURL( $entry->url, {
+		# playlist might contain tracks with a different handler
+		my $handler = Slim::Player::ProtocolHandlers->handlerForURL($entry->url);
+		$handler->scanUrl( $entry->url, {
 			client => $client,
 			song   => $args->{song},
 			depth  => $args->{depth} + 1,

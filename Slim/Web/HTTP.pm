@@ -73,6 +73,11 @@ my $openedport = undef;
 my $http_server_socket;
 my $connected = 0;
 
+my $IMAGE_RESIZE_REGEX = qr/\/[\w-]+_(X|\d+)x(X|\d+)
+	(?:_([mpsSfFco]))?    # resizeMode, given by a single character
+	(?:_[\da-fA-F]+)?     # background color, optional
+/x;
+
 our %outbuf = (); # a hash for each writeable socket containing a queue of output segments
                  #   each segment is a hash of a ref to data, an offset and a length
 
@@ -378,7 +383,8 @@ sub processHTTP {
 	$response->request($request);
 
 	# handle stuff we know about or abort
-	if ($request->method() eq 'GET' || $request->method() eq 'HEAD' || $request->method() eq 'POST') {
+	if ($request->method() eq 'GET' || $request->method() eq 'HEAD' || $request->method() eq 'POST'
+		|| $request->method() eq 'PUT' || $request->method() eq 'DELETE') {
 
 		# Manage authorization
 		my $authorized = !$prefs->get('authorize');
@@ -478,6 +484,21 @@ sub processHTTP {
 				&{$rawFunc}($httpClient, $response);
 				return;
 			}
+		}
+
+		#PUT and DELETE are only considered valid for a raw function, so we will not go any further for these HTTP verbs
+		if ( $request->method() eq 'PUT' || $request->method() eq 'DELETE') {
+
+			$log->is_warn && $log->warn("Bad Request: [" . join(' ', ($request->method, $request->uri)) . "]");
+
+			$response->code(RC_METHOD_NOT_ALLOWED);
+			$response->content_type('text/html');
+			$response->header('Connection' => 'close');
+			$response->content_ref(filltemplatefile('html/errors/405.html', $params));
+
+			$httpClient->send_response($response);
+			closeHTTPSocket($httpClient);
+			return;
 		}
 
 		# Set the request time - for If-Modified-Since
@@ -627,7 +648,7 @@ sub processHTTP {
 
 			$path =~ s|^/+||;
 
-			if ( !main::WEBUI || $path =~ m{^(?:html|music|video|image|plugins|apps|settings|firmware|clixmlbrowser|index\.html|imageproxy)/}i || Slim::Web::Pages->isRawDownload($path) ) {
+			if ( !main::WEBUI || $path =~ m{^(?:html|music|plugins|apps|settings|firmware|clixmlbrowser|index\.html|imageproxy)/}i || Slim::Web::Pages->isRawDownload($path) ) {
 				# not a skin
 
 			} elsif ($path =~ m|^([a-zA-Z0-9]+)$| && $skinMgr->isaSkin($1)) {
@@ -835,7 +856,7 @@ sub processURL {
 				# Bug 4795
 				# If the player has an existing playlist, start playing it without
 				# requiring the user to press Play in the web UI
-				if ( Slim::Player::Playlist::song($client) &&
+				if ( Slim::Player::Playlist::track($client) &&
 					!Slim::Music::Info::isRemoteURL( Slim::Player::Playlist::url($client) )
 				) {
 					# play if current playlist item is not a remote url
@@ -982,7 +1003,7 @@ sub generateHTTPResponse {
 		$contentType = 'application/octet-stream';
 	}
 
-	if ( $path =~ /(?:music|video|image)\/[0-9a-f]+\/(?:download|cover)/ || $path =~ /^imageproxy\// ) {
+	if ( $path =~ /music\/[0-9a-f]+\/(?:download|cover)/ || $path =~ /^imageproxy\// ) {
 		# Avoid generating templates for download URLs
 		$contentType = 'application/octet-stream';
 	}
@@ -1065,9 +1086,6 @@ sub generateHTTPResponse {
 		$response->expires( time() + $max );
 		$response->header('Cache-Control' => 'max-age=' . $max);
 	}
-	elsif ( $path !~ m{^(?:music|imageproxy)/} ) {
-		$params->{'browserType'} = $skinMgr->detectBrowser($response->request);
-	}
 
 	# XXX - this is no longer being used by any of the stock skins
 	if ($contentType =~ /text/ && $contentType !~ /(?:css|javascript)/ && $path !~ /(?:json|memoryusage)/) {
@@ -1093,12 +1111,7 @@ sub generateHTTPResponse {
 	elsif ( $path =~ /\.css|\.js(?!on)|robots\.txt/ ) {
 		$isStatic = 1;
 	}
-	elsif (    $path =~ m{html/}
-			&& $path !~ /\/\w+_(X|\d+)x(X|\d+)
-                    (?:_([sSfFpc]))?        # resizeMode, given by a single character
-                    (?:_[\da-fA-F]+)? 		# background color, optional
-		/x   # extend this to also include any image that gives resizing parameters
-	) {
+	elsif ( $path =~ m{html/} && $path !~ $IMAGE_RESIZE_REGEX ) {
 		if ( $contentType ne 'text/html' && $contentType ne 'text/xml' && $contentType ne 'application/x-java-jnlp-file' ) {
 			$isStatic = 1;
 		}
@@ -1191,13 +1204,10 @@ sub generateHTTPResponse {
 
 			return 0;
 
-		} elsif ($path =~ m{(?:image|music|video)/([^/]+)/(cover|thumb)} ||
+		} elsif ($path =~ m{music/([^/]+)/(cover|thumb)} ||
 			$path =~ m{^(?:plugins/cache/icons|imageproxy)} ||
-			$path =~ /\/\w+_(X|\d+)x(X|\d+)
-	                        (?:_([mpsSfFco]))?        # resizeMode, given by a single character
-	                        (?:_[\da-fA-F]+)? 		# background color, optional
-				/x   # extend this to also include any image that gives resizing parameters
-			) {
+			$path =~ $IMAGE_RESIZE_REGEX
+		) {
 
 			main::PERFMON && (my $startTime = AnyEvent->time);
 
@@ -1290,11 +1300,11 @@ sub generateHTTPResponse {
 				$httpClient,
 				$response,
 			);
-		} elsif ($path =~ /(?:music|video|image)\/([0-9a-f]+)\/download/) {
+		} elsif ($path =~ /music\/([0-9a-f]+)\/download/) {
 			# Bug 10730
 			my $id = $1;
 
-			if ( $path =~ /music|video/ ) {
+			if ( $path =~ /music/ ) {
 				main::INFOLOG && $log->is_info && $log->info("Disabling keep-alive for large file download");
 				delete $keepAlives{$httpClient};
 				Slim::Utils::Timers::killTimers( $httpClient, \&closeHTTPSocket );
@@ -1314,16 +1324,6 @@ sub generateHTTPResponse {
 
 			if ( $path =~ /music/ ) {
 				if ( downloadMusicFile($httpClient, $response, $id) ) {
-					return 0;
-				}
-			}
-			elsif ( $path =~ /video/ ) {
-				if ( downloadVideoFile($httpClient, $response, $id) ) {
-					return 0;
-				}
-			}
-			elsif ( $path =~ /image/ ) {
-				if ( downloadImageFile($httpClient, $response, $id) ) {
 					return 0;
 				}
 			}
@@ -1497,6 +1497,9 @@ sub generateHTTPResponse {
 		# we are not a real streaming session, so we need to avoid sendStreamingResponse using the random $client stored in
 		# $peerclient as this will cause streaming to the real client $client to stop.
 		delete $peerclient{$httpClient};
+
+		# Disable metadata in case this client sent an Icy-Metadata header
+		$sendMetaData{$httpClient} = 0;
 
 		addStreamingResponse($httpClient, $headers);
 
@@ -2956,72 +2959,6 @@ sub downloadMusicFile {
 
 		Slim::Web::HTTP::sendStreamingFile( $httpClient, $response, $ct, Slim::Utils::Misc::pathFromFileURL($obj->url), $obj );
 
-		return 1;
-	}
-
-	return;
-}
-
-sub downloadVideoFile {
-	my ($httpClient, $response, $id) = @_;
-
-	require Slim::Schema::Video;
-	my $video = Slim::Schema::Video->findhash($id);
-
-	if ($video) {
-		# Add DLNA HTTP header
-		if ( my $pn = $video->{dlna_profile} ) {
-			my $dlna = "DLNA.ORG_PN=${pn};DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000";
-			$response->header( 'contentFeatures.dlna.org' => $dlna );
-		}
-
-		# Support transferMode.dlna.org (DLNA 7.4.49)
-		my $tm = $response->request->header('transferMode.dlna.org') || 'Streaming';
-		if ( $tm =~ /^(?:Streaming|Background)$/i ) {
-			$response->header( 'transferMode.dlna.org' => $tm );
-		}
-		else {
-			$response->code(406);
-			$response->headers->remove_content_headers;
-			$httpClient->send_response($response);
-			closeHTTPSocket($httpClient);
-			return;
-		}
-
-		Slim::Web::HTTP::sendStreamingFile( $httpClient, $response, $video->{mime_type}, Slim::Utils::Misc::pathFromFileURL($video->{url}), $video );
-		return 1;
-	}
-
-	return;
-}
-
-sub downloadImageFile {
-	my ($httpClient, $response, $hash) = @_;
-
-	require Slim::Schema::Image;
-	my $image = Slim::Schema::Image->findhash($hash);
-
-	if ($image) {
-		# Add DLNA HTTP header
-		if ( my $pn = $image->{dlna_profile} ) {
-			my $dlna = "DLNA.ORG_PN=${pn};DLNA.ORG_OP=01;DLNA.ORG_FLAGS=00f00000000000000000000000000000";
-			$response->header( 'contentFeatures.dlna.org' => $dlna );
-		}
-
-		# Support transferMode.dlna.org (DLNA 7.4.49)
-		my $tm = $response->request->header('transferMode.dlna.org') || 'Interactive';
-		if ( $tm =~ /^(?:Interactive|Background)$/i ) {
-			$response->header( 'transferMode.dlna.org' => $tm );
-		}
-		else {
-			$response->code(406);
-			$response->headers->remove_content_headers;
-			$httpClient->send_response($response);
-			closeHTTPSocket($httpClient);
-			return;
-		}
-
-		Slim::Web::HTTP::sendStreamingFile( $httpClient, $response, $image->{mime_type}, Slim::Utils::Misc::pathFromFileURL($image->{url}), $image );
 		return 1;
 	}
 
