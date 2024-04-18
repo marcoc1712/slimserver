@@ -22,7 +22,6 @@ use File::Path;
 use File::Basename;
 use File::Spec::Functions qw(catdir splitdir);
 use Path::Class;
-use POSIX qw(setlocale LC_CTYPE LC_COLLATE);
 use Scalar::Util qw(blessed);
 use Tie::Cache::LRU;
 
@@ -455,7 +454,12 @@ sub setRemoteMetadata {
 		$attr->{VBR_SCALE} = ( exists $cbr{ $meta->{bitrate} } ) ? undef : 1;
 	}
 
+	if ( $meta->{year} ) {
+		$attr->{YEAR} = $meta->{year};
+	}
+
 	if ( main::DEBUGLOG && $log->is_debug ) {
+		$log->debug( "meta data is " . Data::Dump::dump($meta) );
 		$log->debug( "Updating metadata for $url: " . Data::Dump::dump($attr) );
 	}
 
@@ -938,31 +942,7 @@ sub fileName {
 }
 
 sub sortFilename {
-
-	use locale;
-
-	# build the sort index
-	# File sorting should look like ls -l, Windows Explorer, or Finder -
-	# really, we shouldn't be doing any of this, but we'll ignore
-	# punctuation, and fold the case. DON'T strip articles.
-	my @nocase = map {
-		lc(
-			Slim::Utils::Unicode::utf8encode_locale(
-				fileName($_)
-			)
-		)
-	} @_;
-
-	# Bug 14906: need to use native character-encoding collation sequence
-	my $oldCollate = setlocale(LC_COLLATE);
-	setlocale(LC_COLLATE, setlocale(LC_CTYPE));
-
-	# return the input array sliced by the sorted array
-	my @ret = @_[sort {$nocase[$a] cmp $nocase[$b]} 0..$#_];
-
-	setlocale(LC_COLLATE, $oldCollate);
-
-	return @ret;
+	return Slim::Utils::OSDetect::getOS->sortFilename(@_);
 }
 
 sub isFragment {
@@ -1167,11 +1147,6 @@ sub canSeek {
 
 sub isPlaylistURL {
 	my $url = shift || return 0;
-
-	# XXX: This method is pretty wrong, it says every remote URL is a playlist
-	# Bug 3484, We want rhapsody tracks to display the proper title format so they can't be
-	# seen as a playlist which forces only the title to be displayed.
-	return if $url =~ /^rhap.+wma$/;
 
 	if ($url =~ /^([a-zA-Z0-9\-]+):/) {
 

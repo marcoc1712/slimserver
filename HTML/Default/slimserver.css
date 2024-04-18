@@ -479,6 +479,11 @@ div.pagetitleWithIcon {
 	padding-left: 6px;
 }
 
+.browsedbListItem .wrappedMenuItem {
+	display: inline-table;
+	padding-left: 6px; /* added indent helps if browser window is too narrow for content */
+}
+
 .browsedbControls, .playlistControls, .browsedbRightControls, .browsedbLeftControls {
 	visibility: hidden;
 	position: absolute;
@@ -1259,14 +1264,13 @@ ul.x-tree-node-ct {
 	margin: 0;
 }
 
-
-
 .helpsection dd {
 	margin-left: 20px;
 }
 
 .helpsection ul, .helpsection ol {
 	list-style-type: disc;
+	direction: ltr;
 }
 
 .helpsection blockquote, .helpsection ul {
@@ -1275,6 +1279,7 @@ ul.x-tree-node-ct {
 
 .helpsection li {
 	margin-bottom: 5px;
+	font-size: 12px;
 }
 
 
@@ -1610,4 +1615,26 @@ td.sort-asc .x-grid3-hd-inner, td.x-grid3-hd-menu-open .x-grid3-hd-inner {
 
 .x-grid3-cell-inner  {
 	white-space:normal!important;
+}
+
+/* song info lyrics */
+#songinfo_lyrics details > summary {
+	list-style: none;
+	cursor: pointer;
+	outline: none;
+}
+#songinfo_lyrics summary::-webkit-details-marker {
+	display: none;
+}
+
+#songinfo_lyrics summary::after {
+	content: ' ▸';
+}
+
+#songinfo_lyrics details[open] summary:after {
+	content: " ▾";
+}
+
+#songinfo_lyrics p {
+	padding: 8px 0px 8px 10px;
 }

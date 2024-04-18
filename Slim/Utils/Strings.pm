@@ -42,14 +42,15 @@ our @EXPORT_OK = qw(string cstring clientString);
 use Config;
 use Digest::SHA1 qw(sha1_hex);
 use POSIX qw(setlocale LC_TIME LC_COLLATE);
-use File::Basename;
+use File::Basename qw(dirname);
 use File::Slurp qw(read_file write_file);
-use File::Spec::Functions qw(:ALL);
+use File::Spec::Functions qw(catdir);
 use JSON::XS::VersionOneAndTwo;
 use Scalar::Util qw(blessed);
 use Storable;
 
 use Slim::Utils::Log;
+use Slim::Utils::Misc;
 use Slim::Utils::Prefs;
 use Slim::Utils::PluginManager;
 
@@ -86,7 +87,7 @@ sub init {
 		checkChangedStrings();
 	}
 
-	# Load cached extra strings from mysb.com
+	# Load cached extra strings from other sources
 	loadExtraStrings();
 }
 
@@ -195,6 +196,9 @@ sub loadStrings {
 
 		main::INFOLOG && $log->info("String cache contains old data - reparsing string files");
 	}
+
+	# clean up legacy files, and left-overs from migrations (eg. macOS Intel -> Apple Silicon)
+	Slim::Utils::Misc::deleteFiles($prefs->get('cachedir'), qr/^string(s|cache)\..*\.bin$/, $stringCache);
 
 	# otherwise reparse all string files
 	unless ($args->{'dontClear'}) {
@@ -318,7 +322,6 @@ sub loadFile {
 	# Force the UTF-8 layer opening of the strings file.
 	open(my $fh, '<:utf8', $file) || do {
 		logError("Couldn't open $file - FATAL!");
-		die;
 	};
 
 	parseStrings($fh, $file, $args);
@@ -384,7 +387,7 @@ sub parseStrings {
 
 		} else {
 
-			logError("Parsing line $ln: $line");
+			logError("Parsing $file line $ln: $line");
 		}
 	}
 
@@ -617,6 +620,22 @@ sub languageOptions {
 
 sub getLanguage {
 	return $prefs->get('language') || $failsafeLang;
+}
+
+sub isLanguageRegionalVersion {
+	my $lang = shift;
+
+	my $currentLanguage = $prefs->get('language') || $failsafeLang;
+
+	if ( $lang !~ /_/ && $currentLanguage =~ /(.+)_/ ) { # contains a regional variation e.g. EN_GB
+
+		if ( $1 eq $lang ) {
+			return $currentLanguage;
+		}
+
+	}
+
+	return;
 }
 
 sub setLanguage {

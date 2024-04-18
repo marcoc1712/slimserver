@@ -40,7 +40,7 @@ sub initDetails {
 
 			} elsif (/Chip.*(Apple .*)/) {
 
-				$class->{osDetails}->{'osArch'} ||= $1;
+				$class->{osDetails}->{'osArch'} ||= 'arm64';
 
 			}
 
@@ -53,14 +53,18 @@ sub initDetails {
 	if ( !$class->{osDetails}->{osArch} ) {
 		my $uname = `uname -a`;
 
-		if ($uname =~ /ARM64/i) {
-			$class->{osDetails}->{osArch} = 'Apple Silicon (x86_64 - Rosetta)';
+		if ($uname =~ /ARM64.*x86_64/i) {
+			$class->{osDetails}->{osArch} = 'x86_64 (Rosetta)';
 		}
-		else {
+		elsif ($uname =~ /RELEASE_X86_64/) {
 			$class->{osDetails}->{osArch} = 'x86_64';
+		}
+		elsif ($uname =~ /RELEASE_ARM64/) {
+			$class->{osDetails}->{osArch} = 'arm64';
 		}
 	}
 
+	$class->{osDetails}->{'osArch'} ||= 'Unknown';
 	$class->{osDetails}->{'os'}  = 'Darwin';
 	$class->{osDetails}->{'uid'} = getpwuid($>);
 
@@ -231,6 +235,30 @@ sub localeDetails {
 
 	return ($lc_ctype, $lc_time);
 }
+
+
+# macOS doesn't sort correctly using LC_COLLATE - use a temporary database table to do the job...
+sub sortFilename {
+	my $class = shift;
+
+	my $dbh = Slim::Schema->dbh();
+
+	$dbh->do('DROP TABLE IF EXISTS sort_filenames');
+	$dbh->do('CREATE TEMPORARY TABLE sort_filenames (name TEXT)');
+
+	my $sth = $dbh->prepare_cached("INSERT INTO sort_filenames (name) VALUES (?)");
+	foreach (@_) {
+		$sth->execute($_);
+	};
+
+	my $collate = $class->sqlHelperClass()->collate();
+
+	my $ret = $dbh->selectall_arrayref("SELECT name FROM sort_filenames ORDER BY name $collate");
+	$dbh->do('DROP TABLE IF EXISTS sort_filenames');
+
+	return map { $_->[0] } @$ret;
+}
+
 
 sub getSystemLanguage {
 	my $class = shift;
@@ -420,10 +448,7 @@ sub canAutoUpdate { 1 }
 sub installerExtension { 'pkg' };
 sub installerOS { 'osx' }
 
-sub canRestartServer {
-	# we can't restart if LMS is being started as a system service
-	return ( -f '/Library/LaunchDaemons/Squeezebox.plist' ) ? 0 : 1;
-}
+sub canRestartServer { 1 }
 
 sub restartServer {
 	my $class  = shift;

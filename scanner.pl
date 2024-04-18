@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Logitech Media Server Copyright 2001-2022 Logitech.
+# Logitech Media Server Copyright 2001-2024 Logitech.
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License,
 # version 2.
@@ -16,6 +16,7 @@ use strict;
 
 use FindBin qw($Bin);
 use lib $Bin;
+use Config;
 
 use constant SLIM_SERVICE => 0;
 use constant SCANNER      => 1;
@@ -23,6 +24,7 @@ use constant RESIZER      => 0;
 use constant TRANSCODING  => 0;
 use constant PERFMON      => 0;
 use constant ISWINDOWS    => ( $^O =~ /^m?s?win/i ) ? 1 : 0;
+use constant ISACTIVEPERL => ( $Config{cf_email} =~ /ActiveState/i ) ? 1 : 0;
 use constant ISMAC        => ( $^O =~ /darwin/i ) ? 1 : 0;
 use constant DEBUGLOG     => ( grep { /--nodebuglog/ } @ARGV ) ? 0 : 1;
 use constant INFOLOG      => ( grep { /--noinfolog/ } @ARGV ) ? 0 : 1;
@@ -31,7 +33,7 @@ use constant SB1SLIMP3SYNC=> 0;
 use constant WEBUI        => 0;
 use constant HAS_AIO      => 0;
 use constant LOCALFILE    => 0;
-use constant NOMYSB       => ( grep { /--nomysqueezebox/ } @ARGV ) ? 1 : 0;
+use constant NOMYSB       => 1;
 
 # Tell PerlApp to bundle these modules
 if (0) {
@@ -43,7 +45,7 @@ our $REVISION    = undef;
 our $BUILDDATE   = undef;
 
 BEGIN {
-	our $VERSION = '8.3.2';
+	our $VERSION = '8.5.2';
 	use Slim::bootstrap;
 	use Slim::Utils::OSDetect;
 
@@ -79,6 +81,7 @@ use Slim::Utils::Prefs;
 use Slim::Music::Import;
 use Slim::Music::Info;
 use Slim::Music::PlaylistFolderScan;
+use Slim::Music::ReleaseTypes;
 use Slim::Music::VirtualLibraries;
 use Slim::Player::ProtocolHandlers;
 use Slim::Utils::Misc;
@@ -259,6 +262,7 @@ sub main {
 		Slim::Music::Import->scanOnlineLibraryOnly($onlineLibrary);
 		Slim::Media::MediaFolderScan->init;
 		Slim::Music::PlaylistFolderScan->init;
+		Slim::Music::ReleaseTypes->init();
 
 	}
 

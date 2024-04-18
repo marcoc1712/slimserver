@@ -1,12 +1,13 @@
 package Slim::Utils::OS::Win32;
 
-# Logitech Media Server Copyright 2001-2020 Logitech.
+# Logitech Media Server Copyright 2001-2023 Logitech.
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License,
 # version 2.
 
 use strict;
 use Cwd;
+use File::Basename qw(dirname);
 use File::Spec::Functions qw(catdir);
 use FindBin qw($Bin);
 use Sys::Hostname qw(hostname);
@@ -22,6 +23,12 @@ use base qw(Slim::Utils::OS);
 my $driveList  = {};
 my $driveState = {};
 my $writablePath;
+
+sub getFlavor {
+	return (!main::ISACTIVEPERL && Win32::GetOSDisplayName() =~ /64-bit/i)
+		? 'Win64'
+		: 'Win32';
+}
 
 sub name {
 	return 'win';
@@ -56,7 +63,7 @@ sub initDetails {
 
 	# The version numbers for Windows 8 onwards are identical, Win32.pm has not been updated to cover these
 	# https://msdn.microsoft.com/en-us/library/windows/desktop/ms724832(v=vs.85).aspx
-	elsif ($major == 6 && $minor == 2) {
+	elsif (($major == 6 && $minor == 2) || ($major == 10 && $minor == 0)) {
 
 		if ( my $wmi = Win32::OLE->GetObject( "WinMgmts://./root/cimv2" ) ) {
 			if ( my $list = $wmi->InstancesOf( "Win32_OperatingSystem" ) ) {
@@ -123,10 +130,10 @@ sub initSearchPath {
 
 	$class->SUPER::initSearchPath(@_);
 
-	# TODO: we might want to make this a bit more intelligent
-	# as Perl is not always in that folder (eg. German Windows)
-
-	Slim::Utils::Misc::addFindBinPaths('C:\Perl\bin');
+	# Add the location of perl.exe to the helper applications folder search path.
+	if ($^X =~ /perl\.exe/) {
+		Slim::Utils::Misc::addFindBinPaths(dirname($^X));
+	}
 }
 
 sub initMySQL {}
@@ -362,6 +369,11 @@ sub localeDetails {
 	my $lc_time  = POSIX::setlocale(LC_TIME, $locale);
 
 	return ($lc_ctype, $lc_time);
+}
+
+sub noCaseFilename {
+	my ($class, $name) = @_;
+	return Slim::Utils::Unicode::utf8encode_locale($class->SUPER::noCaseFilename($name));
 }
 
 sub getSystemLanguage {
@@ -746,16 +758,15 @@ sub getUpdateParams {
 
 	return if main::SCANNER;
 
-	if (!$PerlSvc::VERSION) {
+	if (main::ISACTIVEPERL && !$PerlSvc::VERSION) {
 		Slim::Utils::Log::logger('server.update')->info("Running Logitech Media Server from the source - don't download the update.");
 		return;
 	}
 
-	require Win32::NetResource;
-
 	my $downloaddir;
 
 	if ($class->{osDetails}->{isWHS}) {
+		require Win32::NetResource;
 
 		my $share;
 		Win32::NetResource::NetShareGetInfo('software', $share);
@@ -782,7 +793,8 @@ sub getUpdateParams {
 sub canAutoUpdate { 1 }
 
 # return file extension filter for installer
-sub installerExtension { '(?:exe|msi)' };
+sub installerExtension { '(?:exe|msi)' }
+
 sub installerOS {
 	my $class = shift;
 	return $class->{osDetails}->{isWHS} ? 'whs' : 'win';

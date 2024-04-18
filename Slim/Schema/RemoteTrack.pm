@@ -24,10 +24,11 @@ my $cache;
 
 # Keep a cache of up to x remote tracks at a time - allow more if user claims to have lots of memory.
 use constant CACHE_SIZE => 500;
+use constant DISK_CACHE_TTL => 60 * 60 * 24 * 30;
 
-use constant INITIAL_BLOCK_ONCE 	=> 0;
-use constant INITIAL_BLOCK_ONSEEK 	=> 1;
-use constant INITIAL_BLOCK_ALWAYS	=> 2;
+use constant INITIAL_BLOCK_ONCE   => 0;
+use constant INITIAL_BLOCK_ONSEEK => 1;
+use constant INITIAL_BLOCK_ALWAYS => 2;
 
 tie our %Cache, 'Tie::Cache::LRU', CACHE_SIZE;
 tie our %idIndex, 'Tie::Cache::LRU', CACHE_SIZE;
@@ -101,7 +102,10 @@ sub init {
 
 # Emulate absent methods - hopefully these can be retired at some time
 sub artists {return ();}
+sub artistid {}
 sub genres {return ();}
+sub genrename {}
+sub genreid {}
 sub coverArtExists {0}
 
 sub isRemoteURL {shift->remote();}
@@ -153,9 +157,9 @@ sub _mergeComments {
 		my $comment;
 
 		foreach my $c (@$new) {
-			# put a slash between multiple comments.
-			$comment .= ' / ' if $comment;
-			$c =~ s/^eng(.*)/$1/;
+			# join multiple comments into a single multi-line comment
+			# consistent with Slim::Schema::Track::comment
+			$comment .= "\n" if $comment;
 			$comment .= $c;
 		}
 
@@ -259,15 +263,12 @@ sub url {
 	my ($self, $new) = @_;
 
 	if ($new) {
-
 		# We could leave the old reference in the cache but
 		# I am not sure that it is safe.
 		delete $Cache{$self->_url};
 
 		$self->_url($new);
-		$Cache{$new} = $self;
-
-		$cache->set('rt_' . $self->id, $new) unless main::SCANNER;
+		$self->updateCaches();
 	}
 
 	return $self->_url;
@@ -307,10 +308,7 @@ sub new {
 	$self->init_accessor(remote => Slim::Music::Info::isRemoteURL($url));
 	$self->setAttributes($attributes);
 
-	$Cache{$url} = $self;
-	$idIndex{$self->id} = $self;
-
-	$cache->set('rt_' . $self->id, $url) unless main::SCANNER;
+	$self->updateCaches();
 
 	return $self;
 }
@@ -360,7 +358,8 @@ sub setAttributes {
 				my @splitList = split(/\s+/, ($prefs->get('splitList') || ''));
 				$separator = ($splitList[0] || ';') . ' ';
 			}
-			$value = join($separator, @$value);
+			# - but don't join if it's a comment - the 'comment' method handles this
+			$value = join($separator, @$value) unless $key eq '_comment';
 		}
 
 		main::DEBUGLOG && $log->is_debug && defined $self->$key() && $self->$key() ne $value &&
@@ -381,8 +380,7 @@ sub updateOrCreate {
 		$url = $self->_url();
 	} else {
 		$url = $objOrUrl;
-		$self = $Cache{$url};
-		my $id = $idIndex{$self->id} if $self; # refresh ID index cache
+		$self = $class->fetchFromUrlCache($url);
 	}
 
 	main::DEBUGLOG && $log->is_debug && $log->debug($url);
@@ -396,12 +394,29 @@ sub updateOrCreate {
 	return $self;
 }
 
+sub updateCaches {
+	my ($self, $noDiskCache) = @_;
+
+	if ($self) {
+		$Cache{$self->url} = $self;
+		$idIndex{$self->id} = $self;
+		$cache->set('rt_' . $self->id, $self->url, DISK_CACHE_TTL) unless $noDiskCache || main::SCANNER;
+	}
+}
+
+sub fetchFromUrlCache {
+	my ($class, $url) = @_;
+
+	my $self = $Cache{$url};
+	$self->updateCaches(1) if $self;
+
+	return $self;
+}
+
 sub fetch {
 	my ($class, $url, $playlist) = @_;
 
-
-	my $self = $Cache{$url};
-	my $id = $idIndex{$self->id} if $self; # refresh ID index cache
+	my $self = $class->fetchFromUrlCache($url);
 
 	if ($self && $playlist && !$self->isa('Slim::Schema::RemotePlaylist')) {
 		main::DEBUGLOG && $log->is_debug && $log->debug("$url upcast to RemotePlaylist");
@@ -418,8 +433,15 @@ sub fetchById {
 
 	# try to get the URL from the disk cache - might be needed for BMF of volatile tracks
 	if (!main::SCANNER && !$self) {
-		my $url = $cache->get('rt_' . $id);
-		$self = $class->new($url) if $url;
+		if (my $url = $cache->get('rt_' . $id)) {
+			$self = $class->new($url);
+
+			# map from old ID to new object
+			if ($self) {
+				$idIndex{$id} = $self;
+				$cache->set('rt_' . $id, $url, DISK_CACHE_TTL);
+			}
+		}
 	}
 
 	return $self;

@@ -63,6 +63,9 @@ my $scannerlog = logger('scan.scanner');
 my $ospathslog = logger('os.paths');
 my $osfileslog = logger('os.files');
 
+my $WEBLINK_SUPPORTED_UA_RE = qr/\b(?:iPeng|SqueezePad|OrangeSqueeze|Squeeze-Control|Squeezer|OpenSqueeze)\b/i;
+my $WEBBROWSER_UA_RE = qr/\b(?:FireFox|Chrome|Safari|Mozilla)\b/i;
+
 my $canFollowAlias = 0;
 
 if (main::ISWINDOWS) {
@@ -363,25 +366,6 @@ sub unescape {
 	return $in;
 }
 
-# See http://www.onlamp.com/pub/a/onlamp/2006/02/23/canary_trap.html
-# XXX - no longer used?
-=pod
-sub removeCanary {
-	my $string = shift;
-
-	for (my $i = 0;  ++$i <= 5;) {
-
-		last if $$string =~ s/^=://;
-
-		$$string = unescape($$string);
-
-		last if $$string =~ s/^=://;
-	}
-
-	return $string;
-}
-=cut
-
 sub anchorFromURL {
 	my $url = shift;
 
@@ -433,6 +417,18 @@ sub crackURL {
 	}
 
 	return ($host, $port, $path, $user, $pass, $proxied);
+}
+
+sub isWebBrowser {
+	my $client = shift || return;
+	return $client && $client->controllerUA && ($client->controllerUA =~ $WEBLINK_SUPPORTED_UA_RE || $client->controllerUA =~ $WEBBROWSER_UA_RE);
+}
+
+sub canFollowWeblinks {
+	my $client = shift || return;
+	return unless $client->controllerUA;
+	return 1 if isWebBrowser($client);
+	return $client->controllerUA =~ $WEBLINK_SUPPORTED_UA_RE;
 }
 
 =head2 cloneProtocol( $url, $model )
@@ -1220,9 +1216,7 @@ sub userAgentString {
 	my $osDetails = Slim::Utils::OSDetect::details();
 
 	# We masquerade as iTunes for radio stations that really want it.
-	# Note: Using SqueezeNetwork/SqueezeCenter here until RadioTime relaxes their user-agent restrictions
 	$userAgentString = sprintf("iTunes/4.7.1 (%s; N; %s; %s; %s; %s) %s/$::VERSION/$::REVISION",
-
 		$osDetails->{'os'},
 		$osDetails->{'osName'},
 		($osDetails->{'osArch'} || 'Unknown'),
@@ -1441,7 +1435,7 @@ Returns true if running as a Windows service.
 
 =cut
 
-sub runningAsService { if (main::ISWINDOWS) {
+sub runningAsService { if (main::ISACTIVEPERL) {
 
 	if (defined(&PerlSvc::RunningAsService) && PerlSvc::RunningAsService()) {
 		return 1;
