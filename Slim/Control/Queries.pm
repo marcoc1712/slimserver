@@ -1,6 +1,7 @@
 package Slim::Control::Queries;
 
-# Logitech Media Server Copyright 2001-2020 Logitech.
+# Logitech Media Server Copyright 2001-2024 Logitech.
+# Lyrion Music Server Copyright 2024 Lyrion Community.
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License,
 # version 2.
@@ -18,7 +19,7 @@ Slim::Control::Queries
 
 =head1 DESCRIPTION
 
-L<Slim::Control::Queries> implements most Logitech Media Server queries and is designed to
+L<Slim::Control::Queries> implements most Lyrion Music Server queries and is designed to
  be exclusively called through Request.pm and the mechanisms it defines.
 
  Except for subscribe-able queries (such as status and serverstatus), there are no
@@ -1136,8 +1137,8 @@ sub artistsQuery {
 			push @$p, $index, $quantity;
 		}
 
-		if ( main::DEBUGLOG && $sqllog->is_debug ) {
-			$sqllog->debug( "Artists query: $sql / " . Data::Dump::dump($p) );
+		if ( main::INFOLOG && $sqllog->is_info ) {
+			$sqllog->info( "Artists query: $sql / " . Data::Dump::dump($p) );
 		}
 
 		my $sth = $dbh->prepare_cached($sql);
@@ -5832,7 +5833,7 @@ sub _getTagDataForTracks {
 # Therefore we can't use SQLite's GROUP statement, but must group items ourselves.
 # If we have an index item which we already had in the list, merge all items after
 # the previous index and the current item into one. Eg. "U Ü U" -> "U" only.
-# https://github.com/Logitech/slimserver/issues/388
+# https://github.com/LMS-Community/slimserver/issues/388
 sub _createIndexList {
 	my ($pageSql, $p) = @_;
 
