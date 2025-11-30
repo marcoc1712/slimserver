@@ -5,8 +5,10 @@
 	<module>Slim::Plugin::ViewTags::Plugin</module>
 	<version>1.0</version>
 	<description>PLUGIN_VIEW_TAGS</description>
-	<creator>Logitech</creator>
-	<defaultState>enabled</defaultState>
+	<creator>Lyrion Community</creator>
+	<category>information</category>
+	<optionsURL>plugins/ViewTags/settings.html</optionsURL>
+	<defaultState>disabled</defaultState>
 	<targetApplication>
 		<id>Lyrion Music Server</id>
 		<minVersion>8.4</minVersion>

@@ -72,12 +72,10 @@ original artwork is of considerable size, where the bandwidth to download the im
 =cut
 
 use strict;
-use Digest::MD5;
-use File::Spec::Functions qw(catdir);
-use File::Slurp ();
 use HTTP::Status qw(
 	RC_MOVED_PERMANENTLY
 );
+use Image::Scale;
 use Tie::RegexpHash;
 use URI::Escape qw(uri_escape_utf8);
 
@@ -95,6 +93,8 @@ tie my %handlers, 'Tie::RegexpHash';
 my %externalHandlers;
 
 use constant ONE_YEAR => 86400 * 365;
+use constant ACCEPT_IMAGE_FORMATS => 'image/jpeg,image/png;q=0.9' . (Image::Scale->gif_version() ? ',image/gif;q=0.1' : '');
+use constant REDIRECT_IMAGE_TO_JPEG => 'https://api.lms-community.org/img2compatible/';
 
 my $log   = logger('artwork.imageproxy');
 my $prefs = preferences('server');
@@ -145,7 +145,8 @@ sub getImage {
 		return;
 	}
 
-	if ($spec =~ /^\.(?:png|jpe?g)/i && $url =~ /^https?/) {
+	my $handler = $class->getHandlerFor($url);
+	if (!$handler && ($url =~ /\.svg$/ || ($spec =~ /^\.(?:png|jpe?g)/i && $url =~ /^https?/))) {
 		main::INFOLOG && $log->is_info && $log->info("No resizing requested - redirect to original URI: $url");
 
 		my $response = $args[1];
@@ -170,7 +171,11 @@ sub getImage {
 		main::DEBUGLOG && $log->debug("Found URL to get artwork: $url");
 
 		my $pre_shrunk;
-		my %headers;
+		my %headers = (
+			'Accept'     => ACCEPT_IMAGE_FORMATS,
+			'User-Agent' => Slim::Utils::Misc::userAgentString('legacy')
+		);
+
 		# use external image proxy if one is defined
 		if ( $url =~ /^https?:/ && $spec && $spec !~ /^\.(png|jpe?g)/i && (my $imageproxy = $prefs->get('useLocalImageproxy')) ) {
 			if ( my $external = $externalHandlers{$imageproxy} ) {
@@ -192,6 +197,11 @@ sub getImage {
 					main::DEBUGLOG && $log->debug("Using custom image proxy: $url");
 				}
 			}
+		}
+
+		if (!$pre_shrunk && $url =~ /^https?:.*\.webp(?:$|\?)/i) {
+			main::DEBUGLOG && $log->debug("Redirect WEBP images to JPEG conversion service");
+			$url = urlToCloudResizer($url);
 		}
 
 		$queue{$url} ||= [];
@@ -216,21 +226,19 @@ sub getImage {
 			# no need to do the http request if we're already fetching it
 			return if scalar @{ $queue{$url} } > 1;
 
-			my $http = Slim::Networking::SimpleAsyncHTTP->new(
+			Slim::Networking::SimpleAsyncHTTP->new(
 				\&_gotArtwork,
 				\&_gotArtworkError,
 				{
 					timeout => 30,
 					cache   => 1,
 				},
-			);
-
-			$http->get( $url, %headers );
+			)->get( $url, %headers );
 		}
 	};
 
 	# some plugin might have registered to deal with this image URL
-	if ( my $handler = $class->getHandlerFor($url) ) {
+	if ($handler) {
 		$url = $handler->($url, $spec, $handleProxiedUrl);
 		return unless defined $url;
 	}
@@ -241,6 +249,7 @@ sub getImage {
 sub _gotArtwork {
 	my $http = shift;
 	my $url  = $http->url;
+	my $params = $http->params || {};
 
 	if (main::DEBUGLOG && $log->is_debug) {
 		$log->debug('Received artwork of type ' . $http->headers->content_type . ' and ' . ($http->headers->content_length || length(${$http->contentRef})) . ' bytes length' );
@@ -259,8 +268,28 @@ sub _gotArtwork {
 			return _gotArtworkError($http);
 		}
 	}
+	elsif ($http->headers->content_type =~ /webp/) {
+		if ($params->{originalUrl}) {
+			# external image proxy already did the resizing
+			$log->error("WEBP images are not supported, returning 500");
+			return _gotArtworkError($http);
+		}
 
-	_resizeFromFile($http->url, $http->contentRef, $http);
+		main::INFOLOG && $log->is_info && $log->info("WEBP images are not supported, try to convert to JPG");
+		Slim::Networking::SimpleAsyncHTTP->new(
+			\&_gotArtwork,
+			\&_gotArtworkError,
+			{
+				timeout => 30,
+				cache   => 1,
+				originalUrl => $url,
+			},
+		)->get(urlToCloudResizer($url));
+
+		return;
+	}
+
+	_resizeFromFile($params->{originalUrl} || $url, $http->contentRef, $http);
 }
 
 sub _gotArtworkError {
@@ -495,6 +524,10 @@ sub getRightSize {
 	}
 }
 
+sub urlToCloudResizer {
+	return REDIRECT_IMAGE_TO_JPEG . uri_escape_utf8($_[0]);
+}
+
 1;
 
 
@@ -505,8 +538,11 @@ use base 'Slim::Utils::DbArtworkCache';
 
 use strict;
 
-use constant PURGE_INTERVAL    => 3600 * 8;  # interval between purge cycles
-use constant IDLE_THRESHOLD    => 600;
+use constant PURGE_INTERVAL => 3600 * 8;  # interval between purge cycles
+# image proxy cache is slow to purge due to the large item sizes, so we do it in smaller chunks
+use constant INCREMENTAL_PURGE_CHUNKSIZE => 20;
+use constant INCREMENTAL_PURGE_INTERVAL => 10;
+use constant FIRST_PURGE_DELAY => 20;
 
 sub new {
 	my $class = shift;
@@ -518,7 +554,7 @@ sub new {
 		if ( !main::SCANNER ) {
 			# start purge routine in a few seconds
 			require Slim::Utils::Timers;
-			Slim::Utils::Timers::setTimer( undef, time() + 60 + rand(30), \&cleanup );
+			Slim::Utils::Timers::setTimer( undef, time() + FIRST_PURGE_DELAY + rand(FIRST_PURGE_DELAY), \&cleanup );
 		}
 	}
 
@@ -531,21 +567,25 @@ sub cleanup {
 	# after startup don't purge if a player is on - retry later
 	my $interval;
 
-	unless ($force) {
-		for my $client ( Slim::Player::Client::clients() ) {
-			if ($client->controller->isPlaying() || ($client->power && (Time::HiRes::time() - $client->lastActivityTime) < IDLE_THRESHOLD)) {
-				main::INFOLOG && $log->is_info && $log->info('Skipping cache purge due to client activity: ' . $client->name);
-				$interval = 300 + 60 * rand(5);
-				last;
-			}
-		}
-	}
+	$cache->checkActivity(sub {
+		my $client = shift;
+		main::INFOLOG && $log->is_info && $log->info('Skipping cache purge due to client activity: ' . $client->name);
+		$interval = 300 + 60 * rand(5);
+	}) unless $force;
 
 	my $now = Time::HiRes::time();
 
 	if (!$interval) {
-		my $deleted = $cache->purge();
+		my $deleted = $cache->purge(INCREMENTAL_PURGE_CHUNKSIZE);
 		main::INFOLOG && $log->is_info && $log->info(sprintf("ImageProxy cache purge: %i records - %f sec", $deleted, Time::HiRes::time() - $now));
+
+		if ($deleted < INCREMENTAL_PURGE_CHUNKSIZE) {
+			# no more items to purge, so we can wait longer
+			$interval = PURGE_INTERVAL;
+		} else {
+			# still items to purge, so we do it again in a short while
+			$interval = INCREMENTAL_PURGE_INTERVAL + rand(INCREMENTAL_PURGE_INTERVAL);
+		}
 	}
 
 	Slim::Utils::Timers::setTimer( undef, $now + ($interval || PURGE_INTERVAL), \&cleanup );

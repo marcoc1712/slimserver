@@ -66,9 +66,16 @@ sub findAndAdd {
 		}
 
 		# Replace the current playlist with the first item / track or add it to end
-		my $request = $client->execute([
-			'playlist', $addOnly ? 'addtracks' : 'loadtracks', sprintf('%s.id=%d%s', $type, $id, $libraryParam)
-		]);
+		my $request;
+		if ( $type eq 'work' ) {
+			$request = $client->execute([
+				'playlist', $addOnly ? 'addtracks' : 'loadtracks', sprintf('album.id=%d&work.id=%d&track.performance=%s%s', @$id[0], @$id[1], @$id[2], $libraryParam)
+			]);
+		} else {
+			$request = $client->execute([
+				'playlist', $addOnly ? 'addtracks' : 'loadtracks', sprintf('%s.id=%d%s', $type, $id, $libraryParam)
+			]);
+		}
 
 		# indicate request source
 		$request->source('PLUGIN_RANDOMPLAY');
@@ -107,7 +114,7 @@ sub getIdList {
 		# it's messy reaching that far in to Slim::Control::Queries, but it's >5x faster on a Raspberry Pi2 with 100k tracks than running the full "titles" query
 		my $results;
 		($results, $idList) = Slim::Control::Queries::_getTagDataForTracks( 'II', {
-			where     => '(tracks.content_type != "cpl" AND tracks.content_type != "src" AND tracks.content_type != "ssp" AND tracks.content_type != "dir")',
+			where     => '(tracks.audio = 1 AND tracks.content_type NOT IN ("cpl", "src", "ssp", "dir"))',
 			year      => $type eq 'year' && getRandomYear($client, $filteredGenres),
 			genreId   => $queryGenres,
 			libraryId => $queryLibrary,
@@ -128,6 +135,7 @@ sub getIdList {
 		my %categories = (
 			album       => ['albums', 0, 999_999, 'tags:t'],
 			contributor => ['artists', 0, 999_999],
+			work        => ['albums', 0, 999_999, 'work_id:-1'],
 			track       => []
 		);
 		$categories{year}    = $categories{track};
@@ -142,8 +150,13 @@ sub getIdList {
 
 		my $loop = "${type}s_loop";
 		$loop = 'artists_loop' if $type eq 'contributor';
+		$loop = 'albums_loop' if $type eq 'work';
 
-		$idList = [ map { $_->{id} } @{ $request->getResult($loop) || [] } ];
+		if ( $type eq 'work' ) {
+			$idList = [ map { [$_->{id}, $_->{work_id}, $_->{performance}] } @{ $request->getResult($loop) || [] } ];
+		} else {
+			$idList = [ map { $_->{id} } @{ $request->getResult($loop) || [] } ];
+		}
 
 		# shuffle ID list
 		Slim::Player::Playlist::fischer_yates_shuffle($idList);

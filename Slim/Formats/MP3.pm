@@ -72,7 +72,11 @@ my %tagMapping = (
 	TCMP => "COMPILATION",
 	YTCP => "COMPILATION", # non-standard v2.3 frame
 	TCON => "GENRE",
+	TIT1 => "WORK",
+	GRP1 => "GROUPING",
 	TIT2 => "TITLE",
+	TIT3 => "SUBTITLE",
+	TSST => "DISCSUBTITLE",
 	TPE1 => "ARTIST",
 	TPE2 => "BAND",
 	TPE3 => "CONDUCTOR",
@@ -112,6 +116,9 @@ sub getTag {
 
 	my $s = Audio::Scan->scan( $file );
 
+	if ( exists $s->{tags}->{GRP1} ) {
+		$s->{tags}->{GRP1} =~ s/\x0//g; # scanner is returning leading null in GRP1 tag, which messes things up.
+	}
 	my $info = $s->{info};
 	my $tags = $s->{tags};
 
@@ -402,11 +409,7 @@ sub doTagMapping {
 		# the first.
 		$year = $year->[0] if ref $year eq 'ARRAY';
 
-		if ( $year =~ /(\d\d\d\d)/ ) {
-			$year = $1;
-		}
-
-		$tags->{YEAR} = $year;
+		$tags->{YEAR} = $class->sanitizeYearTag($year);
 	}
 
 	# Sometimes the BPM is not an integer so we try to convert.

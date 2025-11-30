@@ -72,7 +72,7 @@ sub sqlHelperClass {
 # Skip obsolete plugins, they should be deleted by installers
 # AudioAddict is a base class for others, thus not loaded
 sub skipPlugins {
-	return (qw(AudioAddict Picks ShoutcastBrowser Webcasters Health));
+	return (qw(AudioAddict Picks ShoutcastBrowser Webcasters Health Gallery));
 }
 
 =head2 initSearchPath( [$baseDir] )
@@ -128,36 +128,6 @@ sub initSearchPath {
 	# and the cachedir pref to be set before we can do it.  Prefs requires OSDetect so we can't do it at init time of OSDetect.
 	if ( my $cache = Slim::Utils::Prefs::preferences('server')->get('cachedir') ) {
 		unshift @INC, catdir($cache, 'InstalledPlugins');
-	}
-}
-
-=head2 initMySQL( )
-
-Provide a hook to do system specific MySQL initialization. This allows to eg. use a locally installed
-MySQL server instead of the instance installed with SC
-
-=cut
-
-sub initMySQL {
-	my ($class, $dbclass) = @_;
-
-	require File::Which;
-
-	# try to figure out whether we have a locally running MySQL
-	# which we can connect to using a socket file
-	my $mysql_config = File::Which::which('mysql_config');
-
-	# The user might have a socket file in a non-standard
-	# location. See bug 3443
-	if ($mysql_config && -x $mysql_config) {
-
-		my $socket = `$mysql_config --socket`;
-		chomp($socket);
-
-		if ($socket && -S $socket) {
-			$dbclass->socketFile($socket);
-		}
-
 	}
 }
 
@@ -262,10 +232,6 @@ sub decodeExternalHelperPath {
 
 sub scanner {
 	return "$Bin/scanner.pl";
-}
-
-sub gdresize {
-	return "$Bin/gdresize.pl";
 }
 
 sub gdresized {

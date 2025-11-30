@@ -10,10 +10,7 @@ package Slim::Web::Pages::Search;
 use strict;
 
 use Date::Parse qw(str2time);
-use File::Spec::Functions qw(:ALL);
-use Digest::MD5 qw(md5_hex);
-use Scalar::Util qw(blessed);
-use Storable;
+use Storable ();
 
 use Slim::Music::VirtualLibraries;
 use Slim::Utils::Misc;
@@ -78,6 +75,7 @@ sub parseAdvancedSearchParams {
 	my ($client, $params) = @_;
 
 	$params->{_dontRenderPage} = 1;
+
 	return advancedSearch($client, $params);
 }
 
@@ -135,7 +133,7 @@ sub advancedSearch {
 		delete $params->{savedSearch};
 	}
 
-	my $type = ($params->{'searchType'} || '') =~ /^(Track|Album)$/ ? $1 : 'Track';
+	my $type = ($params->{'searchType'} || '') =~ /^(Track|Album|Work|AlbumWork)$/ ? $1 : 'Track';
 
 	# keep a copy of the search params to be stored in a saved search
 	my %searchParams;
@@ -175,7 +173,7 @@ sub advancedSearch {
 			# Do the same for 'op's
 			$params->{'search'}->{$newKey}->{'op'} = $params->{$key.'.op'};
 
-			$newKey =~ s/_(rating|playcount|value|titlesearch|namesearch|)\b/\.$1/;
+			$newKey =~ s/_(rating|playcount|value|titlesearch|namesearch|release_type|)\b/\.$1/;
 
 			# add these onto the query string. kinda jankey.
 			push @qstring, join('=', "$key.op", $op);
@@ -233,17 +231,6 @@ sub advancedSearch {
 				$query{$newKey}->{'>'} = '0';
 			}
 
-=pod Shall we treat an undefined rating the same as 0?
-			if ($newKey eq 'persistent.rating' && $op eq '<') {
-				$query{$newKey} = {
-					'or' => [
-						$newKey => { '=' => undef },
-						$newKey => $query{$newKey},
-					],
-				};
-			}
-=cut
-
 			delete $params->{$key};
 
 			next;
@@ -265,7 +252,7 @@ sub advancedSearch {
 		#
 		# Turn the track_title into track.title for the query.
 		# We need the _'s in the form, because . means hash key.
-		if ($newKey =~ s/(.+)_(titlesearch|namesearch|value|)$/$1\.$2/) {
+		if ($newKey =~ s/(.+)_(titlesearch|namesearch|value|release_type|)$/$1\.$2/) {
 			$joins{$1}++ if $1 ne 'me';
 
 			$params->{$key} = Slim::Utils::Text::searchStringSplit($params->{$key});
@@ -299,7 +286,7 @@ sub advancedSearch {
 	my $prefix = Slim::Music::Import->lastScanTime() . '_advSearch_';
 
 	if ( !($params->{'fileTypes'} = $cache->get($prefix . 'ctList')) ) {
-		foreach my $ct ( @{ $dbh->selectcol_arrayref('SELECT DISTINCT content_type FROM tracks WHERE audio = 1 AND tracks.content_type != "cpl" AND tracks.content_type != "src" AND tracks.content_type != "ssp" AND tracks.content_type != "dir"') } ) {
+		foreach my $ct ( @{ $dbh->selectcol_arrayref('SELECT DISTINCT content_type FROM tracks WHERE audio = 1 AND tracks.content_type NOT IN ("cpl", "src", "ssp", "dir")') } ) {
 			$params->{'fileTypes'} ||= {};
 			$params->{'fileTypes'}->{lc($ct)} = string(uc($ct));
 		}
@@ -427,9 +414,14 @@ sub advancedSearch {
 
 	$query{'me.audio'} = 1;
 
-	if ($query{'album.titlesearch'} || $joins{'album'}) {
+	if ($query{'album.titlesearch'} || $query{'album.release_type'} || $joins{'album'}) {
 
 		push @joins, 'album';
+	}
+
+	if ($query{'work.titlesearch'}) {
+
+		push @joins, 'work';
 	}
 
 	if ($query{'comments.value'} || $joins{'comments'}) {
@@ -441,8 +433,8 @@ sub advancedSearch {
 		push @joins, 'persistent';
 	}
 
-	if ( my $library_id = Slim::Music::VirtualLibraries->getLibraryIdForClient($client) ) {
-
+	my $library_id = $params->{'library_id'} || Slim::Music::VirtualLibraries->getLibraryIdForClient($client);
+	if ( $library_id && $library_id ne '-1' ) {
 		push @joins, 'libraryTracks';
 		$query{'libraryTracks.library'} = $library_id;
 	}
@@ -464,14 +456,29 @@ sub advancedSearch {
 	# Create a resultset - have fillInSearchResults do the actual search.
 	my $tracksRs = Slim::Schema->search('Track', \%query, \%attrs)->distinct;
 
-	my $rs;
-	if ( $type eq 'Album' ) {
-		$rs = Slim::Schema->search('Album', {
+	my $albumRs;
+	my $workRs;
+	if ( $type =~ /Album/ ) {
+		$albumRs = Slim::Schema->search('Album', {
 			'id' => { 'in' => $tracksRs->get_column('album')->as_query },
 		},{
 			'order_by' => "me.disc, me.titlesort $collate",
 		});
 	}
+	if ( $type =~ /Work/ ) {
+		my %workAttrs = (
+			'order_by' => "composer.namesort, me.titlesort $collate",
+			'join' => ['composer','track'],
+			'columns' => ['me.id', 'me.composer', 'me.title', 'me.titlesort', 'me.titlesearch', { albumId => { 'group_concat' => 'DISTINCT track.album' } }],
+			'group_by' => ['me.id'],
+		);
+
+		$workRs = Slim::Schema->search('Work', {
+			'me.id' => { 'in' => $tracksRs->get_column('work')->as_query },
+			'track.album' => { 'in' => $tracksRs->get_column('album')->as_query },
+		}, \%workAttrs);
+	}
+
 
 	if ( $params->{'action'} && $params->{'action'} eq 'saveLibraryView' && (my $saveSearch = $params->{saveSearch}) ) {
 		# build our own resultset, as we don't want the result to be sorted
@@ -494,7 +501,11 @@ sub advancedSearch {
 		Slim::Music::VirtualLibraries->rebuild($vlid);
 	}
 
-	return ($tracksRs, $rs) if $dontRenderPage;
+	if ( $dontRenderPage ) {
+		return ($tracksRs, $albumRs) if $type eq 'Album';
+		return ($tracksRs, $workRs) if $type eq 'Work';
+		return ($tracksRs, $albumRs, $workRs) if $type eq 'AlbumWork';
+	}
 
 	if (defined $client && !$params->{'start'}) {
 
@@ -504,7 +515,7 @@ sub advancedSearch {
 		$client->modeParam("search${type}Results", { 'cond' => \%query, 'attr' => \%attrs });
 	}
 
-	fillInSearchResults($params, $rs || $tracksRs, \@qstring, $client);
+	fillInSearchResults($params, $albumRs || $workRs || $tracksRs, \@qstring, $client);
 
 	return Slim::Web::HTTP::filltemplatefile("advanced_search.html", $params);
 }
@@ -519,7 +530,13 @@ sub _initActiveRoles {
 		$params->{'search'}->{'contributor_namesearch'}->{'active' . $_} = 1 if $params->{'search.contributor_namesearch.active' . $_};
 	}
 
-	$params->{'search'}->{'contributor_namesearch'} = { map { ('active' . $_) => 1 } @{ Slim::Schema->artistOnlyRoles } } unless keys %{$params->{'search'}->{'contributor_namesearch'}};
+	$params->{'search'}->{'contributor_namesearch'} = {
+		map { ('active' . $_) => 1 } @{
+			[ map {
+				Slim::Schema::Contributor->typeToRole($_);
+			} Slim::Schema::Contributor->activeContributorRoles(0) ]
+		}
+	} unless keys %{$params->{'search'}->{'contributor_namesearch'}};
 }
 
 sub _getSavedSearches {
@@ -596,22 +613,6 @@ sub fillInSearchResults {
 			'level'        => 1,
 			'searchResult' => 1,
 		);
-
-=pod
-		if ($type eq 'contributor') {
-
-			$form{'attributes'} .= '&contributor.role=ALL';
-			$form{'hierarchy'}  = 'contributor,album,track';
-
-		} elsif ($type eq 'album') {
-
-			$form{'hierarchy'} = 'album,track';
-
-		} elsif ($type eq 'genre') {
-
-			$form{'hierarchy'} = 'genre,contributor,album,track';
-		}
-=cut
 
 		if ($favorites && (my $url = $obj->url) ) {
 			if (Slim::Music::Info::isURL($url)) {

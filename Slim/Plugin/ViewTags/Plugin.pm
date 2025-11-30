@@ -57,9 +57,11 @@ sub initInfoProviders {
 sub tagItem {
 	my ( $tag, $client, $url, $track ) = @_;
 
+	return unless Slim::Music::Info::isFileURL($url) || Slim::Music::Info::isVolatile($url);
+
 	my $details = Slim::Plugin::ViewTags::Common::getDetailsForTag($tag) || return;
 
-	my $menu = Slim::Menu::TrackInfo::tagDump($client, 'no callback', undef, $track->path, $tag, $details->{name});
+	my $menu = Slim::Menu::TrackInfo::tagDump($client, undef, undef, $track->path, $tag, $details->{name});
 
 	if (ref $menu && ref $menu eq 'ARRAY') {
 		$menu = $menu->[0];

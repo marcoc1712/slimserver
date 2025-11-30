@@ -1,7 +1,7 @@
 package Slim::Music::Import;
 
 # Logitech Media Server Copyright 2001-2024 Logitech.
-# Lyrion Music Server Copyright 2024 Lyrion Community.
+# Lyrion Music Server Copyright 2025 Lyrion Community.
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License,
 # version 2.
@@ -79,6 +79,7 @@ my $log             = logger('scan.import');
 my $prefs           = preferences('server');
 
 my %scanQueue;
+my %recentlyScanned;
 my $ABORT = 0;
 
 my %scanTypes = (
@@ -313,7 +314,7 @@ sub setLastScanTimeIsDST {
 		'name' => 'lastRescanTimeIsDST'
 	} );
 
-	$last->value( (localtime(time()))[8] ? 1 : 0 );
+	$last->value( Slim::Utils::DateTime->isDST() );
 	$last->update;
 }
 
@@ -435,11 +436,11 @@ sub runScanPostProcessing {
 	return 1 if !Slim::Schema::hasLibrary();
 
 	if (main::STATISTICS) {
-		# Look for and import persistent data migrated from MySQL
+		# Look for and import persistent data
 		my ($dir) = Slim::Utils::OSDetect::dirsFor('prefs');
 		my $json = catfile( $dir, 'tracks_persistent.json' );
 		if ( -e $json ) {
-			$log->error('Migrating persistent track information from MySQL');
+			$log->error('Migrating persistent track information from tracks_persistent.json');
 
 			if ( Slim::Schema::TrackPersistent->import_json($json) ) {
 				unlink $json;
@@ -466,9 +467,6 @@ sub runScanPostProcessing {
 
 		$class->runArtworkImporter($importer);
 	}
-
-	# If we ever find an artwork provider...
-	#Slim::Music::Artwork->downloadArtwork();
 
 	# update standalone artwork if it's been changed without the music file being changed (don't run on a wipe & rescan)
 	$importsRunning{'updateStandaloneArtwork'} = Time::HiRes::time();
@@ -780,8 +778,11 @@ sub initScanQueue {
 	}
 
 	require Tie::IxHash;
+	require Tie::Cache::LRU::Expires;
 
 	tie (%scanQueue, "Tie::IxHash");
+	# keep list of recently run scans to prevent race condition in which we might end in an infinite recursion.
+	tie (%recentlyScanned, 'Tie::Cache::LRU::Expires', EXPIRES => 5, ENTRIES => 128);
 
 	main::DEBUGLOG && $log->debug("initialize scan queue");
 
@@ -796,7 +797,12 @@ sub nextScanTask {
 	my $k    = shift @keys;
 	my $next = delete $scanQueue{$k};
 
-	main::DEBUGLOG && $log->debug('triggering next scan: ' . $k) if $k && $next;
+	if ($recentlyScanned{$k}++) {
+		main::INFOLOG && $log->is_info && $log->info("Skipping scan, as we run it recently: $k");
+		return;
+	}
+
+	main::DEBUGLOG && $log->debug('triggering next scan: ' . $k) if $next;
 
 	$next->execute() if $next;
 
@@ -837,7 +843,7 @@ sub queueScanTask {
 		my $k = "$type|$mode|$singledir";
 
 		# no need to add duplicate scan
-		if ( $scanQueue{$k} ) {
+		if ( $scanQueue{$k} || $recentlyScanned{$k} ) {
 			main::DEBUGLOG && $log->debug("scan $k is already in queue - skip it");
 			return;
 		}

@@ -6,9 +6,10 @@
 	<module>Slim::Plugin::Rescan::Plugin</module>
 	<version>1.0</version>
 	<description>PLUGIN_RESCAN_MUSIC_LIBRARY_DESC</description>
-	<creator>Logitech</creator>
+	<creator>Lyrion Community</creator>
+	<category>scanning</category>
 
-	<defaultState>enabled</defaultState>
+	<defaultState>disabled</defaultState>
 
 	<playerMenu>SETTINGS</playerMenu>
 	<optionsURL>plugins/Rescan/settings/basic.html</optionsURL>

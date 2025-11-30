@@ -24,9 +24,10 @@ my $cache = Slim::Utils::Cache->new;
 
 # known skins which don't need all the overhead of DB related variables in index.html
 my %lightIndex = (
+	Classic => 1,
 	Default => 1,
 	EN => 1,
-	Classic => 1,
+	Logic => 1,
 );
 
 sub init {
@@ -39,13 +40,11 @@ sub init {
 	Slim::Web::Pages->addPageLinks("help", { 'HELP_REMOTE' => "html/docs/remote.html" });
 	Slim::Web::Pages->addPageLinks("help", { 'REMOTE_STREAMING' => "html/docs/remotestreaming.html" });
 	Slim::Web::Pages->addPageLinks("help", { 'TECHNICAL_INFORMATION' => "html/docs/index.html" });
-	Slim::Web::Pages->addPageLinks("help", { 'COMMUNITY_FORUM' =>	"http://forums.slimdevices.com" });
-	Slim::Web::Pages->addPageLinks("help", { 'SOFTSQUEEZE' => "html/softsqueeze/index.html"});
+	Slim::Web::Pages->addPageLinks("help", { 'COMMUNITY_FORUM' =>	"https://forums.lyrion.org" });
 
 	Slim::Web::Pages->addPageLinks("plugins", { 'MUSICSOURCE' => "switchserver.html"});
 
 	Slim::Web::Pages->addPageLinks('icons', { 'RADIO_TUNEIN' => 'html/images/ServiceProviders/tuneinurl.png' });
-	Slim::Web::Pages->addPageLinks('icons', { 'SOFTSQUEEZE' => 'html/images/softsqueeze.png' });
 }
 
 sub home {
@@ -189,7 +188,7 @@ sub home {
 sub updateInfo {
 	my ($client, $params, $callback) = @_;
 
-	my ($current) = Slim::Plugin::Extensions::Plugin::getCurrentPlugins();
+	my ($current) = Slim::Utils::ExtensionsManager::getCurrentPlugins();
 
 	my $request = Slim::Control::Request->new(undef, ['appsquery']);
 
@@ -231,6 +230,9 @@ sub _updateInfoCB {
 
 		if ($params->{'newVersion'}) {
 			$json->{server} = $params->{'newVersion'};
+			if ($json->{server} =~ /"(updateinfo\.html[^"]+)"/) {
+				$json->{infoUrl} = $1;
+			}
 		}
 		if ($params->{'newPlugins'} && scalar @{$params->{'newPlugins'}}) {
 			$json->{plugins} = $params->{'newPlugins'};

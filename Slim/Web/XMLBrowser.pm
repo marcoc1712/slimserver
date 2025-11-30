@@ -2,7 +2,7 @@ package Slim::Web::XMLBrowser;
 
 
 # Logitech Media Server Copyright 2001-2024 Logitech.
-# Lyrion Music Server Copyright 2024 Lyrion Community.
+# Lyrion Music Server Copyright 2025 Lyrion Community.
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License,
 # version 2.
@@ -41,8 +41,9 @@ if ( !main::SCANNER ) {
 	Slim::Control::Request::subscribe( \&wipeCaches, [['library','rescan','favorites'], ['changed','done','changed']] );
 
 	$prefs->setChange( \&wipeCaches, qw(itemsPerPage thumbSize showArtist showYear additionalPlaylistButtons noGenreFilter noRoleFilter searchSubString browseagelimit
-		composerInArtists conductorInArtists bandInArtists variousArtistAutoIdentification titleFormat titleFormatWeb language useUnifiedArtistsList
-		groupArtistAlbumsByReleaseType ignoreReleaseTypes releaseTypesToIgnore showComposerReleasesbyAlbum showComposerReleasesbyAlbumGenres) );
+		composerInArtists conductorInArtists bandInArtists trackartistInArtists variousArtistAutoIdentification titleFormat titleFormatWeb language useUnifiedArtistsList
+		groupArtistAlbumsByReleaseType ignoreReleaseTypes releaseTypesToIgnore showComposerReleasesbyAlbum myClassicalGenres onlyAlbumYears userDefinedRoles
+		artistAlbumLink albumartistAlbumLink trackartistAlbumLink composerAlbumLink conductorAlbumLink bandAlbumLink noContributorPictures) );
 }
 
 tie my %cacheables, 'Tie::RegexpHash';
@@ -855,7 +856,7 @@ sub handleFeed {
 			my $i = 0;
 
 			my $roles = join ('|', Slim::Schema::Contributor->contributorRoles());
-			my $allLabels = join ('|', $roles, qw(ALBUM GENRE YEAR ALBUMREPLAYGAIN ALBUMLENGTH COMPILATION));
+			my $allLabels = join ('|', $roles, qw(ALBUM GENRE YEAR ALBUMREPLAYGAIN ALBUMLENGTH COMPILATION WORK RELEASE_TYPE));
 
 			foreach my $item ( @{ $feed->{'albumData'} || $stash->{'items'} } ) {
 

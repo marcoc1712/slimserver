@@ -6,15 +6,16 @@
         <module>Slim::Plugin::RSSNews::Plugin</module>
         <version>1.0</version>
         <description>PLUGIN_RSSNEWS_DESC</description>
-        <creator>Logitech</creator>
+        <creator>Lyrion Community</creator>
+        <category>tools</category>
 
-	<defaultState>enabled</defaultState>
+        <defaultState>disabled</defaultState>
 
-	<optionsURL>plugins/RSSNews/settings/basic.html</optionsURL>
-	<type>2</type><!-- type=extension -->
+        <optionsURL>plugins/RSSNews/settings/basic.html</optionsURL>
+        <type>2</type><!-- type=extension -->
 
         <targetApplication>
-  	        <id>Lyrion Music Server</id>
+                <id>Lyrion Music Server</id>
                 <minVersion>7.0a</minVersion>
                 <maxVersion>*</maxVersion>
         </targetApplication>

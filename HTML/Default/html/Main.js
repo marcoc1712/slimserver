@@ -104,7 +104,7 @@ Main = {
 					region: 'north',
 					contentEl: 'header',
 					border: false,
-					margins: '5 5 0 5',
+					margins: '[% skinPadding %] [% skinPadding %] 0 [% skinPadding %]',
 					height: 40
 				},
 
@@ -112,7 +112,7 @@ Main = {
 					region: 'center',
 					layout: 'border',
 					border: false,
-					margins: '0 15',
+					margins: '0 [% skinPadding * 3 %]',
 					items: [leftpanel, rightpanel]
 				},
 
@@ -120,7 +120,7 @@ Main = {
 					region: 'south',
 					contentEl: 'footer',
 					border: false,
-					margins: '0 5 5 5',
+					margins: '0 [% skinPadding %] [% skinPadding %] [% skinPadding %]',
 					height: 40
 				}
 			]
@@ -202,8 +202,9 @@ Main = {
 			playerobj = SqueezeJS.getPlayer();
 
 		// set the browser frame to use the selected player
-		if (frames.browser && frames.browser.location && frames.browser.location.protocol.match(/^http/)) {
-			frames.browser.location = SqueezeJS.Utils.replacePlayerIDinUrl(frames.browser.location, playerobj);
+		const location = frames.browser && frames.browser.location || document.browser.location;
+		if (location.protocol.match(/^http/)) {
+			SqueezeJS.Utils.setBrowseLocation(SqueezeJS.Utils.replacePlayerIDinUrl(location, playerobj));
 		}
 
 		// make the settings link use the new player ID
@@ -424,8 +425,8 @@ Main = {
 					tooltip:  SqueezeJS.string('save'),
 					minWidth: 32,
 					noText:   true,
-					handler:  function(){
-						frames.browser.location = webroot + 'edit_playlist.html?player=' + SqueezeJS.Controller.getPlayer() + '&saveCurrentPlaylist=1';
+					handler:  function() {
+						SqueezeJS.Utils.setBrowseLocation(webroot + 'edit_playlist.html?player=' + SqueezeJS.Controller.getPlayer() + '&saveCurrentPlaylist=1');
 					}
 				});
 

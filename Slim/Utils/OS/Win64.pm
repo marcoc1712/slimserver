@@ -10,11 +10,16 @@ use strict;
 
 use File::Spec::Functions qw(catdir);
 use FindBin qw($Bin);
+use IO::Socket::IP;
 use Win32::Daemon;
 
 use base qw(Slim::Utils::OS::Win32);
 
 use constant RESTART_STATUS => 42;
+
+# Make sure we use the ipv4 stack in LWP::UserAgent
+# https://github.com/libwww-perl/libwww-perl/issues/345
+@LWP::Protocol::http::EXTRA_SOCK_OPTS = ( Family => AF_INET );
 
 my $log;
 
@@ -22,6 +27,10 @@ sub initDetails {
 	my $class = shift;
 
 	$class->SUPER::initDetails();
+
+	if ($ENV{PROCESSOR_IDENTIFIER} && $ENV{PROCESSOR_IDENTIFIER} =~ /ARM/i) {
+		$class->{osDetails}->{osArch} = 'ARM64';
+	}
 
 	$class->{osDetails}->{osName} = $class->{osDetails}->{osName} . ' (64-bit)';
 
@@ -39,14 +48,6 @@ sub initSearchPath {
 	Slim::Utils::Misc::addFindBinPaths(catdir($_[0] || $class->dirsFor('Bin'), $binArch));
 }
 
-
-sub scanner { "$Bin/scanner.pl" }
-
-sub gdresize { "$Bin/gdresize.pl" }
-
-sub gdresized { "$Bin/gdresized.pl" }
-
-
 sub runService { if ($main::daemon) {
 	my $class = shift;
 
@@ -58,7 +59,7 @@ sub runService { if ($main::daemon) {
 	my $state;
 	while ( SERVICE_STOPPED != ($state = Win32::Daemon::State()) ) {
 		if ( SERVICE_START_PENDING == $state ) {
-			main::INFOLOG && $log->is_info && $log->info("Starting Windows Service...");
+			main::INFOLOG && $log->is_info && $log->info("Running Windows Service...");
 			$class->{osDetails}->{runningAsService} = 1;
 			Win32::Daemon::State( SERVICE_RUNNING );
 		}

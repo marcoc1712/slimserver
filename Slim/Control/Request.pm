@@ -621,6 +621,7 @@ sub init {
 	addDispatch(['sync',           '?'],                                                               [1, 1, 0, \&Slim::Control::Queries::syncQuery]);
 	addDispatch(['sync',           '_indexid-'],                                                       [1, 0, 1, \&Slim::Control::Commands::syncCommand]);
 	addDispatch(['syncgroups',     '?'],                                                               [0, 1, 0, \&Slim::Control::Queries::syncGroupsQuery]);
+	addDispatch(['tags'],                                                                              [0, 1, 1, \&Slim::Control::Queries::tagsQuery]);
 	addDispatch(['time',           '?'],                                                               [1, 1, 0, \&Slim::Control::Queries::timeQuery]);
 	addDispatch(['time',           '_newvalue'],                                                       [1, 0, 0, \&Slim::Control::Commands::timeCommand]);
 	addDispatch(['title',          '?'],                                                               [1, 1, 0, \&Slim::Control::Queries::cursonginfoQuery]);
@@ -629,6 +630,8 @@ sub init {
 	addDispatch(['version',        '?'],                                                               [0, 1, 0, \&Slim::Control::Queries::versionQuery]);
 	addDispatch(['wipecache',      '_queue'],                                                          [0, 0, 0, \&Slim::Control::Commands::wipecacheCommand]);
 	addDispatch(['years',          '_index',         '_quantity'],                                     [0, 1, 1, \&Slim::Control::Queries::yearsQuery]);
+	addDispatch(['works',          '_index',         '_quantity'],                                     [0, 1, 1, \&Slim::Control::Queries::worksQuery]);
+	addDispatch(['roles',          '_index',         '_quantity'],                                     [0, 1, 1, \&Slim::Control::Queries::rolesQuery]);
 	addDispatch(['artwork',        '_artworkid'],                                                      [0, 0, 0, \&Slim::Control::Queries::showArtwork]);
 	addDispatch(['rating',         '_item',          '?'],                                             [0, 1, 0, \&Slim::Control::Commands::ratingCommand]);
 	addDispatch(['rating',         '_item',          '_rating'],                                       [0, 0, 0, \&Slim::Control::Commands::ratingCommand]);

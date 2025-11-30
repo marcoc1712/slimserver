@@ -25,12 +25,6 @@ my $driveList  = {};
 my $driveState = {};
 my $writablePath;
 
-sub getFlavor {
-	return (!main::ISACTIVEPERL && Win32::GetOSDisplayName() =~ /64-bit/i)
-		? 'Win64'
-		: 'Win32';
-}
-
 sub name {
 	return 'win';
 }
@@ -114,15 +108,6 @@ sub initDetails {
 	# This covers Vista or later
 	$class->{osDetails}->{'isWin6+'} = ($major >= 6);
 
-	# some features are Vista only, no longer supported in Windows 7
-	$class->{osDetails}->{isVista}   = 1 if $class->{osDetails}->{'osName'} =~ /Vista/;
-
-	# let's clean up our temporary folders (pdk* folders)
-	# only run when using the compiled version
-	if ($PerlSvc::VERSION && !main::SCANNER) {
-		$class->cleanupTempDirs();
-	}
-
 	return $class->{osDetails};
 }
 
@@ -137,29 +122,7 @@ sub initSearchPath {
 	}
 }
 
-sub initMySQL {}
-
-sub initPrefs {
-	my ($class, $prefs) = @_;
-
-	# we now have a binary control panel - don't show the wizard
-	$prefs->{wizardDone} = 1;
-}
-
 sub canDBHighMem { 1 }
-
-sub postInitPrefs {
-	my ($class, $prefs) = @_;
-
-	return if !$class->{osDetails}->{isWHS};
-
-	# bug 15818: on WHS we don't want iTunes to be started by default (Support request)
-	require Slim::Utils::Prefs;
-	my $pluginState = Slim::Utils::Prefs::preferences('plugin.state');
-	if (!defined $pluginState->get('iTunes')) {
-		$pluginState->set('iTunes', 'disabled');
-	}
-}
 
 sub dirsFor {
 	my ($class, $dir) = @_;
@@ -169,6 +132,7 @@ sub dirsFor {
 	if ($dir =~ /^(?:strings|revision|convert|types|repositories)$/) {
 
 		push @dirs, $Bin;
+		push @dirs, $class->dirsFor('prefs');
 
 	} elsif ($dir eq 'log') {
 
@@ -209,43 +173,6 @@ sub dirsFor {
 	} elsif ($dir =~ /^(?:music|playlists)$/) {
 
 		my $path;
-
-		# Windows Home Server offers a Music share which is more likely to be used
-		# than the administrator's My Music folder
-		# XXX - should we continue to support WHS?
-		if ($class->{osDetails}->{isWHS} && $dir =~ /^(?:music|playlists)$/) {
-			my $objWMI = Win32::OLE->GetObject('winmgmts://./root/cimv2');
-
-			if ( $objWMI && (my $shares = $objWMI->InstancesOf('Win32_Share')) ) {
-
-				my $path2;
-				foreach my $objShare (in $shares) {
-
-					# let's be a bit more open for localized versions: musica, Musik, musique...
-					if ($objShare->Name =~ /^musi(?:c|k|que|ca)$/i) {
-						$path = '\\\\' . hostname() . '\\' . $objShare->Name;
-						last;
-					}
-					elsif ($objShare->Path =~ /shares.*?musi[ckq]/i) {
-						$path = $objShare->Path;
-						last;
-					}
-					elsif ($objShare->path =~ /musi[ckq]/i) {
-						$path2 = $objShare->Path;
-					}
-				}
-
-				undef $shares;
-
-				# we didn't find x:\shares\music, but some other share with music in the path
-				if ($path2 && !$path) {
-					$path = $path2;
-				}
-			}
-
-			undef $objWMI;
-		}
-
 		my $fallback;
 
 		if ($dir =~ /^(?:music|playlists)$/) {
@@ -280,7 +207,7 @@ sub dirsFor {
 		push @dirs, $path;
 
 	# we don't want these values to return a value
-	} elsif ($dir =~ /^(?:libpath|mysql-language)$/) {
+	} elsif ($dir =~ /^(?:libpath)$/) {
 
 	} else {
 
@@ -343,18 +270,6 @@ sub getFileName {
 	}
 
 	return $path;
-}
-
-sub scanner {
-	return -x "$Bin/scanner.exe" ? "$Bin/scanner.exe" : $_[0]->SUPER::scanner();
-}
-
-sub gdresize {
-	return -x "$Bin/gdresize.exe" ? "$Bin/gdresize.exe" : $_[0]->SUPER::gdresize();
-}
-
-sub gdresized {
-	return -x "$Bin/gdresized.exe" ? "$Bin/gdresized.exe" : $_[0]->SUPER::gdresized();
 }
 
 sub localeDetails {
@@ -502,7 +417,7 @@ sub installPath {
 	# Try and find it in the registry.
 	# This is a system-wide registry key.
 	my $swKey = $Win32::TieRegistry::Registry->Open(
-		'LMachine/Software/Logitech/Squeezebox/',
+		'LMachine/Software/Lyrion/server/',
 		{
 			Access => Win32::TieRegistry::KEY_READ(),
 			Delimiter =>'/'
@@ -517,7 +432,7 @@ sub installPath {
 	# search in legacy SlimServer folder, too
 	my $installDir;
 	PF: foreach my $programFolder ($ENV{ProgramFiles}, 'C:/Program Files') {
-		foreach my $ourFolder ('Squeezebox', 'SqueezeCenter', 'SlimServer') {
+		foreach my $ourFolder ('Lyrion', 'Squeezebox') {
 
 			$installDir = File::Spec->catdir($programFolder, $ourFolder);
 			last PF if (-d $installDir);
@@ -547,7 +462,7 @@ sub writablePath {
 
 		# the installer is writing the data folder to the registry - give this the first try
 		my $swKey = $Win32::TieRegistry::Registry->Open(
-			'LMachine/Software/Logitech/Squeezebox/',
+			'LMachine/Software/Lyrion/server/',
 			{
 				Access => Win32::TieRegistry::KEY_READ(),
 				Delimiter =>'/'
@@ -591,11 +506,11 @@ sub writablePath {
 				}
 			}
 
-			$writablePath = catdir($writablePath, 'Squeezebox') unless $writablePath eq $Bin;
+			$writablePath = catdir($writablePath, 'Lyrion') unless $writablePath eq $Bin;
 
 			# store the key in the registry for future reference
 			$swKey = $Win32::TieRegistry::Registry->Open(
-				'LMachine/Software/Logitech/Squeezebox/',
+				'LMachine/Software/Lyrion/software/',
 				{
 					Delimiter =>'/'
 				}
@@ -709,148 +624,5 @@ Get the current priority of the server. Disabled on Windows.
 
 sub getPriority {}
 
-=head2 cleanupTempDirs( )
-
-PDK compiled executables can leave temporary pdk-{username}-{pid} folders behind
-if process is crashing. Use this method to clean them up.
-
-=cut
-
-sub cleanupTempDirs {
-
-	my $dir = $ENV{TEMP};
-
-	return unless $dir && -d $dir;
-
-	opendir(DIR, $dir) || return;
-
-	my @folders = readdir(DIR);
-	close(DIR);
-
-	my %pdkFolders;
-	for my $entry (@folders) {
-		if ($entry =~ /^pdk-.*?-(\d+)$/i) {
-			$pdkFolders{$1} = $entry
-		}
-	}
-
-	return unless scalar(keys %pdkFolders);
-
-	require File::Path;
-	require Win32::Process::List;
-	my $p = Win32::Process::List->new();
-	my %processes = $p->GetProcesses();
-
-	foreach my $pid (keys %pdkFolders) {
-
-		# don't remove files if process is still running...
-		next if $processes{$pid};
-
-		my $path = catdir($dir, $pdkFolders{$pid});
-		next unless -d $path;
-
-		eval { File::Path::rmtree($path) };
-	}
-}
-
-
-sub getUpdateParams {
-	my ($class, $url) = @_;
-
-	return if main::SCANNER;
-
-	if (main::ISACTIVEPERL && !$PerlSvc::VERSION) {
-		Slim::Utils::Log::logger('server.update')->info("Running Lyrion Music Server from the source - don't download the update.");
-		return;
-	}
-
-	my $downloaddir;
-
-	if ($class->{osDetails}->{isWHS}) {
-		require Win32::NetResource;
-
-		my $share;
-		Win32::NetResource::NetShareGetInfo('software', $share);
-
-		# this is ugly... FR uses a localized share name
-		if (!$share || !$share->{path}) {
-			Win32::NetResource::NetShareGetInfo('logiciel', $share);
-		}
-
-		if ($share && $share->{path}) {
-			$downloaddir = $share->{path};
-
-			if (-e catdir($downloaddir, "Add-Ins")) {
-				$downloaddir = catdir($downloaddir, "Add-Ins");
-			}
-		}
-	}
-
-	return {
-		path => $downloaddir,
-	};
-}
-
-sub canAutoUpdate { 1 }
-
-# return file extension filter for installer
-sub installerExtension { '(?:exe|msi)' }
-
-sub installerOS {
-	my $class = shift;
-	return $class->{osDetails}->{isWHS} ? 'whs' : 'win';
-}
-
-sub restartServer {
-	my $class = shift;
-
-	my $log = Slim::Utils::Log::logger('server.update');
-
-
-	if (!$class->canRestartServer()) {
-		$log->warn("Lyrion Music Server can't be restarted automatically on Windows if run from the perl source.");
-		return;
-	}
-
-	if ($PerlSvc::VERSION && PerlSvc::RunningAsService()) {
-
-		my $svcHelper = Win32::GetShortPathName( catdir( $class->installPath, 'server', 'squeezesvc.exe' ) );
-		my $processObj;
-
-		Slim::bootstrap::tryModuleLoad('Win32::Process');
-
-		if ($@ || !Win32::Process::Create(
-			$processObj,
-			$svcHelper,
-			"$svcHelper --restart",
-			0,
-			Win32::Process::DETACHED_PROCESS() | Win32::Process::CREATE_NO_WINDOW() | Win32::Process::NORMAL_PRIORITY_CLASS(),
-			".")
-		) {
-			$log->error("Couldn't restart Lyrion Music Server service (squeezesvc)");
-		}
-		else {
-			return 1;
-		}
-	}
-
-	elsif ($PerlSvc::VERSION) {
-
-		my $restartFlag = catdir( Slim::Utils::Prefs::preferences('server')->get('cachedir') || scalar $class->dirsFor('cache'), 'restart.txt' );
-		if (open(RESTART, ">$restartFlag")) {
-			close RESTART;
-			main::stopServer();
-			return 1;
-		}
-
-		else {
-			$log->error("Can't write restart flag ($restartFlag) - don't shut down");
-		}
-	}
-
-	return;
-}
-
-sub canRestartServer { return $PerlSvc::VERSION ? 1 : 0; }
 
 1;

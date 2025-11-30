@@ -8,10 +8,18 @@ package Slim::Web::Settings::Server::Wizard;
 
 use strict;
 use base qw(Slim::Web::Settings);
+
+use File::Slurp qw(read_file);
+use File::Spec::Functions qw(catfile);
+use FindBin qw($Bin);
 use HTTP::Status qw(RC_MOVED_TEMPORARILY);
+use JSON::XS::VersionOneAndTwo;
 
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
+use Slim::Utils::PluginDownloader;
+use Slim::Utils::PluginManager;
+use Slim::Utils::ExtensionsManager;
 use Slim::Utils::Timers;
 
 my $log = Slim::Utils::Log->addLogCategory({
@@ -20,7 +28,10 @@ my $log = Slim::Utils::Log->addLogCategory({
 });
 
 my $serverPrefs = preferences('server');
+
 my @prefs = ('mediadirs', 'playlistdir');
+my @pluginsToInstall;
+my $finalizeCb;
 
 sub page {
 	return 'settings/server/wizard.html';
@@ -29,7 +40,20 @@ sub page {
 sub handler {
 	my ($class, $client, $paramRef, $pageSetup, $httpClient, $response) = @_;
 
+	# tell the server not to trigger a rescan immediately, but let it queue up requests
+	# this is needed to prevent multiple scans to be triggered by change handlers for paths etc.
+	Slim::Music::Import->doQueueScanTasks(1);
+	my $scanOnChange = $serverPrefs->get('dontTriggerScanOnPrefChange');
+	$serverPrefs->set('dontTriggerScanOnPrefChange', 0);
+
 	$paramRef->{languageoptions} = Slim::Utils::Strings::languageOptions();
+
+	# redirect to the Default skin if another skin is set
+	if ($paramRef->{webroot} eq '/' && $paramRef->{skinOverride} ne 'Default' && $paramRef->{systemSkin} ne 'Default') {
+		$response->code(RC_MOVED_TEMPORARILY);
+		$response->header('Location' => '/Default/settings/server/wizard.html');
+		return Slim::Web::HTTP::filltemplatefile($class->page, $paramRef);
+	}
 
 	# make sure we only enforce the wizard at the very first startup
 	if ($paramRef->{saveSettings}) {
@@ -81,10 +105,63 @@ sub handler {
 	# set right-to-left orientation for Hebrew users
 	$paramRef->{rtl} = 1 if ($paramRef->{prefs}->{language} eq 'HE');
 
+	# install plugins if needed
+	if ($paramRef->{saveSettings}) {
+		my %installedPlugins = map { $_ => 1 } Slim::Utils::PluginManager->installedPlugins();
+
+		@pluginsToInstall = ();
+		for my $param (keys %$paramRef) {
+			if ($paramRef->{$param} && $param =~ /^plugin-(.*)$/) {
+				my $plugin = $1;
+				push @pluginsToInstall, $plugin if !$installedPlugins{$plugin};
+			}
+		}
+
+		Slim::Utils::ExtensionsManager::getAllPluginRepos({
+			type    => 'plugin',
+			cb => sub {
+				my ($pluginData, $error) = @_;
+
+				my (undef, undef, $inactive) = Slim::Utils::ExtensionsManager::getCurrentPlugins();
+
+				my %pluginLookup;
+				foreach (@$pluginData, @$inactive) {
+					$pluginLookup{$_->{name}} = $_;
+				}
+
+				foreach my $plugin (@pluginsToInstall) {
+					Slim::Utils::ExtensionsManager->enablePlugin($plugin);
+					my $pluginDetails = $pluginLookup{$plugin} || {};
+
+					if ($pluginDetails->{url} && $pluginDetails->{sha}) {
+						main::INFOLOG && $log->is_info && $log->info("Downloading plugin: $plugin");
+
+						# 3rd party plugin - needs to be downloaded
+						Slim::Utils::PluginDownloader->install({
+							name => $plugin,
+							url => $pluginDetails->{url},
+							sha => lc($pluginDetails->{sha})
+						});
+
+					}
+					elsif ($pluginDetails->{version}) {
+						# built-in plugin - install
+						main::INFOLOG && $log->is_info && $log->info("Installing plugin: $plugin");
+						Slim::Utils::PluginManager->_needsEnable($plugin);
+						Slim::Utils::PluginManager->load('', $plugin);
+					}
+				}
+
+				if (scalar @pluginsToInstall) {
+					Slim::Utils::Timers::killTimers(undef, \&_checkPluginDownloads);
+					Slim::Utils::Timers::setTimer(undef, time() + 1, \&_checkPluginDownloads);
+				}
+			},
+		}) if (scalar @pluginsToInstall);
+	}
+
 	foreach my $pref (@prefs) {
-
 		if ($paramRef->{saveSettings}) {
-
 			# if a scan is running and one of the music sources has changed, abort scan
 			if (
 				( ($pref eq 'playlistdir' && $paramRef->{$pref} ne $serverPrefs->get($pref))
@@ -95,22 +172,24 @@ sub handler {
 				Slim::Music::Import->abortScan();
 			}
 
-			# revert logic: while the pref is "disable", the UI is opt-in
-			# if this value is set we actually want to not disable it...
-			elsif ($pref eq 'sn_disable_stats') {
-				$paramRef->{$pref} = $paramRef->{$pref} ? 0 : 1;
-			}
-
 			if ($pref eq 'mediadirs') {
-				$serverPrefs->set($pref, [ $paramRef->{$pref} ]);
+				my $dirs = $serverPrefs->get($pref);
+				unshift @$dirs, $paramRef->{$pref};
+				$dirs = [ Slim::Utils::Misc::uniq(@$dirs) ];
+
+				main::DEBUGLOG && $log->is_debug() && $log->debug('Setting music folder: ' . Data::Dump::dump($dirs));
+
+				$serverPrefs->set($pref, $dirs);
+				Slim::Control::Request::executeRequest(undef, ['wipecache', 'queue']);
 			}
 			else {
+				main::DEBUGLOG && $log->is_debug() && $log->debug("Setting $pref folder: $paramRef->{$pref}");
 				$serverPrefs->set($pref, $paramRef->{$pref});
 			}
 		}
 
 		if (main::DEBUGLOG && $log->is_debug) {
- 			$log->debug("$pref: " . $serverPrefs->get($pref));
+ 			$log->debug("$pref: " . Data::Dump::dump($serverPrefs->get($pref)));
 		}
 
 		if ($pref eq 'mediadirs') {
@@ -122,33 +201,40 @@ sub handler {
 		}
 	}
 
-	$paramRef->{useiTunes} = preferences('plugin.itunes')->get('itunes');
-	$paramRef->{useMusicIP} = preferences('plugin.musicip')->get('musicip');
 	$paramRef->{serverOS} = Slim::Utils::OSDetect::OS();
+	$paramRef->{debug} = main::DEBUGLOG && $log->is_debug;
+
+	my $wzData = {};
+	foreach (catfile($Bin, 'HTML'), Slim::Utils::OSDetect::dirsFor('HTML')) {
+		my $path = catfile($_, 'EN', 'settings', 'wizard.json');
+		if (-f $path) {
+			$wzData = from_json(read_file($path));
+		}
+	}
+
+	$paramRef->{plugins} = $wzData->{plugins};
+	$paramRef->{pluginsJSON} = to_json($paramRef->{plugins});
+
+	$serverPrefs->set('dontTriggerScanOnPrefChange', $scanOnChange) if $scanOnChange;
 
 	# if the wizard has been run for the first time, redirect to the main we page
 	if ($paramRef->{firstTimeRunCompleted}) {
-
 		$response->code(RC_MOVED_TEMPORARILY);
 		$response->header('Location' => '/');
-	}
 
-	else {
-		# use local path if neither iTunes nor MusicIP is available, or on anything but Windows/OSX
-		$paramRef->{useAudiodir} = Slim::Utils::OSDetect::OS() !~ /^(?:mac|win)$/ || !($paramRef->{useiTunes} || $paramRef->{useMusicIP});
-	}
+		if (Slim::Utils::PluginDownloader->downloading) {
+			$finalizeCb = sub {
+				_triggerScan();
 
-	if ( $paramRef->{saveSettings} ) {
-		# Disable iTunes and MusicIP plugins if they aren't being used
-		if ( !$paramRef->{useiTunes} && Slim::Utils::PluginManager->isEnabled('Slim::Plugin::iTunes::Plugin') ) {
-			Slim::Utils::PluginManager->disablePlugin('iTunes');
-		}
+				Slim::Web::HTTP::filltemplatefile($class->page, $paramRef);
+				$pageSetup->( $client, $paramRef, Slim::Web::HTTP::filltemplatefile($class->page, $paramRef), $httpClient, $response );
+			};
 
-		if ( !$paramRef->{useMusicIP} && Slim::Utils::PluginManager->isEnabled('Slim::Plugin::MusicMagic::Plugin') ) {
-			Slim::Utils::PluginManager->disablePlugin('MusicMagic');
+			return;
 		}
 	}
 
+	_triggerScan();
 
 	if ($client) {
 		$paramRef->{playericon} = Slim::Web::Settings::Player::Basic->getPlayerIcon($client,$paramRef);
@@ -156,6 +242,37 @@ sub handler {
 	}
 
 	return Slim::Web::HTTP::filltemplatefile($class->page, $paramRef);
+}
+
+sub _triggerScan {
+	main::DEBUGLOG && $log->is_debug && $log->debug('Now finally run a full wipe & resacan.');
+	Slim::Music::Import->doQueueScanTasks(0);
+	Slim::Music::Import->nextScanTask();
+}
+
+sub _checkPluginDownloads {
+	Slim::Utils::Timers::killTimers(undef, \&_checkPluginDownloads);
+
+	if (Slim::Utils::PluginDownloader->downloading) {
+		Slim::Utils::Timers::setTimer(undef, time() + 1, \&_checkPluginDownloads);
+		return;
+	}
+
+	Slim::Utils::PluginManager->init();
+	Slim::Utils::PluginManager->load('', @pluginsToInstall);
+	@pluginsToInstall = ();
+
+	# need to reload the strings, as they's be loaded after initial plugin initialization, but we're late here...
+	Slim::Utils::Strings::loadStrings();
+
+	# re-initialize the content types map
+	Slim::Music::Info::loadTypesConfig();
+
+	# if the MaterialSkin was installed, use it
+	my %skins = Slim::Web::HTTP::skins();
+	$serverPrefs->set('skin', 'material') if $skins{MATERIAL};
+
+	$finalizeCb->() if $finalizeCb;
 }
 
 1;

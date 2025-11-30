@@ -174,6 +174,10 @@ sub playlist {
 	$titleFormat =~ /\bURL\b/      && ($tags .= 'u');
 	$titleFormat =~ /\bSAMPLERATE\b/ && ($tags .= 'T');
 	$titleFormat =~ /\bSAMPLESIZE\b/ && ($tags .= 'I');
+	$titleFormat =~ /\bWORK\b/     && ($tags .= 'b');
+	$titleFormat =~ /\bGROUPING\b/     && ($tags .= 'h');
+	$titleFormat =~ /\bSUBTITLE\b/     && ($tags .= 'z');
+	$titleFormat =~ /\bPERFORMANCE\b/     && ($tags .= '1');
 
 	my $includeAlbum  = $titleFormat !~ /\bALBUM\b/;
 	my $includeArtist = $titleFormat !~ /\bARTIST\b/;

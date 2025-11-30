@@ -76,14 +76,8 @@ sub init {
 
 		} elsif ($^O =~ /^m?s?win/i) {
 
-			require Slim::Utils::OS::Win32;
-			if (Slim::Utils::OS::Win32->getFlavor() eq 'Win64') {
-				require Slim::Utils::OS::Win64;
-				$os = Slim::Utils::OS::Win64->new();
-			}
-			else {
-				$os = Slim::Utils::OS::Win32->new();
-			}
+			require Slim::Utils::OS::Win64;
+			$os = Slim::Utils::OS::Win64->new();
 
 		} elsif ($^O =~ /linux/i) {
 
@@ -91,17 +85,17 @@ sub init {
 			$os = Slim::Utils::OS::Linux->getFlavor();
 
 			# we only differentiate Debian/Suse/Red Hat if they've been installed from a package
-			if ($os =~ /debian/i && $0 =~ m{^/usr/sbin/squeezeboxserver}) {
+			if ($os =~ /debian|ubuntu|raspb/i && $0 =~ m{^/usr/sbin/squeezeboxserver}) {
 
 				require Slim::Utils::OS::Debian;
 				$os = Slim::Utils::OS::Debian->new();
 
-			} elsif ($os =~ /red hat/i && $0 =~ m{^/usr/libexec/squeezeboxserver}) {
+			} elsif ($os =~ /red hat/i && $0 =~ m{^/usr/libexec/lyrionmusicserver}) {
 
 				require Slim::Utils::OS::RedHat;
 				$os = Slim::Utils::OS::RedHat->new();
 
-			} elsif ($os =~ /suse/i && $0 =~ m{^/usr/libexec/squeezeboxserver}) {
+			} elsif ($os =~ /suse/i && $0 =~ m{^/usr/libexec/lyrionmusicserver}) {
 
 				require Slim::Utils::OS::Suse;
 				$os = Slim::Utils::OS::Suse->new();
@@ -110,6 +104,11 @@ sub init {
 
 				require Slim::Utils::OS::Synology;
 				$os = Slim::Utils::OS::Synology->new();
+
+			} elsif ($os =~ /piCorePlayer/i) {
+
+				require Slim::Utils::OS::pCP;
+				$os = Slim::Utils::OS::pCP->new();
 
 			} else {
 

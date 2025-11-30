@@ -44,11 +44,12 @@ my $log = logger('database.info');
 	$class->belongs_to('contributor' => 'Slim::Schema::Contributor');
 
 	$class->has_many('tracks'            => 'Slim::Schema::Track'            => 'album');
+	# need to duplicate this relation because it should have been 'track' not 'tracks', but changing this now would lead to breakages elsewhere.
+	# See https://github.com/LMS-Community/slimserver/pull/1060 for details.
+	$class->has_many('track'             => 'Slim::Schema::Track'            => 'album');
 	$class->has_many('contributorAlbums' => 'Slim::Schema::ContributorAlbum' => 'album');
 
-	if ($] > 5.007) {
-		$class->utf8_columns(qw/title titlesort/);
-	}
+	$class->utf8_columns(qw/title titlesort/);
 
 	$class->resultset_class('Slim::Schema::ResultSet::Album');
 
@@ -153,7 +154,7 @@ sub addReleaseTypeStrings {
 			}
 		}
 
-		$stringsObj->delete;
+		$stringsObj->delete unless Slim::Music::Import->stillScanning();
 	}
 }
 
@@ -170,6 +171,11 @@ sub releaseTypeName {
 	}
 
 	return $name || $releaseType;
+}
+
+sub releaseType {
+	my ($self, $client) = @_;
+	return $self->releaseTypeName($self->release_type, $client);
 }
 
 # Update the title dynamically if we're part of a set.
@@ -256,6 +262,33 @@ sub artistsForRoles {
 		->search_related('contributor')->distinct->all;
 }
 
+sub artistPerformsOnWork {
+	my ($self, $work, $performance, $artist) = @_;
+
+	my $sth = Slim::Schema->dbh->prepare_cached(
+		qq{
+			SELECT count(*)
+			from albums
+			JOIN tracks ON albums.id = tracks.album
+			JOIN contributor_track ON tracks.id = contributor_track.track
+			WHERE tracks.work = :work
+			AND albums.id = :album
+			AND contributor_track.contributor = :artist
+			AND ( (:performance IS NULL AND tracks.performance IS NULL) OR tracks.performance = :performance )
+		}
+	);
+
+	$sth->bind_param(":work", $work);
+	$sth->bind_param(":album", $self->id);
+	$sth->bind_param(":artist", $artist);
+	$sth->bind_param(":performance", $performance);
+	$sth->execute();
+
+	my ($count) = $sth->fetchrow_array;
+	$sth->finish;
+	return $count
+}
+
 # Return an array of artists associated with this album.
 sub artists {
 	my $self = shift;
@@ -263,6 +296,7 @@ sub artists {
 	# First try to fetch an explict album artist
 	my @artists = $self->artistsForRoles('ALBUMARTIST');
 
+	# TODO - is this still needed? - see https://github.com/LMS-Community/slimserver/pull/1186/files#r1806833273
 	# If the user wants to use BAND as album artist, pull that.
 	if (scalar @artists == 0 && $prefs->get('bandInArtists')) {
 
@@ -373,11 +407,13 @@ sub rescan {
 
 sub duration {
 	my $self = shift;
+	my $workId = shift;
+	my $performance = shift;
 
 	my $secs = 0;
 	foreach ($self->tracks) {
 		return if !defined $_->secs;
-		$secs += $_->secs;
+		$secs += $_->secs if !$workId || $_->get_column('work') == $workId && $_->get_column('performance') eq $performance;
 	}
 	return sprintf('%s:%02s', int($secs / 60), $secs % 60);
 }

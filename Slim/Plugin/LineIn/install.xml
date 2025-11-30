@@ -5,9 +5,10 @@
 	<module>Slim::Plugin::LineIn::Plugin</module>
 	<version>1.0</version>
 	<description>PLUGIN_LINE_IN_DESC</description>
-	<creator>Logitech</creator>
+	<creator>Lyrion Community</creator>
+	<category>tools</category>
 
-	<defaultState>enabled</defaultState>
+	<defaultState>disabled</defaultState>
 
 	<icon>plugins/LineIn/html/images/icon.png</icon>
 	<type>2</type>

@@ -18,6 +18,7 @@ use Slim::Utils::Log;
 use Slim::Utils::Prefs;
 use Slim::Utils::Strings qw(string cstring);
 use Slim::Utils::Text;
+use Slim::Utils::Timers;
 
 my $prefs = preferences('plugin.extendedbrowsemodes');
 my $serverPrefs = preferences('server');
@@ -27,6 +28,7 @@ $prefs->init({
 		name    => string('PLUGIN_EXTENDED_BROWSEMODES_BROWSE_BY_COMPOSERS'),
 		params  => { role_id => 'COMPOSER' },
 		feed    => 'artists',
+		icon    => 'plugins/ExtendedBrowseModes/html/composers.png',
 		id      => 'myMusicArtistsComposers',
 		weight  => 12,
 		enabled => 1,
@@ -34,6 +36,7 @@ $prefs->init({
 		name    => string('PLUGIN_EXTENDED_BROWSEMODES_BROWSE_BY_CLASSICAL_MUSIC_BY_CONDUCTOR'),
 		params  => { role_id => 'CONDUCTOR', genre_id => 'Classical' },
 		feed    => 'artists',
+		icon    => 'plugins/ExtendedBrowseModes/html/conductors.png',
 		id      => 'myMusicArtistsConductors',
 		weight  => 13,
 		enabled => 0,
@@ -41,6 +44,7 @@ $prefs->init({
 		name    => string('PLUGIN_EXTENDED_BROWSEMODES_BROWSE_BY_JAZZ_COMPOSERS'),
 		params  => { role_id => 'COMPOSER', genre_id => 'Jazz' },
 		feed    => 'artists',
+		icon    => 'plugins/ExtendedBrowseModes/html/jazzcomposers.png',
 		id      => 'myMusicArtistsJazzComposers',
 		weight  => 13,
 		enabled => 0,
@@ -49,8 +53,10 @@ $prefs->init({
 });
 
 $prefs->setChange( \&initMenus, 'additionalMenuItems' );
-Slim::Control::Request::subscribe( sub { initMenus(@_) }, [['library'], ['changed']] );
-Slim::Control::Request::subscribe( sub { initMenus(@_) }, [['rescan'], ['done']] );
+# subs to subscribe must be unique - wrap the actual sub
+Slim::Control::Request::subscribe( sub { _delayedInitMenus(@_) }, [['client'], ['new', 'reconnect']] );
+Slim::Control::Request::subscribe( sub { _delayedInitMenus(@_) }, [['library'], ['changed']] );
+Slim::Control::Request::subscribe( sub { _delayedInitMenus(@_) }, [['rescan'], ['done']] );
 
 $prefs->setChange( sub {
 	__PACKAGE__->initLibraries($_[0], $_[1] || 0);
@@ -233,6 +239,23 @@ sub initMenus {
 		static       => 1,
 		nocache      => 1,
 	},{
+		name         => 'PLUGIN_EXTENDED_BROWSEMODES_BROWSE_BY_PLAYLIST_FOLDER',
+		params       => {
+			mode => 'playlistFolder',
+			folder_id => URI::Escape::uri_escape_utf8('/'),
+		},
+		feed         => \&Slim::Menu::BrowseLibrary::_playlists,
+		icon         => 'html/images/playlists.png',
+		condition    => sub {
+			return unless Slim::Menu::BrowseLibrary::isEnabledNode(@_);
+			return 1 if Slim::Utils::Misc::getPlaylistDir();
+
+			my $totals = Slim::Schema->totals($_[0]);
+			return $totals->{playlist} if $totals;
+		},
+		id           => 'myMusicPlaylistFolder',
+		weight       => 80,
+	},{
 		name         => 'PLUGIN_EXTENDED_BROWSEMODES_RANDOM_ALBUMS',
 		params       => {
 			mode => 'randomalbums',
@@ -273,12 +296,30 @@ sub initMenus {
 			weight       => 69,
 			static       => 1,
 			nocache      => 1,
+		},{
+			name         => 'PLUGIN_EXTENDED_BROWSEMODES_RECENTLY_CHANGED',
+			params       => {
+				mode => 'recentlychanged',
+				sort => 'changed',
+				wantMetadata => 1,
+			},
+			feed         => 'albums',
+			id           => 'myMusicRecentlyChangeAlbums',
+			icon         => 'html/images/newmusic.png',
+			weight       => 51,
+			static       => 1,
 		};
 	}
 
 	foreach (@{$prefs->get('additionalMenuItems') || []}, @additionalStaticMenuItems) {
 		__PACKAGE__->registerBrowseMode($_);
 	}
+}
+
+# sometimes events are triggered in quick succession - buffer execution for a few ms to not process all of them
+sub _delayedInitMenus {
+	Slim::Utils::Timers::killTimers(undef, \&initMenus);
+	Slim::Utils::Timers::setTimer(undef, Time::HiRes::time() + 0.250, \&initMenus);
 }
 
 sub registerBrowseMode {
@@ -291,6 +332,8 @@ sub registerBrowseMode {
 	Slim::Menu::BrowseLibrary->deregisterNode($item->{id});
 
 	foreach my $clientPref ( $serverPrefs->allClients ) {
+		next unless Slim::Player::Client::getClient($clientPref->{clientid});
+
 		$clientPref->init({
 			'disabled_' . $item->{id} => $item->{enabled} ? 0 : 1
 		});
@@ -305,11 +348,15 @@ sub registerBrowseMode {
 	}
 	elsif ( $item->{feed} =~ /\balbums$/ ) {
 		$feed = \&Slim::Menu::BrowseLibrary::_albums;
-		$icon = 'html/images/albums.png';
+		$icon ||= 'html/images/albums.png';
+	}
+	elsif ( $item->{feed} =~ /\bworks$/ ) {
+		$feed = \&Slim::Menu::BrowseLibrary::_works;
+		$icon = 'html/images/works.png';
 	}
 	else {
 		$feed = \&Slim::Menu::BrowseLibrary::_artists;
-		$icon = 'html/images/artists.png';
+		$icon = $icon // 'html/images/artists.png';
 	}
 
 	my %params = map {

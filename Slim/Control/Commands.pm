@@ -1763,7 +1763,7 @@ sub playlistXtracksCommand {
 
 			# And set a callback so that we can
 			# update CURTRACK when the song changes.
-			Slim::Control::Request::subscribe(\&Slim::Player::Playlist::newSongPlaylistCallback, [['playlist'], ['newsong']]);
+			Slim::Control::Request::subscribe(\&Slim::Player::Playlist::newSongPlaylistCallback, [['playlist'], ['newsong', 'stop']]);
 		}
 		# bug 14662: Playing a specific track while track shuffle is enabled will play another track
 		elsif (defined $jumpToIndex && Slim::Player::Playlist::shuffle($client)) {
@@ -1859,6 +1859,7 @@ sub playlistcontrolCommand {
 	my $client              = $request->client();
 	my $cmd                 = $request->getParam('cmd');
 	my $jumpIndex           = $request->getParam('play_index');
+	my $workId              = $request->getParam('work_id') || '';
 
 	if (Slim::Music::Import->stillScanning()) {
 		$request->addResult('rescan', "1");
@@ -1987,6 +1988,23 @@ sub playlistcontrolCommand {
 			return;
 		}
 
+	} elsif ($workId && $workId ne '-1') {
+
+		my $criteria = {work => [ '=' => $workId ]};
+
+		if (defined (my $album_id = $request->getParam('album_id'))) {
+			my @albumIds = split(',', $album_id);
+			$criteria->{'album'} = [ 'IN' => @albumIds ];
+		}
+
+		if ( my $performance = $request->getParam('performance') ) {
+			$criteria->{'performance'} = [ '=' => $performance ];
+		} elsif ( defined $request->getParam('performance') ) {
+			$criteria->{'performance'} = [ '=' => undef ]
+		}
+
+		@tracks = Slim::Schema->search('Track', $criteria)->all;
+
 	} elsif (defined(my $track_id_list = $request->getParam('track_id'))) {
 
 		# split on commas
@@ -2021,6 +2039,10 @@ sub playlistcontrolCommand {
 
 		my $what = {};
 
+		if ($workId eq '-1') {
+			$what->{'track.work'} = { '!=' => undef };
+		}
+
 		if (defined(my $genre_id = $request->getParam('genre_id'))) {
 			$what->{'genre.id'} = { 'in' => [ split(/,/, $genre_id) ] };
 			$info[0] = join(', ', map { $_->name } Slim::Schema->search('Genre', { 'id' => { 'in' => [ split(/,/, $genre_id) ] } })->all);
@@ -2036,15 +2058,24 @@ sub playlistcontrolCommand {
 		}
 
 		if (defined(my $album_id = $request->getParam('album_id'))) {
-			$what->{'album.id'} = $album_id;
-			my $album = Slim::Schema->find('Album', $album_id);
-			@info    = ( $album->title, $album->contributors->first->name );
-			$artwork = $album->artwork || 0;
+			if ( scalar split(/,/,$album_id) == 1 ) {
+				$what->{'album.id'} = $album_id;
+				my $album = Slim::Schema->find('Album', $album_id);
+				@info    = ( $album->title, $album->contributors->first->name );
+				$artwork = $album->artwork || 0;
+			} else {
+				$what->{'album.id'} = {
+					in => [ split(/,/,$album_id) ]
+				};
+			}
 		}
 
 		if (defined(my $year = $request->getParam('year'))) {
 			$what->{'year.id'} = $year;
 			$info[0] = $year;
+			if ( $request->getParam('only_album_years') ) {
+				$what->{'album.year'} = $year;
+			}
 		}
 
 		if (defined(my $releaseType = $request->getParam('release_type'))) {
@@ -2072,6 +2103,12 @@ sub playlistcontrolCommand {
 
 	# don't call Xtracks if we got no songs
 	if (@tracks) {
+
+		if ($workId) {
+			foreach my $track (@tracks) {
+				$track->added_from_work("1");
+			}
+		}
 
 		if ($load || $add || $insert) {
 
@@ -2647,7 +2684,6 @@ sub rescanCommand {
 	}
 
 	# if scan is running or we're told to queue up requests, return quickly
-	# FIXME - this seems to sometimes lead to infinite loops! (see eg. Synology change)
 	if ( Slim::Music::Import->stillScanning() || Slim::Music::Import->doQueueScanTasks() || Slim::Music::Import->hasScanTask() ) {
 		Slim::Music::Import->queueScanTask($request);
 
@@ -3093,7 +3129,6 @@ sub pragmaCommand {
 
 	my $pragma = join( ' ', grep { $_ ne 'pragma' } $request->renderAsArray );
 
-	# XXX need to pass pragma to artwork cache even if using MySQL
 	Slim::Utils::OSDetect->getOS()->sqlHelperClass()->pragma($pragma);
 
 	$request->setStatusDone();
@@ -3290,14 +3325,14 @@ sub _playlistXtracksCommand_parseSearchTerms {
 
 		# Do some mapping from the player browse mode. This is
 		# already done in the web ui.
-		elsif ($key =~ /^(playlist|age|album|contributor|genre|year)$/) {
+		elsif ($key =~ /^(playlist|age|changed|album|contributor|genre|year)$/) {
 			$key = "$1.id";
 		}
 
 		# New Music browsing is working on the
 		# tracks.timestamp column, but shows years.
 		# Use the album-id in the track instead of joining with the album table.
-		if ($key eq 'album.id' || $key eq 'age.id') {
+		if ($key eq 'album.id' || $key eq 'age.id' || $key eq 'changed.id') {
 			$key = 'track.album';
 		}
 
@@ -3316,6 +3351,11 @@ sub _playlistXtracksCommand_parseSearchTerms {
 
 			$sort = $albumSort;
 			$joinMap{'year'} = 'year';
+
+		} elsif ($key =~ /^work\./) {
+
+			$sort = $albumSort;
+			$joinMap{'work'} = 'work';
 
 		} elsif ($key =~ /^contributor\./) {
 
@@ -3344,6 +3384,10 @@ sub _playlistXtracksCommand_parseSearchTerms {
 					$find{$key} = { 'like' => Slim::Utils::Text::searchStringSplit($value) };
 				}
 
+			} elsif ( $key eq 'me.performance' ) {
+
+				$find{$key} = $value || undef;
+
 			} else {
 
 				$find{$key} = Slim::Utils::Text::ignoreCase($value, 1);
@@ -3362,6 +3406,10 @@ sub _playlistXtracksCommand_parseSearchTerms {
 			}
 		} elsif ($value eq 'album') {
 			$sort = $albumSort;
+		} elsif ( $value =~ s/^sql=// ) {
+			# Raw SQL search query
+			$sort = $value;
+			$sort =~ s/;//g; # strip out any attempt at combining SQL statements
 		} elsif ($value !~ /^(artistalbum|albumtrack|new|random)$/) {
 			# Only use sort value if it is **not** an album sort.
 			$sort = $value;
@@ -3412,27 +3460,26 @@ sub _playlistXtracksCommand_parseSearchTerms {
 			delete $find{'playlist.id'};
 		}
 
-		# If we have an album and a year - remove the year, since
-		# there is no explict relationship between Track and Year.
-		if ($find{'me.album'} && $find{'year.id'}) {
+		# restrict by tracks.year to bring playlist add into line with album/tracks listings filtered by year.
+		if ($find{'year.id'}) {
 
-			delete $find{'year.id'};
-			delete $joinMap{'year'};
-
-		} elsif ($find{'year.id'}) {
-
-			$find{'album.year'} = delete $find{'year.id'};
+			$find{'me.year'} = delete $find{'year.id'};
 			delete $joinMap{'year'};
 		}
 
 		if ($sort && ($sort eq $albumSort || $sort eq $albumYearSort)) {
-			if ($find{'me.album'}) {
-				# Don't need album-sort if we have a specific album-id
+			if ( $find{'me.album'} && ref $find{'me.album'} eq '') {
+				# Don't need album-sort if we have a specific single album-id
 				$sort = undef;
 			} else {
 				# Bug: 3629 - if we're sorting by album - be sure to include it in the join table.
 				$joinMap{'album'} = 'album';
 			}
+		}
+
+		if ($sort && $sort =~ s/tracks_persistent/persistent/g) {
+			$sort =~ s/\btracks\./me./g;
+			$joinMap{'persistent'} = 'persistent';
 		}
 
 		if ( $library_id ||= Slim::Music::VirtualLibraries->getLibraryIdForClient($client) ) {
@@ -3543,11 +3590,24 @@ sub _playlistXtracksCommand_parseDbItem {
 				if ( $class eq 'LibraryTracks' && $key eq 'library' && $value eq '-1' ) {
 					$classes{$class} = -1;
 				}
+				elsif ( $class eq 'Track' && $key eq 'performance' ) {
+					$classes{$class} = $value;
+				}
 				# album favorites need to be filtered by contributor, too
 				elsif ($class eq 'Contributor' && (my $albumObj = $classes{Album})) {
 					my $lcClass = lc($class);
 					$classes{Album} = Slim::Schema->search('Album', {
 						titlesearch => $albumObj->titlesearch,
+						"$lcClass.$key" => $value,
+					},{
+						prefetch => $lcClass
+					})->first;
+				}
+				# work favorites need to be filtered by composer, too
+				elsif ($class eq 'Composer' && (my $workObj = $classes{Work})) {
+					my $lcClass = lc($class);
+					$classes{Work} = Slim::Schema->search('Work', {
+						titlesearch => $workObj->titlesearch,
 						"$lcClass.$key" => $value,
 					},{
 						prefetch => $lcClass
@@ -3586,6 +3646,7 @@ sub _playlistXtracksCommand_parseDbItem {
 			$class eq 'Contributor' ||
 			$class eq 'Genre' ||
 			$class eq 'Year' ||
+			$class eq 'Work' ||
 			( blessed $obj && $obj->can('content_type') && $obj->content_type ne 'dir')
 		) ) {
 			$terms .= "&" if ( $terms ne "" );
@@ -3598,8 +3659,13 @@ sub _playlistXtracksCommand_parseDbItem {
 		$terms .= sprintf( 'librarytracks.library=%d', $classes{LibraryTracks} );
 	}
 
+	if ( defined $classes{Track} ) {
+		$terms .= "&" if ( $terms ne "" );
+		$terms .= sprintf( 'track.performance=%s', URI::Escape::uri_escape_utf8($classes{Track}) );
+	}
+
 	if ( $terms ne "" ) {
-			return _playlistXtracksCommand_parseSearchTerms($client, $terms);
+		return _playlistXtracksCommand_parseSearchTerms($client, $terms);
 	}
 	else {
 		return ();

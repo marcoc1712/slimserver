@@ -2,7 +2,7 @@ package Slim::Schema;
 
 
 # Logitech Media Server Copyright 2001-2024 Logitech.
-# Lyrion Music Server Copyright 2024 Lyrion Community.
+# Lyrion Music Server Copyright 2025 Lyrion Community.
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License,
 # version 2.
@@ -54,9 +54,12 @@ use Slim::Schema::Debug;
 use Slim::Schema::RemoteTrack;
 use Slim::Schema::RemotePlaylist;
 
+use constant SCAN_WORKS_FOR_MY_CLASSICAL_GENRES => 2;
+
 my $log = logger('database.info');
 
 my $prefs = preferences('server');
+my $scanWorks = $prefs->get('worksScan') if main::SCANNER;
 
 # Singleton objects for Unknowns
 our ($_unknownArtist, $_unknownGenre, $_unknownAlbumId) = ('', '', undef);
@@ -84,6 +87,7 @@ my %tagMapping = (
 our $initialized         = 0;
 my $trackAttrs           = {};
 my $trackPersistentAttrs = {};
+my $firstScan;
 
 my %ratingImplementations = (
 	'LOCAL_RATING_STORAGE' => \&_defaultRatingImplementation,
@@ -139,24 +143,19 @@ sub init {
 	}
 
 	# Bug: 4076
-	# If a user was using MySQL with 6.3.x (unsupported), their
 	# metainformation table won't be dropped with the schema_1_up.sql
 	# file, since the metainformation table doesn't get dropped to
 	# maintain state. We need to wipe the DB and start over.
 	eval {
 		local $dbh->{HandleError} = sub {};
 		$dbh->do('SELECT name FROM metainformation') || die $dbh->errstr;
-
-		# when upgrading from SBS to LMS let's check the additional tables,
-		# as the schema numbers might be overlapping, not causing a re-build
-		$dbh->do('SELECT id FROM images LIMIT 1') || die $dbh->errstr;
 	};
 
 	# If we couldn't select our new 'name' column, then drop the
 	# metainformation (and possibly dbix_migration, if the db is in a
 	# wierd state), so that the migrateDB call below will update the schema.
 	if ( $@ ) {
-		main::INFOLOG && $log->is_info && $log->info("Creating new database - empty, outdated or invalid database found");
+		main::INFOLOG && $log->is_info && $log->info("Creating new database - empty, outdated or invalid database found: $@");
 
 		eval {
 			$dbh->do('DROP TABLE IF EXISTS metainformation');
@@ -180,10 +179,11 @@ sub init {
 		MetaInformation
 		Playlist
 		PlaylistTrack
-		Rescan
 		Track
 		Year
 		Progress
+		Work
+		Composer
 	/);
 	$class->load_classes('TrackPersistent') unless (!main::STATISTICS);
 
@@ -856,11 +856,45 @@ sub objectForUrl {
 	return $track;
 }
 
+=head2 libraryObjectForUrl( $url )
+
+Returns a L<Slim::Schema::Track> or L<Slim::Schema::Playlist> object for the given URL.
+Prefers the Slim::Schema::Track object over Slim::Schema::RemoteTrack if the URL is a
+remote track imported into the local database.
+
+=cut
+
+sub libraryObjectForUrl {
+	my $self = shift;
+	my $args = shift;
+
+	my $url = $args;
+	my $playlist;
+
+	if (ref($args) eq 'HASH') {
+		$url      = $args->{'url'};
+		$playlist = $args->{'playlist'};
+	}
+
+	if (ref($url) eq 'Slim::Schema::RemoteTrack' && $url->url) {
+		$url = $url->url;
+	}
+
+	if (!ref $url && Slim::Music::Info::isRemoteURL($url)) {
+		my $track = $self->_retrieveTrack($url, $playlist, 'integrateRemote');
+
+		return $track if $track;
+	}
+
+	# Otherwise, fall back to the standard objectForUrl method
+	return $self->objectForUrl($args);
+}
+
 sub _objForDbUrl {
 	my ($url) = @_;
 
 	if ($url =~ /^db:(\w+)\.(.+)/ ) {
-		my ($class, $values) = ($1, $2);
+		my ($class, $values) = ($1, "me.$2"); # need to qualify the base class because of possible duplicate column names in prefetched relations
 
 		my $query = {};
 		for my $term (split('&', $values)) {
@@ -873,16 +907,24 @@ sub _objForDbUrl {
 					utf8::encode($value);
 				}
 
+				if ($key eq "track.performance") {
+					$value = undef if !$value; # empty performance value is meaningful and needs to result in an IS NULL check in the query
+				}
 				$query->{$key} = $value;
 			}
 		}
 
 		my $params;
+		$params->{prefetch} = [];
 		foreach (keys %$query) {
-			if (/^(.*)\./) {
-				$params->{prefetch} = $1;
+			if (/^(?!composer|work|track|me)(.*)\./) { # exclude relations which need to be added as multi-level (see below), and also "me" which is of course the base class
+				push @{ $params->{prefetch} }, $1;
 			}
 		}
+
+		# add multi-level prefetch relations as needed
+		push @{ $params->{prefetch} }, [{"track" => {"album" => "contributor"}}, "composer"] if $class eq "work";
+		push @{ $params->{prefetch} }, {"track" => {"work" => "composer"}} if $class eq "album" && $query->{'work.title'};
 
 		return Slim::Schema->search(ucfirst($class), $query, $params)->first;
 	}
@@ -898,7 +940,8 @@ sub _createOrUpdateAlbum {
 	my $disc      = $attributes->{DISC};
 	my $discc     = $attributes->{DISCC};
 	# Bug 10583 - Also check for MusicBrainz Album Id
-	my $brainzId  = $attributes->{MUSICBRAINZ_ALBUM_ID};
+	# Surely there is only one MB album id!
+	my $brainzId  = ref $attributes->{MUSICBRAINZ_ALBUM_ID} ? $attributes->{MUSICBRAINZ_ALBUM_ID}[0] : $attributes->{MUSICBRAINZ_ALBUM_ID};
 	my $extId     = $attributes->{EXTID} || $attributes->{ALBUM_EXTID};
 
 	# if we have a disc number from an online service, default disc count to 1
@@ -935,7 +978,8 @@ sub _createOrUpdateAlbum {
 
 	if ( !$create && $track ) {
 		$albumHash = Slim::Schema::Album->findhash( $track->album->id );
-		my $differentTitle = Slim::Utils::Text::ignoreCase($title, 1) ne $albumHash->{titlesearch};
+		utf8::decode($albumHash->{title});
+		my $differentTitle = Slim::Utils::Unicode::utf8toLatin1Transliterate($title) ne Slim::Utils::Unicode::utf8toLatin1Transliterate($albumHash->{title});
 
 		# Bug: 4140
 		# If the track is from a FLAC cue sheet, the original entry will have a 'No Album' album. See if we have a real album name.
@@ -1291,7 +1335,7 @@ sub _createOrUpdateAlbum {
 		}
 	}
 
-	# Check that these are the correct types. Otherwise MySQL will not accept the values.
+	# Check that these are the correct types.
 	if ( defined $disc && $disc =~ /^\d+$/ ) {
 		$albumHash->{disc} = $disc;
 	}
@@ -1458,6 +1502,49 @@ sub _createComments {
 	}
 }
 
+sub _createWork {
+	my ($self, $work, $workSort, $composerID, $create) = @_;
+
+	if ( $work && $composerID ) {
+
+		# MusicBrainz (or users!) may create multiple WORK tags, which we get as an array. Flatten it.
+		if (ref $work eq 'ARRAY') {
+			$work = join(', ', @$work);
+		}
+		# Using native DBI here to improve performance during scanning
+		my $dbh = Slim::Schema->dbh;
+
+		my $titlesort = Slim::Utils::Text::ignoreCaseArticles( $workSort || $work );
+		$titlesort =~ s/(\d+)/sprintf"%04d",$1/eg unless $workSort; #Use the WORKSORT tag as is if provided, otherwise zero-pad numbers.
+		my $titlesearch = Slim::Utils::Text::ignoreCase($work, 1);
+
+		my $sth = $dbh->prepare_cached('SELECT id FROM works WHERE titlesearch = ? AND composer = ?');
+		$sth->execute($titlesearch, $composerID);
+		my ($workID) = $sth->fetchrow_array;
+		$sth->finish;
+
+		if ( !$workID ) {
+
+			my $sth_insert = $dbh->prepare_cached( qq{
+				INSERT INTO works
+				(composer, title, titlesort, titlesearch)
+				VALUES
+				(?, ?, ?, ?)
+			} );
+
+			$sth_insert->execute( $composerID, $work, $titlesort, $titlesearch );
+
+			main::DEBUGLOG && $log->is_debug && $log->debug("-- Inserted work '$work'");
+
+			return $dbh->last_insert_id(undef, undef, undef, undef);
+
+		} else {
+
+			return $workID;
+		}
+	}
+}
+
 sub _createTrack {
 	my ($self, $columnValueHash, $persistentColumnValueHash, $source) = @_;
 
@@ -1474,15 +1561,27 @@ sub _createTrack {
 	### Create TrackPersistent row
 
 	if ( main::STATISTICS && $columnValueHash->{'audio'} ) {
+		if (!defined $firstScan) {
+			# if no track has been played yet, we consider this a first scan
+			my $counts = $dbh->selectall_arrayref('SELECT count(1) FROM tracks_persistent WHERE lastPlayed IS NOT NULL OR playCount IS NOT NULL;');
+			$firstScan = $counts->[0]->[0] ? 0 : 1;
+		}
+
 		# Pull the track persistent data
 		my $trackPersistentHash = Slim::Schema::TrackPersistent->findhash(
 			$columnValueHash->{musicbrainz_id},
 			$columnValueHash->{urlmd5},
 		);
 
+		my $externalTrack = $columnValueHash->{extid} && $columnValueHash->{url} eq $columnValueHash->{extid};
+		my $useTimestampAsAdded = $externalTrack || $firstScan;
+
 		# retrievePersistent will always return undef or a track metadata object
 		if ( !$trackPersistentHash ) {
-			$persistentColumnValueHash->{added}  = time();
+			# https://github.com/LMS-Community/slimserver/issues/1259
+			# when we are running the very first scan, we consider the file's timestamp the time added
+			# once we have seen some activity, use the actual time as the time added
+			$persistentColumnValueHash->{added}  = ($useTimestampAsAdded && $columnValueHash->{timestamp}) || time();
 			$persistentColumnValueHash->{url}    = $columnValueHash->{url};
 			$persistentColumnValueHash->{urlmd5} = $columnValueHash->{urlmd5};
 
@@ -1503,6 +1602,10 @@ sub _createTrack {
 			# Always update url/urlmd5 as these values may have changed if we looked up using musicbrainz_id
 			$trackPersistentHash->{url}    = $columnValueHash->{url};
 			$trackPersistentHash->{urlmd5} = $columnValueHash->{urlmd5};
+
+			if ($externalTrack && $columnValueHash->{timestamp}) {
+				$trackPersistentHash->{added} = $columnValueHash->{timestamp}
+			}
 
 			$self->_updateHash( tracks_persistent => $trackPersistentHash, 'id' );
 		}
@@ -1696,6 +1799,12 @@ sub _newTrack {
 		$columnValueHash{primary_artist} = $artist->[0];
 	}
 
+	### Create Work rows
+	my $workID;
+	if ( _workRequired($deferredAttributes->{'GENRE'}) ) {
+		$workID = $self->_createWork($deferredAttributes->{'WORK'}, $deferredAttributes->{'WORKSORT'}, $contributors->{'COMPOSER'}->[0], 1);
+	}
+
 	### Find artwork column values for the Track
 	if ( !$columnValueHash{cover} && $columnValueHash{audio} ) {
 		# Track does not have embedded artwork, look for standalone cover
@@ -1728,6 +1837,7 @@ sub _newTrack {
 	);
 
 	### Create Track row
+	$columnValueHash{'work'} = $workID if $workID;
 	$columnValueHash{'album'} = $albumId if !$playlist;
 	$trackId = $self->_createTrack(\%columnValueHash, \%persistentColumnValueHash, $source);
 
@@ -1901,7 +2011,12 @@ sub updateOrCreateBase {
 
 			$key = lc($key);
 
-			if (defined $val && $val ne '' && exists $trackAttrs->{$key}) {
+			## Need to set performance/grouping/discsubtitle to null if no value passed in (may have had a value before this scan)
+			if ( (defined $val && $val ne '' || $key eq "performance" || $key eq "grouping" || $key eq "discsubtitle") && exists $trackAttrs->{$key} ) {
+
+				# Bug 7731, filter out duplicate keys that end up as array refs
+				# https://github.com/LMS-Community/slimserver/issues/1378
+				$val = $val->[0] if ( ref $val eq 'ARRAY' );
 
 				main::INFOLOG && $log->is_info && $log->info("Updating $url : $key to $val");
 
@@ -2294,7 +2409,7 @@ sub artistOnlyRoles {
 
 	# And if the user has asked for ALL, give them it.
 	if ($roles{'ALL'}) {
-		return undef;
+		return [ Slim::Schema::Contributor->contributorRoleIds ];
 	}
 
 	# Loop through each pref to see if the user wants to show that contributor role.
@@ -2306,13 +2421,8 @@ sub artistOnlyRoles {
 		}
 	}
 
-	# If we're using all roles, don't bother with the constraint.
-	if (scalar keys %roles != Slim::Schema::Contributor->totalContributorRoles) {
+	return [ sort map { Slim::Schema::Contributor->typeToRole($_) } keys %roles ];
 
-		return [ sort map { Slim::Schema::Contributor->typeToRole($_) } keys %roles ];
-	}
-
-	return undef;
 }
 
 sub registerRatingImplementation {
@@ -2566,6 +2676,9 @@ sub _preCheckAttributes {
 
 	# Normalize attribute names
 	while ( my ($key, $val) = each %{ $args->{'attributes'} } ) {
+		if ( $key =~ /^MUSICBRAINZ.*ID$/ && $val && ref $val ne 'ARRAY' ) {
+			logWarning("$key ($val) in " . Slim::Utils::Misc::pathFromFileURL($url) . " has not been validated by Slim::Formats::sanitizeTagValues");
+		}
 		# don't overwrite mapped values
 		next if $mappedValues{$key};
 
@@ -2711,13 +2824,15 @@ sub _preCheckAttributes {
 	# since the tag may need to be split.  See bugs #295 and #4584.
 	#
 	# Push these back until we have a Track object.
-	for my $tag (Slim::Schema::Contributor->contributorRoles, qw(
-		COMMENT GENRE ARTISTSORT PIC APIC ALBUM ALBUMSORT DISCC
-		COMPILATION REPLAYGAIN_ALBUM_PEAK REPLAYGAIN_ALBUM_GAIN
-		MUSICBRAINZ_ARTIST_ID MUSICBRAINZ_ALBUMARTIST_ID MUSICBRAINZ_ALBUM_ID
-		MUSICBRAINZ_ALBUM_TYPE MUSICBRAINZ_ALBUM_STATUS RELEASETYPE
-		ALBUMARTISTSORT COMPOSERSORT CONDUCTORSORT BANDSORT ALBUM_EXTID ARTIST_EXTID
-	)) {
+	for my $tag (Slim::Schema::Contributor->contributorRoles, (map { $_ . 'SORT' } Slim::Schema::Contributor->contributorRoles()),
+		qw(
+			COMMENT GENRE PIC APIC ALBUM ALBUMSORT DISCC
+			COMPILATION REPLAYGAIN_ALBUM_PEAK REPLAYGAIN_ALBUM_GAIN
+			MUSICBRAINZ_ARTIST_ID MUSICBRAINZ_ALBUMARTIST_ID MUSICBRAINZ_ALBUM_ID
+			MUSICBRAINZ_ALBUM_TYPE MUSICBRAINZ_ALBUM_STATUS RELEASETYPE
+			ALBUM_EXTID ARTIST_EXTID WORK WORKSORT
+		))
+	{
 
 		next unless defined $attributes->{$tag};
 
@@ -2747,6 +2862,17 @@ sub _preCheckAttributes {
 		$attributes->{'ALBUMNAME'} = $deferredAttributes->{'ALBUM'} if $deferredAttributes->{'ALBUM'};
 
 		# XXX maybe also want COMMENT & GENRE
+	}
+
+	# set Perfomance/grouping/discsubtitle attribute to null if it doesn't exist or trimmed length is zero, otherwise trim leading/trailing spaces:
+	foreach (qw/PERFORMANCE GROUPING DISCSUBTITLE/) {
+		my $newAttribute = $attributes->{$_} // '';
+		$newAttribute =~ s/^\s+|\s+$//g;
+		if ( length($newAttribute) == 0 ) {
+			$attributes->{$_} = undef;
+		} else {
+			$attributes->{$_} = $newAttribute;
+		}
 	}
 
 	if (main::DEBUGLOG && $log->is_debug) {
@@ -2927,6 +3053,21 @@ sub _postCheckAttributes {
 		$cols{primary_artist} = $artist->[0];
 	}
 
+	#Work
+	if (defined $attributes->{'WORK'}) {
+		if ( _workRequired($attributes->{'GENRE'}) ) {
+			my $workID = $self->_createWork($attributes->{'WORK'}, $attributes->{'WORKSORT'}, $contributors->{'COMPOSER'}->[0], 1);
+			if ($workID) {
+				$track->work($workID);
+			}
+		} else {
+			$track->work(undef);
+		}
+	}
+	else {
+		$track->work(undef);
+	}
+
 	### Update Album row
 	my $albumId = $self->_createOrUpdateAlbum($attributes,
 		\%cols,																	# trackColumns
@@ -2972,6 +3113,7 @@ sub _mergeAndCreateContributors {
 			$attributes->{'TRACKARTIST'} = delete $attributes->{'ARTIST'};
 			# Bug: 6507 - use any ARTISTSORT tag for this contributor
 			$attributes->{'TRACKARTISTSORT'} = delete $attributes->{'ARTISTSORT'};
+			$attributes->{'MUSICBRAINZ_TRACKARTIST_ID'} = delete $attributes->{'MUSICBRAINZ_ARTIST_ID'} if $attributes->{'MUSICBRAINZ_ARTIST_ID'};
 
 			main::DEBUGLOG && $isDebug && $log->debug(sprintf("-- Contributor '%s' of role 'ARTIST' transformed to role 'TRACKARTIST'",
 				$attributes->{'TRACKARTIST'},
@@ -3160,10 +3302,11 @@ sub totals {
 		genre => ['genres', 0, 1, 'tags:CC'],
 		track => ['titles', 0, 1, 'tags:CC'],
 		playlist => ['playlists', 0, 1, 'tags:CC'],
+		work => ['works', 0, 1, 'tags:CC'],
 	);
 
 	while (my ($key, $query) = each %categories) {
-		if ( !$totalCache->{$key} ) {
+		if ( !defined $totalCache->{$key} ) {
 			push @$query, 'library_id:' . $library_id if $library_id;
 			my $request = Slim::Control::Request::executeRequest($client, $query);
 			$totalCache->{$key} = $request->getResult('count');
@@ -3213,6 +3356,15 @@ sub canFulltextSearch {
 
 	$canFulltextSearch = Slim::Utils::PluginManager->isEnabled('Slim::Plugin::FullTextSearch::Plugin') && Slim::Plugin::FullTextSearch::Plugin->canFulltextSearch;
 	return $canFulltextSearch;
+}
+
+sub _workRequired {
+	my $genres = shift;
+	my $wantWorks = defined $scanWorks ? $scanWorks : $prefs->get('worksScan');
+
+	return $wantWorks == SCAN_WORKS_FOR_MY_CLASSICAL_GENRES
+		? Slim::Schema::Genre->isMyClassicalGenre($genres)
+		: $scanWorks;
 }
 
 =head1 SEE ALSO

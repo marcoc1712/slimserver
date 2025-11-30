@@ -1,5 +1,11 @@
 package Slim::Menu::BrowseLibrary;
 
+# Logitech Media Server Copyright 2001-2024 Logitech.
+# Lyrion Music Server Copyright 2025 Lyrion Community.
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License,
+# version 2.
+
 =head1 NAME
 
 Slim::Menu::BrowseLibrary
@@ -148,6 +154,7 @@ use strict;
 use JSON::XS::VersionOneAndTwo;
 
 use Slim::Menu::BrowseLibrary::Releases;
+use Slim::Menu::BrowseLibrary::Works;
 use Slim::Music::VirtualLibraries;
 use Slim::Utils::Cache;
 use Slim::Utils::Log;
@@ -562,6 +569,23 @@ sub _registerBaseNodes {
 		},
 		{
 			type         => 'link',
+			name         => 'BROWSE_BY_WORK',
+			params       => {mode => 'works'},
+			feed         => \&_works,
+			icon         => 'html/images/works.png',
+			jiveIcon     => 'html/images/works.png',
+			homeMenuText => 'BROWSE_WORKS',
+			condition    => sub {
+						return unless isEnabledNode(@_);
+						my $totals = Slim::Schema->totals($_[0]);
+						return $totals->{work} if $totals;
+					},
+			id           => 'myMusicWorks',
+			weight       => 35,
+			cache        => 1,
+		},
+		{
+			type         => 'link',
 			name         => 'BROWSE_BY_YEAR',
 			params       => {mode => 'years'},
 			feed         => \&_years,
@@ -711,7 +735,7 @@ sub setMode {
 	$client->modeParam( handledTransition => 1 );
 }
 
-our @topLevelArgs = qw(track_id artist_id genre_id album_id playlist_id year folder_id role_id library_id remote_library release_type);
+our @topLevelArgs = qw(track_id artist_id genre_id album_id playlist_id year only_album_years folder_id role_id library_id remote_library release_type work_id composer_id from_search subtitle grouping performance);
 
 sub _topLevel {
 	my ($client, $callback, $args, $pt) = @_;
@@ -740,6 +764,7 @@ sub _topLevel {
 		$args{'library_id'}   = $params->{'library_id'} if $params->{'library_id'};
 		$args{'remote_library'} = $params->{'remote_library'} if $params->{'remote_library'};
 		$args{'noEdit'}       = $params->{'noEdit'} if $params->{'noEdit'};
+		$args{'work_id'}      = $params->{'work_id'} if $params->{'work_id'};
 
 		if ($params->{'mode'}) {
 			my %entryParams;
@@ -865,8 +890,6 @@ sub _generic {
 
 			$result->{total} = 1;
 		}
-
-		#$log->error(Data::Dump::dump($result));
 
 		logBacktrace('no callback') unless $callback;
 
@@ -1022,6 +1045,13 @@ sub searchItems {
 		},
 		{
 			type => 'search',
+			name => cstring($client, 'BROWSE_BY_WORK'),
+			icon => 'html/images/search.png',
+			url  => $browseLibraryModeMap{'works'},
+			cachesearch => 'WORKS',
+		},
+		{
+			type => 'search',
 			name => cstring($client, 'BROWSE_BY_SONG'),
 			icon => 'html/images/search.png',
 			url  => $browseLibraryModeMap{'tracks'},
@@ -1077,15 +1107,7 @@ sub _artists {
 			} @roles  if @roles;
 
 			if ( $mode && $mode eq 'artists' ) {
-				push @roles, 'ARTIST', 'TRACKARTIST', 'ALBUMARTIST';
-
-				# Loop through each pref to see if the user wants to show that contributor role.
-				foreach (Slim::Schema::Contributor->contributorRoles) {
-					if (_getPref(lc($_) . 'InArtists', $remote_library)) {
-						push @roles, $_;
-					}
-				}
-
+				push @roles, Slim::Schema::Contributor->activeContributorRoles(1);
 				push @ptSearchTags, 'role_id:' . join(',', @roles);
 			}
 		}
@@ -1103,6 +1125,8 @@ sub _artists {
 		push @searchTags, 'include_online_only_artists:1'
 	}
 
+	$queryTags .= '4' unless $prefs->get('noContributorPictures');
+
 	#For use down the line in _releases
 	push @ptSearchTags, 'menu_mode:' . $mode if $mode;
 	push @ptSearchTags, 'menu_roles:' . $roleIdParam if $roleIdParam;
@@ -1114,20 +1138,32 @@ sub _artists {
 			my $items = $results->{'artists_loop'};
 			$remote_library ||= $args->{'remote_library'};
 
+			my $noContributorPictures = $prefs->get('noContributorPictures');
+
 			foreach (@$items) {
 				$_->{'name'}          = $_->{'artist'};
 				$_->{'type'}          = 'playlist';
 				$_->{'playlist'}      = \&_tracks;
 				$_->{'url'}           = \&_albumsOrReleases;
 				$_->{'passthrough'}   = [ { searchTags => [@ptSearchTags, "artist_id:" . $_->{'id'}], remote_library => $remote_library } ];
-				$_->{'favorites_url'} = 'db:contributor.name=' .
-						URI::Escape::uri_escape_utf8( $_->{'name'} );
+
+				if ( $noContributorPictures) {
+					# no pictures wanted
+				}
+				elsif ( $_->{'portraitid'} ) {
+					$_->{'image'} = 'contributor/' . $_->{'portraitid'} . '/image';
+				}
+				else {
+					$_->{'icon'} = 'html/images/artists.png';
+				}
 			}
+
 			my $extra;
 			if (scalar grep { $_ !~ /role_id|remote_library/ } @searchTags) {
 				my $params = _tagsToParams(\@searchTags);
 				$extra = [ {
 					name        => cstring($client, 'ALL_ALBUMS'),
+					icon        => $noContributorPictures ? undef : 'html/images/albums.png',
 					type        => $remote_library ? 'link' : 'playlist',
 					playlist    => $remote_library ? undef : \&_tracks,
 					url         => \&_albums,
@@ -1278,8 +1314,6 @@ sub _genres {
 				$_->{'playlist'}      = \&_tracks;
 				$_->{'url'}           = \&_artists;
 				$_->{'passthrough'}   = [ { searchTags => [@searchTags, "genre_id:" . $_->{'id'}], remote_library => $remote_library } ];
-				$_->{'favorites_url'} = 'db:genre.name=' .
-						URI::Escape::uri_escape_utf8( $_->{'name'} );
 			};
 
 			my $params = _tagsToParams(\@searchTags);
@@ -1327,7 +1361,7 @@ sub _years {
 		push @searchTags, 'library_id:' . $library_id if $library_id;
 	}
 
-	_generic($client, $callback, $args, 'years', [ 'hasAlbums:1', @searchTags ],
+	_generic($client, $callback, $args, 'years', [ "hasAlbums:". $prefs->get('onlyAlbumYears'), @searchTags ],
 		sub {
 			my $results = shift;
 			my $items = $results->{'years_loop'};
@@ -1338,7 +1372,6 @@ sub _years {
 				$_->{'playlist'}      = \&_tracks;
 				$_->{'url'}           = \&_albums;
 				$_->{'passthrough'}   = [ { searchTags => [@searchTags, "year:" . $_->{'year'}], remote_library => $remote_library } ];
-				$_->{'favorites_url'} = 'db:year.id=' . ($_->{'name'} || 0 );
 			};
 
 			my $params = _tagsToParams(\@searchTags);
@@ -1403,13 +1436,15 @@ sub _albumsOrReleases {
 	if (!$prefs->get('ignoreReleaseTypes') && $prefs->get('groupArtistAlbumsByReleaseType')
 		# 2. a specific artist is requested or user wants release type groups always
 		&& ( $prefs->get('groupArtistAlbumsByReleaseType') == 2 || grep /^artist_id:/, @searchTags )
-		# 3. any one of the following is true:
-		#    3a. we don't apply a role filter (eg. drilling down from a "Composers" menu)
+		# 3. not from works menu:
+		&& !(grep /^work_id:/, @searchTags)
+		# 4. any one of the following is true:
+		#    4a. we don't apply a role filter (eg. drilling down from a "Composers" menu)
 		&& ($prefs->get('noRoleFilter')
-			# 3b. no specific role is requested
+			# 4b. no specific role is requested
 			|| !(grep /^role_id:/, @searchTags)
-			# 3c. we request the album artist
-			|| (grep /^role_id:.*ALBUMARTIST/, @searchTags)
+			# 4c. we request the album artist or composer
+			|| (grep /^role_id:.*(ALBUMARTIST|2|COMPOSER)/, @searchTags)
 		)
 	) {
 		_releases(@_);
@@ -1420,17 +1455,18 @@ sub _albumsOrReleases {
 }
 
 sub _albums {
+
 	my ($client, $callback, $args, $pt) = @_;
 	my @searchTags = $pt->{'searchTags'} ? @{$pt->{'searchTags'}} : ();
 	my $sort       = $pt->{'sort'};
 	my $search     = $pt->{'search'};
 	my $wantMeta   = $pt->{'wantMetadata'};
 	# aa & SS will get all contributors and IDs in addition to the main contributor (albums.contributor) - slower but more accurate
-	my $tags       = 'ljsaaSSKE';
+	my $tags       = 'ljsaaSSKEw';
 	my $library_id = $args->{'library_id'} || $pt->{'library_id'};
 	my $remote_library = $args->{'remote_library'} ||= $pt->{'remote_library'};
 
-	if (!$sort || $sort !~ /^sort:(?:random|new)$/) {
+	if (!$sort || $sort !~ /^sort:(?:random|new|changed)$/) {
 		$sort = $pt->{'orderBy'} || $args->{'orderBy'} || $sort;
 	}
 	$sort = 'sort:' . $sort if $sort && $sort !~ /^sort:/;
@@ -1441,11 +1477,13 @@ sub _albums {
 	}
 
 	# filter out some release types if wanted, unless we are already filtering for a release type
-	my %releaseTypesToIgnore = map { $_ => 1 } @{ $prefs->get('releaseTypesToIgnore') || [] };
-	if ( keys %releaseTypesToIgnore && !grep /^release_type:/, @searchTags) {
-		push @searchTags, 'release_type:' . join(',', grep {
-			!$releaseTypesToIgnore{$_}
-		} @{Slim::Schema::Album->releaseTypes});
+	if ( !$prefs->get('ignoreReleaseTypes') ) {
+		my %releaseTypesToIgnore = map { $_ => 1 } @{ $prefs->get('releaseTypesToIgnore') || [] };
+		if ( keys %releaseTypesToIgnore && !grep /^release_type:/, @searchTags) {
+			push @searchTags, 'release_type:' . join(',', grep {
+				!$releaseTypesToIgnore{$_}
+			} @{Slim::Schema::Album->releaseTypes});
+		}
 	}
 
 	my @artistIds = grep /artist_id:/, @searchTags;
@@ -1463,12 +1501,12 @@ sub _albums {
 		if ($artistId && ($mapped = $mapArtistOrders{$1})) {
 			$sort = 'sort:' . $mapped;
 		}
-		$sort = undef unless grep {$_ eq $1} ('new', 'random', values %orderByList);
+		$sort = undef unless grep {$_ eq $1} ('new', 'changed', 'random', values %orderByList);
 	}
 
 	# Under certain circumstances (random albums in web UI or with remote streams) we are only
 	# to return one item. In this case pull a list of IDs from the cache, as requesting a bunch
-	# of random albums would retun a different list than what we were showing the user.
+	# of random albums would return a different list than what we were showing the user.
 	my $cacheKey = 'randomAlbumIDs_' . ($client ? $client->id : '') if $sort && $sort =~ 'random';
 
 	# shortcut if we hit a cached list
@@ -1487,22 +1525,23 @@ sub _albums {
 		sub {
 			my $results = shift;
 			my $items = $results->{'albums_loop'};
-
 			$remote_library ||= $args->{'remote_library'};
 
 			foreach (@$items) {
-				$_->{'name'}          = $_->{'album'};
+				$_->{'name'} = $_->{'composer'} ? $_->{'composer'} . cstring($client, 'COLON') . ' ' : '';
+				if ( $_->{'work_id'} ) {
+					$_->{'name'} .= $_->{'work_name'} . ' (';
+					$_->{'name'} .= "$_->{'performance'} " if $_->{'performance'};
+					$_->{'name'} .= cstring($client,'FROM') . ' ';
+				}
+				$_->{'name'}          .= $_->{'album'};
+				$_->{'name'}          .= ')' if $_->{'work_id'};
 				$_->{'image'}         = 'music/' . $_->{'artwork_track_id'} . '/cover' if $_->{'artwork_track_id'};
 				$_->{'image'}       ||= $_->{'artwork_url'} if $_->{'artwork_url'};
 				$_->{'type'}          = 'playlist';
 				$_->{'playlist'}      = \&_tracks;
 				$_->{'url'}           = \&_tracks;
-				$_->{'passthrough'}   = [ { searchTags => [@searchTags, "album_id:" . $_->{'id'}], sort => 'sort:tracknum', remote_library => $remote_library } ];
-				# the favorites url is the album title and contributor name here (or extid for online albums)
-				# album id would be (much) better, but that would screw up the favorite on a rescan
-				# title is a really stupid thing to use, since there's no assurance it's unique
-				$_->{'favorites_url'} = $_->{'extid'}
-					|| sprintf('db:album.title=%s&contributor.name=%s', URI::Escape::uri_escape_utf8($_->{'name'}), URI::Escape::uri_escape_utf8($_->{'artist'}));
+				$_->{'passthrough'}   = [ { searchTags => [@searchTags, "album_id:" . $_->{'id'}, "performance:" . $_->{'performance'}], sort => 'sort:tracknum', remote_library => $remote_library } ];
 
 				if ($_->{'artist_ids'}) {
 					$_->{'artists'} = $_->{'artist_ids'} =~ /,/ ? [ split /(?<!\s),(?!\s)/, $_->{'artists'} ] : [ $_->{'artists'} ];
@@ -1510,13 +1549,13 @@ sub _albums {
 				}
 				else {
 					$_->{'artists'}    = [ $_->{'artist'} ];
-					$_->{'artist_ids'} = [ $_->{'id'} ];
+					$_->{'artist_ids'} = [ $_->{'artist_id'} ];
 				}
 
 				# If an artist was not used in the selection criteria or if one was
 				# used but is different to that of the primary artist, then provide
 				# the primary artist name in name2.
-				if (!$artistId || $artistId != $_->{'artist_id'} || $trackArtistOnly) {
+				if (!$artistId || $artistId != $_->{'artist_id'} || $trackArtistOnly || $_->{'work_id'}) {
 					$_->{'name2'} = join(', ', @{$_->{'artists'} || []}) || $_->{'artist'};
 				}
 
@@ -1533,17 +1572,75 @@ sub _albums {
 			}
 
 			my $extra;
-			if ((scalar grep { $_ !~ /remote_library/ } @searchTags) && $sort !~ /:(?:new|random)/) {
-				my $params = _tagsToParams(\@searchTags);
 
-				if ($params->{artist_id}) {
-					$extra = [ grep { $_ } map {
-						$_->($params->{artist_id});
-					} @{getExtraItems('artist')} ];
+			# Have we got tracks for the year from other albums (ones with a different album year)?
+			my $yearTracks = 0;
+			if (  my $year = (grep(/^year:/, @searchTags))[0] ) {
+				my $onlyAlbumYears = $prefs->get('onlyAlbumYears');
+				if ( !$onlyAlbumYears && $year && !(grep(/^release_type:|^work_id:/, @searchTags)) ) {
+					$year =~ s/^year://;
+					$yearTracks = Slim::Schema::Track::yearTracksNotOnYearAlbums($year, $library_id);
+				}
+				#if not showing track years, ensure "All Songs" doesn't include tracks from albums which don't have the selected year
+				push @searchTags, "only_album_years:$onlyAlbumYears";
+			}
+
+			if ((scalar grep { $_ !~ /remote_library/ } @searchTags) && $sort !~ /:(?:new|changed|random)/) {
+
+				if ( $yearTracks ) {
+
+					my $params = _tagsToParams([ "track_id:$yearTracks" ]);
+
+					my %actions = $remote_library ? (
+						commonVariables	=> [album_id => 'id', performance => 'performance'],
+					) : (
+						allAvailableActionsDefined => 1,
+						info => {
+							command     => [],
+						},
+						items => {
+							command     => [BROWSELIBRARY, 'items'],
+							fixedParams => {
+								mode       => 'tracks',
+								%{&_tagsToParams([ "track_id:$yearTracks" ])},
+							},
+						},
+						play => {
+							command     => ['playlistcontrol'],
+							fixedParams => {cmd => 'load', %$params},
+						},
+						add => {
+							command     => ['playlistcontrol'],
+							fixedParams => {cmd => 'add', %$params},
+						},
+						insert => {
+							command     => ['playlistcontrol'],
+							fixedParams => {cmd => 'insert', %$params},
+						},
+						remove => {
+							command     => ['playlistcontrol'],
+							fixedParams => {cmd => 'delete', %$params},
+						},
+					);
+					$actions{'playall'} = $actions{'play'};
+					$actions{'addall'} = $actions{'add'};
+
+					push @$extra, {
+						name        => cstring($client, 'TRACKS_FROM_OTHER_ALBUMS'),
+						image       => 'html/images/albums.png',
+						type        => 'playlist',
+						playlist    => \&_tracks,
+						url         => \&_tracks,
+						passthrough => [{ searchTags => ["track_id:$yearTracks"], sort => 'sort:albumtrack', menuStyle => 'menuStyle:allSongs' }],
+						itemActions => \%actions,
+						skipIfSingleton => 0,
+					};
 				}
 
+				my $params = _tagsToParams(\@searchTags);
+
 				my %actions = $remote_library ? (
-					commonVariables	=> [album_id => 'id'],
+					commonVariables	=> [album_id => 'id', performance => 'performance'],
 				) : (
 					allAvailableActionsDefined => 1,
 					info => {
@@ -1553,7 +1650,7 @@ sub _albums {
 						command     => [BROWSELIBRARY, 'items'],
 						fixedParams => {
 							mode       => 'tracks',
-							%{&_tagsToParams(\@searchTags)},
+							%{&_tagsToParams([@searchTags, "performance:-1"])},
 						},
 					},
 					play => {
@@ -1576,13 +1673,19 @@ sub _albums {
 				$actions{'playall'} = $actions{'play'};
 				$actions{'addall'} = $actions{'add'};
 
+				if ($params->{artist_id}) {
+					push @$extra,  grep { $_ } map {
+						$_->($params->{artist_id});
+					} @{getExtraItems('artist')};
+				}
+
 				push @$extra, {
 					name        => cstring($client, 'ALL_SONGS'),
 					icon        => 'html/images/albums.png',
 					type        => 'playlist',
 					playlist    => \&_tracks,
 					url         => \&_tracks,
-					passthrough => [{ searchTags => \@searchTags, sort => 'sort:albumtrack', menuStyle => 'menuStyle:allSongs' }],
+					passthrough => [{ searchTags => [@searchTags, "performance:-1"], sort => 'sort:albumtrack', menuStyle => 'menuStyle:allSongs' }],
 					itemActions => \%actions,
 					skipIfSingleton => 1,
 				};
@@ -1619,7 +1722,7 @@ sub _albums {
 					remove => {command => [BROWSELIBRARY, 'playlist', 'delete'], fixedParams => \%params},
 				);
 
-				$extra = [ {
+				push @$extra, {
 					name        => cstring($client, 'ALL_SONGS'),
 					icon        => 'html/images/albums.png',
 					type        => 'playlist',
@@ -1628,15 +1731,15 @@ sub _albums {
 					passthrough => [{ search => 'sql=' . $sql, sort => 'sort:albumtrack', menuStyle => 'menuStyle:allSongs' }],
 					itemActions => \%actions,
 					skipIfSingleton => 1
-				} ];
+				};
 			}
 
 			my $params = _tagsToParams(\@searchTags);
 			my %actions = $remote_library ? (
-				commonVariables	=> [album_id => 'id'],
+				commonVariables	=> [album_id => 'id', performance => 'performance'],
 			) : (
 				allAvailableActionsDefined => 1,
-				commonVariables	=> [album_id => 'id'],
+				commonVariables	=> [album_id => 'id', performance => 'performance'],
 				info => {
 					command     => ['albuminfo', 'items'],
 					fixedParams => $params,
@@ -1671,8 +1774,8 @@ sub _albums {
 			my $result = {
 				items       => $items,
 				actions     => \%actions,
-				sorted      => (($sort && $sort =~ /^sort:(?:random|new)$/) ? 0 : 1),
-				orderByList => (defined($search) || ($sort && $sort =~ /^sort:(?:random|new)$/) ? undef : \%orderByList),
+				sorted      => (($sort && $sort =~ /^sort:(?:random|changed|new)$/) ? 0 : 1),
+				orderByList => (defined($search) || ($sort && $sort =~ /^sort:(?:random|changed|new)$/) ? undef : \%orderByList),
 			};
 
 			if ( $cacheKey && $args->{quantity} && $args->{quantity} > 1 ) {
@@ -1691,7 +1794,7 @@ sub _albums {
 			return $result, $extra;
 		},
 		# no need for an index bar in New Music mode
-		$tags, ($pt->{'wantIndex'} || $args->{'wantIndex'}) && !($sort && $sort =~ /^sort:(random|new)$/),
+		$tags, ($pt->{'wantIndex'} || $args->{'wantIndex'}) && !($sort && $sort =~ /^sort:(random|changed|new)$/),
 	);
 }
 
@@ -1725,6 +1828,12 @@ sub _tracks {
 	}
 
 	$tags .= 'k' if $pt->{'wantMetadata'};
+	my $titleFormatPlayer = Slim::Music::Info::standardTitleFormat($client);
+	my $titleFormatWeb = Slim::Music::Info::standardTitleFormat();
+	$tags .= 'b' if $titleFormatPlayer =~ /\bWORK\b/ || $titleFormatWeb =~ /\bWORK\b/;
+	$tags .= 'h' if $titleFormatPlayer =~ /\bGROUPING\b/ || $titleFormatWeb =~ /\bGROUPING\b/;
+	$tags .= 'z' if $titleFormatPlayer =~ /\bSUBTITLE\b/ || $titleFormatWeb =~ /\bSUBTITLE\b/;
+	$tags .= '1' if $titleFormatPlayer =~ /\bPERFORMANCE\b/ || $titleFormatWeb =~ /\bPERFORMANCE\b/;
 
 	my ($addAlbumToName2, $addArtistToName2);
 	if ($addAlbumToName2  = !(grep {/album_id:/} @searchTags)) {
@@ -1739,7 +1848,9 @@ sub _tracks {
 			my $items   = $results->{'titles_loop'};
 			$remote_library ||= $args->{'remote_library'};
 
+			my $trackIds;
 			foreach (@$items) {
+				$trackIds .= $_->{'id'} . ',';
 				# Map a few items that get different tags to those expected for TitleFormatter
 				# Currently missing composer, conductor, band because of additional cost of 'A' tag query
 				$_->{'ct'}            = $_->{'type'};
@@ -1756,6 +1867,9 @@ sub _tracks {
 				$_->{'type'}          = 'audio';
 				$_->{'playall'}       = 1;
 				$_->{'play_index'}    = $offset++;
+
+				# we don't want tracknum if displaying tracks for a work rather than an album
+				delete $_->{'tracknum'} if $_->{'work_id'};
 
 				# bug 17340 - in track lists we give the trackartist precedence over the artist
 				if ( $_->{'trackartist'} ) {
@@ -1851,6 +1965,7 @@ sub _tracks {
 					sort       => 'albumtrack',
 					menuStyle  => 'menuStyle:allSongs',
 					search     => 'sql=' . $sql,
+					track_id   => $trackIds,
 				);
 
 				my %allSongsActions = (
@@ -1900,8 +2015,12 @@ sub _tracks {
 			if ($getMetadata) {
 				my ($albumId) = grep {/album_id:/} @searchTags;
 				$albumId =~ s/album_id:// if $albumId;
+				my ($workId) = grep {/work_id:/} @searchTags;
+				$workId =~ s/work_id:// if $workId;
+				my ($performance) = grep {/performance:/} @searchTags;
+				$performance =~ s/performance:// if $performance;
 				my $album = Slim::Schema->find( Album => $albumId );
-				my $feed  = Slim::Menu::AlbumInfo->menu( $client, $album->url, $album, undef, { library_id => $library_id } ) if $album;
+				my $feed  = Slim::Menu::AlbumInfo->menu( $client, $album->url, $album, undef, { library_id => $library_id, work_id => $workId, performance => $performance, track_count => $results->{'count'}} ) if $album;
 				$albumMetadata = $feed->{'items'} if $feed;
 
 				$image = 'music/' . $album->artwork . '/cover' if $album && $album->artwork;
@@ -1987,7 +2106,6 @@ sub _bmf {
 					}
 				}
 				elsif ($_->{'type'} eq 'playlist' && Slim::Music::Info::isCUE($_->{'url'})) {
-					$_->{'favorites_url'} =	$_->{'url'};
 					$_->{'playlist'}	  = \&_playlistTracks;
 					$_->{'url'}           = \&_playlistTracks;
 					$_->{'passthrough'}   = [ {
@@ -2005,7 +2123,6 @@ sub _bmf {
 				elsif ($_->{'type'} eq 'playlist') {
 					$_->{'type'}          = 'audio';
 					$_->{'url'}           =~ s/^file/tmp/;
-					$_->{'favorites_url'} =	$_->{'url'};
 					$_->{'playall'}     = 1;
 
 					$_->{'itemActions'} = {
@@ -2048,48 +2165,56 @@ sub _playlists {
 			my $results = shift;
 			my $items = $results->{'playlists_loop'};
 			$remote_library ||= $args->{'remote_library'};
+
 			foreach (@$items) {
-				$_->{'name'}          = $_->{'playlist'};
-				$_->{'type'}          = 'playlist';
-				$_->{'favorites_url'} =	$_->{'url'};
-				$_->{'playlist'}      = \&_playlistTracks;
-				$_->{'url'}           = \&_playlistTracks;
-				$_->{'passthrough'}   = [ { searchTags => [ @searchTags, 'playlist_id:' . $_->{'id'} ], remote_library => $remote_library } ];
+				$_->{'name'} = $_->{'playlist'};
+
+				if ($_->{'id'} =~ /^file:/) {
+					$_->{'type'}     = 'link';
+					$_->{'url'}      = \&_playlists;
+					$_->{'textkey'}  = ' ';
+					$_->{'passthrough'} = [ { searchTags => [ "folder_id:" . $_->{'id'} ], remote_library => $remote_library } ];
+				}
+				else {
+					$_->{'type'}        = 'playlist';
+					$_->{'playlist'}    = \&_playlistTracks;
+					$_->{'url'}         = $_->{'playlist'};
+					$_->{'itemActions'} = $remote_library ? {
+						commonVariables	=> [playlist_id => 'id', noEdit => 'remote'],
+					} : {
+						info => {
+							command     => ['playlistinfo', 'items'],
+							fixedParams => {playlist_id => $_->{'id'}},
+						},
+						items => {
+							command     => [BROWSELIBRARY, 'items'],
+							fixedParams => {
+								mode       => 'playlistTracks',
+								# %{&_tagsToParams(\@searchTags)},
+								playlist_id => $_->{'id'},
+							},
+						},
+						play => {
+							command     => ['playlistcontrol'],
+							fixedParams => {cmd => 'load', playlist_id => $_->{'id'}},
+						},
+						add => {
+							command     => ['playlistcontrol'],
+							fixedParams => {cmd => 'add', playlist_id => $_->{'id'}},
+						},
+						insert => {
+							command     => ['playlistcontrol'],
+							fixedParams => {cmd => 'insert', playlist_id => $_->{'id'}},
+						},
+					};
+					$_->{'itemActions'}->{'playall'} = $_->{'itemActions'}->{'play'};
+					$_->{'itemActions'}->{'addall'} = $_->{'itemActions'}->{'add'};
+
+					$_->{'passthrough'} = [ { searchTags => [ @searchTags, 'playlist_id:' . $_->{'id'} ], remote_library => $remote_library } ];
+				}
 			};
 
-			my %actions = $remote_library ? (
-				commonVariables	=> [playlist_id => 'id', noEdit => 'remote'],
-			) : (
-				allAvailableActionsDefined => 1,
-				commonVariables	=> [playlist_id => 'id', noEdit => 'remote'],
-				info => {
-					command     => ['playlistinfo', 'items'],
-				},
-				items => {
-					command     => [BROWSELIBRARY, 'items'],
-					fixedParams => {
-						mode       => 'playlistTracks',
-						%{&_tagsToParams(\@searchTags)},
-					},
-				},
-				play => {
-					command     => ['playlistcontrol'],
-					fixedParams => {cmd => 'load'},
-				},
-				add => {
-					command     => ['playlistcontrol'],
-					fixedParams => {cmd => 'add'},
-				},
-				insert => {
-					command     => ['playlistcontrol'],
-					fixedParams => {cmd => 'insert'},
-				},
-			);
-			$actions{'playall'} = $actions{'play'};
-			$actions{'addall'} = $actions{'add'};
-
-			return {items => $items, actions => \%actions, sorted => 1}, undef;
-
+			return {items => $items, sorted => 1}, undef;
 		},
 	);
 }

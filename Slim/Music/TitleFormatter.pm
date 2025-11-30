@@ -86,6 +86,20 @@ sub init {
 		return (defined $output ? $output : '');
 	};
 
+	# Override work
+	$parsedFormats{'WORK'} = sub {
+
+		if ( ref $_[0] eq 'HASH' ) {
+			return $_[0]->{work} || $_[0]->{'works.title'} || '';
+		}
+
+		my $output = '';
+		$output = $_[0]->worktitle();
+		$output = '' if !defined($output);
+
+		return (defined $output ? $output : '');
+	};
+
 	# add album related
 	$parsedFormats{'ALBUMSORT'} = sub {
 
@@ -646,7 +660,7 @@ sub infoFormat {
 	# use a safe format string if none specified
 	# Bug: 1146 - Users can input strings in any locale - we need to convert that to
 	# UTF-8 first, otherwise perl will segfault in the nasty regex below.
-	if ($str && $] > 5.007) {
+	if ($str) {
 
 		my $old = $str;
 		if ( !($str = $formatCache{$old}) ) {

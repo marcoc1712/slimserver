@@ -1,5 +1,10 @@
 package Slim::Schema::Track;
 
+# Logitech Media Server Copyright 2001-2024 Logitech.
+# Lyrion Music Server Copyright 2025 Lyrion Community.
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License,
+# version 2.
 
 use strict;
 use base 'Slim::Schema::DBI';
@@ -29,7 +34,8 @@ our @allColumns = (qw(
 	timestamp added_time updated_time filesize disc remote audio audio_size audio_offset year secs
 	cover cover_cached vbr_scale bitrate samplerate samplesize channels block_alignment endian
 	bpm tagversion drm musicmagic_mixable dlna_profile
-	musicbrainz_id lossless lyrics replay_gain replay_peak extid virtual
+	musicbrainz_id lossless lyrics replay_gain replay_peak extid virtual work subtitle grouping performance
+	discsubtitle
 ));
 
 {
@@ -47,6 +53,7 @@ our @allColumns = (qw(
 	# setup our relationships
 	$class->belongs_to('album' => 'Slim::Schema::Album');
 	$class->belongs_to('primary_artist'  => 'Slim::Schema::Contributor');
+	$class->belongs_to('work' => 'Slim::Schema::Work', 'work', { join_type => 'left' });
 
 	$class->has_many('genreTracks'       => 'Slim::Schema::GenreTrack' => 'track');
 	$class->has_many('comments'          => 'Slim::Schema::Comment'    => 'track');
@@ -54,9 +61,7 @@ our @allColumns = (qw(
 	$class->has_many('contributorTracks' => 'Slim::Schema::ContributorTrack');
 	$class->has_many('libraryTracks'     => 'Slim::Schema::LibraryTrack');
 
-	if ($] > 5.007) {
-		$class->utf8_columns(qw/title titlesort lyrics/);
-	}
+	$class->utf8_columns(qw/title titlesort lyrics/);
 
 	$class->resultset_class('Slim::Schema::ResultSet::Track');
 
@@ -70,6 +75,9 @@ our @allColumns = (qw(
 
 	# Simple caching as artistsWithAttributes is expensive.
 	$class->mk_group_accessors('simple' => 'cachedArtistsWithAttributes');
+
+	# For the playlist queue entry context when Track is used to store/retrieve play queue entries.
+	$class->mk_group_accessors('simple' => 'added_from_work');
 }
 
 # Wrappers - to make sure that the UTF-8 code is called. I really just want to
@@ -84,6 +92,23 @@ sub namesort {
 
 sub namesearch {
 	return shift->titlesearch;
+}
+
+sub workid {
+	my $self = shift;
+
+	return $self->get_column('work');
+}
+
+sub worktitle {
+	my $self = shift;
+
+	my $names = Slim::Schema->dbh->selectall_arrayref('SELECT title FROM works WHERE id = ?', {}, $self->workid);
+
+	if (ref $names && scalar ref $names) {
+		utf8::decode($names->[0][0]);
+		return $names->[0][0];
+	}
 }
 
 sub contributors {
@@ -609,6 +634,26 @@ sub retrievePersistent {
 	return undef;
 }
 
+sub yearTracksNotOnYearAlbums {
+	my ($year, $lib) = @_;
+
+	my $sql = "SELECT GROUP_CONCAT(DISTINCT tracks.id) FROM tracks JOIN albums ON albums.id = tracks.album ";
+	$sql .= "JOIN library_track ON library_track.track = tracks.id " if $lib;
+	$sql .= "WHERE albums.year <> :year AND tracks.year = :year ";
+	$sql .= "AND library_track.library = :lib" if $lib;
+
+	my $sth = Slim::Schema->dbh->prepare_cached($sql);
+
+	$sth->bind_param(":year", $year);
+	$sth->bind_param(":lib", $lib) if $lib;
+
+	$sth->execute();
+
+	my ($tracks) = $sth->fetchrow_array;
+	$sth->finish;
+	return $tracks
+}
+
 # The methods below are stored in the persistent table
 
 sub playcount {
@@ -709,28 +754,12 @@ sub coverurl {
 sub generateCoverId {
 	my ( $classOrSelf, $args ) = @_;
 
-	my $coverid;
- 	my $mtime;
-	my $size;
-
-	if ( $args->{cover} =~ /^https?/ ) {
-		$mtime = $size = 1;
-	}
-	elsif ( $args->{cover} =~ /^\d+$/ ) {
-		# Cache is based on mtime/size of the file containing embedded art
-		$mtime = $args->{mtime};
-		$size  = $args->{size};
-	}
-	elsif ( -e $args->{cover} ) {
-		# Cache is based on mtime/size of artwork file
-		($size, $mtime) = (stat _)[7, 9];
-	}
-
-	if ( $mtime && $size ) {
-		$coverid = substr( md5_hex( $args->{url} . $mtime . $size ), 0, 8 );
-	}
-
-	return $coverid;
+	return Slim::Music::Artwork->generateImageId({
+		image => $args->{cover},
+		url   => $args->{url},
+		mtime => $args->{mtime},
+		size  => $args->{size},
+	});
 }
 
 1;

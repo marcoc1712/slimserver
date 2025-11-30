@@ -1,34 +1,79 @@
-[% PROCESS settings/header.html %]
+[% descHeight = 650 %]
+[% iconSize = 50 %]
+[% pageHeaderScripts = BLOCK %]
+	<script TYPE="text/javascript" src="[% webroot %]html/common.js?r=[% revision %]"></script>
+[% END %]
+[% PROCESS settings/server/plugins_main.html %]
+<script>
+	var searchData = [% searchData %];
 
-	<div class="settingSection">
-		<div class="prefHead">[% "SETUP_GROUP_PLUGINS" | string %]</div>
-		<div class="prefDesc"><br/>[% (failsafe ? "SETUP_PLUGINS_SAFEMODE" : "SETUP_GROUP_PLUGINS_DESC") | string %]</div>
-	</div>
+	var filterChooser = $('filterChooser').down();
+	var filterInput = $('filterInput');
+	var viewToggle = $('viewToggle');
 
-	<div class="pluginSection">
-	[% FOREACH plugin = sortedPlugins %]
+	filterChooser.observe('change', function(event) {
+		filterInput.value = '';
 
-		[% name     = plugins.$plugin.name %]
-		[% version  = plugins.$plugin.version %]
-		[% enforce  = plugins.$plugin.enforce || plugins.$plugin.errorDesc %]
-		[% settings = failsafe && !enforce ? '' : plugins.$plugin.optionsURL %]
-		[% enabled  = pluginState.$plugin %]
+		var mostPopular = new Set(Object.keys(searchData).sort(function(a, b) {
+			return (searchData[b].installs || -1) - (searchData[a].installs || -1)
+		}).slice(0, 15));
 
-		[% title = BLOCK %]
-			<input name="[% name %]" type="checkbox" [% enforce ? "disabled" : "" %] [% enabled ? "checked=\"1\"" : "" %] class="pluginEnablerCheckbox"> [% name | getstring %]
-			[% IF version %](v[% version %])[% END %]
-		[% END %]
+		var id = event.target.value;
+		togglePluginVisibility(id, id === 'top'
+			? function(s, id) {
+				return mostPopular.has(id);
+			}
+			: function(s) {
+				return s.category == id;
+			}
+		);
+	});
 
-		[% WRAPPER setting desc = plugins.$plugin.description %]
-			[% IF plugins.$plugin.errorDesc %]<strong>[% plugins.$plugin.errorDesc %]</strong>
-			[% ELSE %]
-				[% PROCESS pluginLink %]&nbsp;
-				[% IF plugins.$plugin.opType %]<strong>([% "SETUP_GROUP_PLUGINS_NEEDS_RESTART" | string %])</strong>[% END %]
-			[% END %]
-		[% END %]
+	filterInput.observe('keyup', function(event) {
+		filterChooser.value = '';
 
-	[%- END -%]
-	</div>
+		var value = event.target.value;
+		var reg = new RegExp(value, 'i');
+		togglePluginVisibility(value, function(s) {
+			return reg.test(s.content);
+		});
+	});
 
-[% PROCESS settings/footer.html %]
-	
+	viewToggle.on('click', function() {
+		var view = viewToggle.src.match(/grid|list/)[0];
+		var newView = view === 'grid' ? 'list' : 'grid';
+		viewToggle.src = viewToggle.src.replace(view+'.svg', newView+'.svg');
+		setCookie('Squeezebox-viewMode', view);
+
+		if (newView === 'grid') {
+			$('pluginListPanel').addClassName('pluginListList');
+		}
+		else {
+			$('pluginListPanel').removeClassName('pluginListList');
+		}
+	});
+
+	function togglePluginVisibility(value, validator) {
+		var pluginListPanel = $$('li.thumbwrap');
+
+		if (!value) {
+			pluginListPanel.forEach(function(item) {
+				item.show();
+			});
+		}
+		else {
+			pluginListPanel.forEach(function(item) {
+				var id = item.id.replace('plugin-', '');
+
+				let s = searchData[id];
+
+				if (s && validator(s, id)) {
+					item.show();
+				}
+				else {
+					item.hide();
+				}
+			});
+		}
+	}
+</script>

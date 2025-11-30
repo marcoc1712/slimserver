@@ -50,7 +50,7 @@ sub name {
 
 ##
 # Register all the information providers that we provide.
-# This order is defined at http://wiki.slimdevices.com/index.php/UserInterfaceHierarchy
+# This order is defined at https://wiki.lyrion.org/index.php/UserInterfaceHierarchy
 #
 sub registerDefaultInfoProviders {
 	my $class = shift;
@@ -204,7 +204,7 @@ sub infoLibrary {
 
 	elsif (Slim::Music::Import->stillScanning) {
 		return {
-			name => cstring($client, 'RESCANNING_SHORT'),
+			name => cstring($client, 'RESCANNING'),
 
 			web  => {
 				hide => 1,
@@ -363,22 +363,33 @@ sub infoPerl {
 			type => 'text',
 			name => 'DBD::SQLite' . cstring($client, 'COLON') . " $DBD::SQLite::VERSION (sqlite " . Slim::Utils::Cache->new()->{_cache}->{dbh}->{sqlite_version} . ')'
 		},
-
-		{
-			type => 'text',
-			name => 'IO::Socket::SSL' . cstring($client, 'COLON') . ' ' . (Slim::Networking::Async::HTTP->hasSSL() ? $IO::Socket::SSL::VERSION : cstring($client, 'BLANK')),
-		},
-
-		{
-			type => 'text',
-			name => 'Mozilla::CA' . cstring($client, 'COLON') . ' ' . $Mozilla::CA::VERSION,
-		},
-
-		{
-			type => 'text',
-			name => sprintf("Net::SSLeay%s %s - %s", cstring($client, 'COLON'), $Net::SSLeay::VERSION, Net::SSLeay::SSLeay_version(Net::SSLeay::SSLEAY_VERSION())),
-		},
 	];
+
+	if ( Slim::Networking::Async::HTTP->hasSSL() ) {
+		push @{$items}, {
+			type => 'text',
+			name => 'IO::Socket::SSL' . cstring($client, 'COLON') . ' ' . $IO::Socket::SSL::VERSION,
+		},
+
+		{
+			type => 'text',
+			name => 'Mozilla::CA' . cstring($client, 'COLON') . ' ' . ($Mozilla::CA::VERSION || cstring($client, 'UNK')),
+		};
+
+		# add an extra eval, as on systems missing that library we could fail the whole menu
+		eval {
+			push @{$items}, {
+				type => 'text',
+				name => sprintf("Net::SSLeay%s %s - %s", cstring($client, 'COLON'), $Net::SSLeay::VERSION, Net::SSLeay::SSLeay_version(Net::SSLeay::SSLEAY_VERSION())),
+			};
+		};
+	}
+	else {
+		push @{$items}, {
+			type => 'text',
+			name => 'IO::Socket::SSL' . cstring($client, 'COLON') . ' ' . cstring($client, 'UNK'),
+		};
+	}
 
 	if ( Slim::Utils::OSDetect->getOS->sqlHelperClass() =~ /MySQL/i ) {
 		splice(@{$items}, 5, 0,	{

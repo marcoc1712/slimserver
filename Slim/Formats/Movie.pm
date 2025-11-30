@@ -38,7 +38,8 @@ my %tagMapping = (
 	TMPO => 'BPM',
 	TRKN => 'TRACKNUM',
 	WRT  => 'COMPOSER',
-
+	WRK  => 'WORK',
+	GRP  => 'GROUPING',
 	'MusicBrainz Album Id'     => 'MUSICBRAINZ_ALBUM_ID',
 	'MusicBrainz Album Type'   => 'RELEASETYPE',
 	'MusicBrainz Artist Id'    => 'MUSICBRAINZ_ARTIST_ID',
@@ -132,6 +133,13 @@ sub getCoverArt {
 sub _doTagMapping {
 	my ($class, $tags) = @_;
 
+	# map iTunes specific keys
+	foreach my $old (keys %$tags) {
+		my $new = $old;
+		$new =~ s/^----:com.apple.iTunes://i;
+		$tags->{$new} ||= $tags->{$old};
+	}
+
 	# map the existing tag names to the expected tag names
 	while ( my ($old, $new) = each %tagMapping ) {
 		foreach ($old, uc($old)) {
@@ -145,7 +153,7 @@ sub _doTagMapping {
 	# Special handling for DATE tags
 	# Parse the date down to just the year, for compatibility with other formats
 	if ( defined $tags->{YEAR} ) {
-		$tags->{YEAR} =~ s/.*(\d\d\d\d).*/$1/;
+		$tags->{YEAR} = $class->sanitizeYearTag($tags->{YEAR});
 	}
 
 	# Unroll the disc info.

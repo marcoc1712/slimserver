@@ -256,7 +256,7 @@ sub needsUpgrade {
 	main::INFOLOG && $log->info("Reading firmware version file: $versionFilePath");
 
 	if (!open($versionFile, "<$versionFilePath")) {
-		warn("can't open $versionFilePath\n");
+		$log->warn("can't open $versionFilePath\n");
 		return 0;
 	}
 
@@ -792,7 +792,7 @@ sub stream_s {
 		main::INFOLOG && logger('player.streaming.direct')->info("SqueezePlay direct stream: $url");
 
 		my $methodHandler = $currentTrackHandler->can('requestString') ? $currentTrackHandler : $handler;
-		$request_string = $methodHandler->getRequestString($client, $url, undef, $params->{'seekdata'} || $controller->song->seekdata);
+		$request_string = $methodHandler->requestString($client, $url, undef, $params->{'seekdata'} || $controller->song->seekdata);
 		$autostart += 2; # will be 2 for direct streaming with no autostart, or 3 for direct with autostart
 
 	} elsif (my $proxy = $params->{'proxyStream'}) {

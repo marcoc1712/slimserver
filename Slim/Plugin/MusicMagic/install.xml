@@ -7,13 +7,10 @@
 	<importmodule>Slim::Plugin::MusicMagic::Importer</importmodule>
 	<version>1.0</version>
 	<description>MUSICMAGIC_DESC</description>
-	<creator>Logitech</creator>
+	<creator>Lyrion Community</creator>
+	<category>tools</category>
 
-	<defaultState>
-		<mac>enabled</mac>
-		<win>enabled</win>
-		<other>disabled</other>
-	</defaultState>
+	<defaultState>disabled</defaultState>
 
 	<icon>plugins/MusicMagic/html/images/icon.png</icon>
 	<optionsURL>plugins/MusicMagic/settings/musicmagic.html</optionsURL>

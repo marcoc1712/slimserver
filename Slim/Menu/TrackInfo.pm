@@ -57,7 +57,7 @@ my $emptyItemList = [{ignore => 1}];
 
 ##
 # Register all the information providers that we provide.
-# This order is defined at http://wiki.slimdevices.com/index.php/UserInterfaceHierarchy
+# This order is defined at https://wiki.lyrion.org/index.php/UserInterfaceHierarchy
 #
 sub registerDefaultInfoProviders {
 	my $class = shift;
@@ -212,9 +212,15 @@ sub registerDefaultInfoProviders {
 		func   => \&infoFileModTime,
 	) );
 
-	$class->registerInfoProvider( tagversion => (
+	$class->registerInfoProvider( addedtime => (
 		parent => 'moreinfo',
 		after  => 'modtime',
+		func   => \&infoFileAddedTime,
+	) );
+
+	$class->registerInfoProvider( tagversion => (
+		parent => 'moreinfo',
+		after  => 'addedtime',
 		func   => \&infoTagVersion,
 	) );
 
@@ -344,73 +350,73 @@ sub infoContributors {
 	my $items = [];
 	$filter ||= {};
 
-	if ( $remoteMeta->{artist} ) {
-		push @{$items}, {
-			type =>  'text',
-			name =>  $remoteMeta->{artist},
-			label => 'ARTIST',
+	my $library_id = $filter->{library_id} || Slim::Music::VirtualLibraries->getLibraryIdForClient($client);
+
+	my $_addContributorItem = sub {
+		my ($items, $contributor, $role) = @_;
+
+		my $id = $contributor->id;
+		my $itemsFixedParams = { mode => 'albums', artist_id => $id, library_id => $library_id };
+		# If the role is ARTIST/ALBUMARTIST/TRACKARTIST, albumsQuery will sort it out, otherwise pass the role.
+		$itemsFixedParams->{role_id} = $role if !grep { $_ eq $role } ('ARTIST','ALBUMARTIST','TRACKARTIST');
+
+		my %actions = (
+			allAvailableActionsDefined => 1,
+			items => {
+				command     => ['browselibrary', 'items'],
+				fixedParams => $itemsFixedParams,
+			},
+			play => {
+				command     => ['playlistcontrol'],
+				fixedParams => { cmd => 'load', artist_id => $id, library_id => $library_id },
+			},
+			add => {
+				command     => ['playlistcontrol'],
+				fixedParams => { cmd => 'add', artist_id => $id, library_id => $library_id },
+			},
+			insert => {
+				command     => ['playlistcontrol'],
+				fixedParams => { cmd => 'insert', artist_id => $id, library_id => $library_id },
+			},
+			info => {
+				command     => ['artistinfo', 'items'],
+				fixedParams => { artist_id => $id, library_id => $library_id },
+			},
+		);
+		$actions{'playall'} = $actions{'play'};
+		$actions{'addall'} = $actions{'add'};
+
+		my $item = {
+			type    => 'playlist',
+			url	  => 'not a valid URL, but needed to make the ip3k UI work...',
+			name    => $contributor->name,
+			itemActions => \%actions,
+			label   => uc($role),
 		};
-	}
-	else {
+
+		push @{$items}, $item;
+	};
+
+	if ( $track->isa('Slim::Schema::Track') ) {
 		my @roles = Slim::Schema::Contributor->contributorRoles;
-
-		# Loop through each pref to see if the user wants to link to that contributor role.
-		my %linkRoles = map {$_ => $prefs->get(lc($_) . 'InArtists')} @roles;
-		$linkRoles{'ARTIST'} = 1;
-		$linkRoles{'TRACKARTIST'} = 1;
-		$linkRoles{'ALBUMARTIST'} = 1;
-
-		my $library_id = $filter->{library_id} || Slim::Music::VirtualLibraries->getLibraryIdForClient($client);
 
 		# Loop through the contributor types and append
 		for my $role ( @roles ) {
 			for my $contributor ( $track->contributorsOfType($role) ) {
-				if ($linkRoles{$role}) {
-					my $id = $contributor->id;
-
-					my %actions = (
-						allAvailableActionsDefined => 1,
-						items => {
-							command     => ['browselibrary', 'items'],
-							fixedParams => { mode => 'albums', artist_id => $id, library_id => $library_id },
-						},
-						play => {
-							command     => ['playlistcontrol'],
-							fixedParams => { cmd => 'load', artist_id => $id, library_id => $library_id },
-						},
-						add => {
-							command     => ['playlistcontrol'],
-							fixedParams => { cmd => 'add', artist_id => $id, library_id => $library_id },
-						},
-						insert => {
-							command     => ['playlistcontrol'],
-							fixedParams => { cmd => 'insert', artist_id => $id, library_id => $library_id },
-						},
-						info => {
-							command     => ['artistinfo', 'items'],
-							fixedParams => { artist_id => $id, library_id => $library_id },
-						},
-					);
-					$actions{'playall'} = $actions{'play'};
-					$actions{'addall'} = $actions{'add'};
-
-					my $item = {
-						type    => 'playlist',
-						url     => 'blabla',
-						name    => $contributor->name,
-						label   => uc $role,
-						itemActions => \%actions,
-					};
-					push @{$items}, $item;
-				} else {
-					my $item = {
-						type    => 'text',
-						name    => $contributor->name,
-						label   => uc $role,
-					};
-					push @{$items}, $item;
-				}
+				$_addContributorItem->($items, $contributor, $role);
 			}
+		}
+	}
+	elsif ( $remoteMeta->{artist} ) {
+		if ( my $contributor = Slim::Schema->first('Contributor', { namesearch => Slim::Utils::Text::ignoreCase($remoteMeta->{artist}, 1) }) ) {
+			$_addContributorItem->($items, $contributor, 'ARTIST');
+		}
+		else {
+			push @{$items}, {
+				type =>  'text',
+				name =>  $remoteMeta->{artist},
+				label => 'ARTIST',
+			};
 		}
 	}
 
@@ -544,7 +550,9 @@ sub addTrack {
 	if ( $cmd eq 'delete' ) {
 
 		# Do not add this item if only one item in playlist
-		return $emptyItemList if Slim::Player::Playlist::count($client) < 2;
+		# BUG: 17980 (2012-06-14) - Allow item removal even if playlist has only 1 item
+		# Just comment out for now in case impact on UI should turn out to be sub-optimal
+		#return $emptyItemList if Slim::Player::Playlist::count($client) < 2;
 
 		$actions = {
 			go => {
@@ -678,53 +686,64 @@ sub infoGenres {
 	my $items = [];
 	$filter ||= {};
 
-	if ( $remoteMeta->{genre} ) {
-		push @$items, {
-			type =>  'text',
-			name =>  $remoteMeta->{genre},
-			label => 'GENRE',
+	my $library_id = $filter->{library_id} || Slim::Music::VirtualLibraries->getLibraryIdForClient($client);
+
+	my $_addGenreItem = sub {
+		my ($items, $genre) = @_;
+
+		my $id = $genre->id;
+
+		my %actions = (
+			allAvailableActionsDefined => 1,
+			items => {
+				command     => ['browselibrary', 'items'],
+				fixedParams => { mode => 'artists', genre_id => $id, library_id => $library_id },
+			},
+			play => {
+				command     => ['playlistcontrol'],
+				fixedParams => { cmd => 'load', genre_id => $id, library_id => $library_id },
+			},
+			add => {
+				command     => ['playlistcontrol'],
+				fixedParams => { cmd => 'add', genre_id => $id, library_id => $library_id },
+			},
+			insert => {
+				command     => ['playlistcontrol'],
+				fixedParams => { cmd => 'insert', genre_id => $id, library_id => $library_id },
+			},
+			info => {
+				command     => ['genreinfo', 'items'],
+				fixedParams => { genre_id => $id, library_id => $library_id },
+			},
+		);
+		$actions{'playall'} = $actions{'play'};
+		$actions{'addall'} = $actions{'add'};
+
+		my $item = {
+			type    => 'playlist',
+			url     => 'blabla',
+			name    => $genre->name,
+			label   => 'GENRE',
+			itemActions => \%actions,
 		};
-	}
-	else {
+		push @{$items}, $item;
+	};
+
+	if ( $track->isa('Slim::Schema::Track') ) {
 		for my $genre ( $track->genres ) {
-			my $id = $genre->id;
-
-			my $library_id = $filter->{library_id} || Slim::Music::VirtualLibraries->getLibraryIdForClient($client);
-
-			my %actions = (
-				allAvailableActionsDefined => 1,
-				items => {
-					command     => ['browselibrary', 'items'],
-					fixedParams => { mode => 'artists', genre_id => $id, library_id => $library_id },
-				},
-				play => {
-					command     => ['playlistcontrol'],
-					fixedParams => { cmd => 'load', genre_id => $id, library_id => $library_id },
-				},
-				add => {
-					command     => ['playlistcontrol'],
-					fixedParams => { cmd => 'add', genre_id => $id, library_id => $library_id },
-				},
-				insert => {
-					command     => ['playlistcontrol'],
-					fixedParams => { cmd => 'insert', genre_id => $id, library_id => $library_id },
-				},
-				info => {
-					command     => ['genreinfo', 'items'],
-					fixedParams => { genre_id => $id, library_id => $library_id },
-				},
-			);
-			$actions{'playall'} = $actions{'play'};
-			$actions{'addall'} = $actions{'add'};
-
-			my $item = {
-				type    => 'playlist',
-				url     => 'blabla',
-				name    => $genre->name,
-				label   => 'GENRE',
-				itemActions => \%actions,
+			$_addGenreItem->($items, $genre);
+		}
+	}
+	elsif ( $remoteMeta->{genre} ) {
+		if ( my $genre = Slim::Schema->first('Genre', { namesearch => Slim::Utils::Text::ignoreCase($remoteMeta->{genre}, 1) }) ) {
+			$_addGenreItem->($items, $genre);
+		}
+		else {
+			push @$items, {
+				type =>  'text',
+				name =>  $remoteMeta->{genre},
+				label => 'GENRE',
 			};
-			push @{$items}, $item;
 		}
 	}
 
@@ -737,15 +756,22 @@ sub infoYear {
 	my $item;
 	$filter ||= {};
 
-	if ( $remoteMeta->{year} ) {
-		$item = {
-			type =>  'text',
-			name =>  $remoteMeta->{year},
-			label => 'YEAR',
-		};
-	}
-	elsif ( my $year = $track->year ) {
+	my $year = $track->year;
 
+	if ( !$year && $remoteMeta->{year} ) {
+		if (my $yearObj = Slim::Schema->first('year', { id => $remoteMeta->{year} })) {
+			$year = $remoteMeta->{year};
+		}
+		else {
+			$item = {
+				type =>  'text',
+				name =>  $remoteMeta->{year},
+				label => 'YEAR',
+			};
+		}
+	}
+
+	if ($year) {
 		my $library_id = $filter->{library_id} || Slim::Music::VirtualLibraries->getLibraryIdForClient($client);
 
 		my %actions = (
@@ -776,7 +802,6 @@ sub infoYear {
 
 		$item = {
 			type    => 'playlist',
-			url     => 'blabla',
 			name    => $year,
 			label   => 'YEAR',
 			itemActions => \%actions,
@@ -1198,6 +1223,23 @@ sub infoFileModTime {
 	return $item;
 }
 
+sub infoFileAddedTime {
+	my ( $client, $url, $track ) = @_;
+
+	my $item;
+	my $persistent = $track->retrievePersistent;
+
+	if ( my $age = ($persistent && $persistent->addedTime) || $track->addedTime ) {
+		$item = {
+			type => 'text',
+			label => 'ADDEDTIME',
+			name => $age,
+		};
+	}
+
+	return $item;
+}
+
 sub infoTagVersion {
 	my ( $client, $url, $track ) = @_;
 
@@ -1234,15 +1276,14 @@ sub infoTagDump {
 sub tagDump {
 	my ( $client, $callback, undef, $path, $key, $title ) = @_;
 
-	return unless $callback && $path;
-
-	$path =~ s/^tmp:/file:/;
+	return unless $path;
 
 	my $menu = [];
 	$key ||= '';
 
 	require Audio::Scan;
 	my $s = eval { Audio::Scan->scan_tags($path) };
+	my $colon = cstring($client, 'COLON');
 
 	if ( $@ ) {
 		$menu = {
@@ -1286,7 +1327,7 @@ sub tagDump {
 
 				push @{$menu}, {
 					type => 'text',
-					name => ($title || $k) . ': [ ' . join( ', ', @{$a} ) . ' ]',
+					name => ($title || $k) . "$colon [ " . join( ', ', @{$a} ) . ' ]',
 				};
 			}
 			else {
@@ -1296,7 +1337,7 @@ sub tagDump {
 
 				push @{$menu}, {
 					type => 'text',
-					name => ($title || $k) . ': ' . $v,
+					name => ($title || $k) . "$colon " . $v,
 				};
 			}
 		}
@@ -1309,7 +1350,7 @@ sub tagDump {
 		}
 	}
 
-	if (ref $callback) {
+	if ($callback && ref $callback) {
 		$callback->( $menu );
 	}
 	else {
@@ -1349,6 +1390,15 @@ sub cliQuery {
 	# special case-- playlist_index given but no trackId
 	if (defined($playlist_index) && ! $trackId ) {
 		if (my $track = Slim::Player::Playlist::track( $client, $playlist_index )) {
+			# If we have a RemoteTrack object, we try to get information from the local database anyway
+			if (ref $track eq 'Slim::Schema::RemoteTrack') {
+				if (my $localTrack = Slim::Schema->objectForUrl({
+					'url'      => $track->url,
+				})) {
+					$track = $localTrack;
+				};
+			}
+
 			$trackId = $track->id;
 			$url     = $track->url;
 			$request->addParam('track_id', $trackId);
